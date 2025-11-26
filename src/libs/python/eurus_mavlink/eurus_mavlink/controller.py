@@ -158,18 +158,27 @@ class EurusController:
             return 0
 
         try:
-            mode_id = self.master.mode_mapping().get(mode_name)
+            mode_map = self.master.mode_mapping()
+            if mode_map is None:
+                print("Mode mapping not available (no HEARTBEAT yet?)")
+                return 0
+
+            mode_id = mode_map.get(mode_name)
             if mode_id is None:
                 print(f"Mode {mode_name} not supported")
                 return 0
 
-            self.master.mav.set_mode_send(
+            self.master.mav.command_long_send(
                 self.master.target_system,
-                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                mode_id
+                self.master.target_component,
+                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                0,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # base_mode
+                mode_id,  # custom_mode (номер режима PX4)
+                0, 0, 0, 0, 0,
             )
 
-            print(f"Mode changed to {mode_name}")
+            print(f"Mode change command sent to {mode_name}")
             return 1
 
         except Exception as e:
