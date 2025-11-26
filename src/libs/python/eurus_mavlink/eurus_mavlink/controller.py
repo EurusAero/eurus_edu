@@ -1,6 +1,7 @@
 from pymavlink import mavutil
 import time
 import math
+from .const import *
 
 
 class EurusController:
@@ -138,20 +139,20 @@ class EurusController:
             print(f"Local position error: {e}")
             return 0
 
-# 'MANUAL',
-# 'ALTCTL',
-# 'POSCTL',
-# 'AUTO_MISSION',
-# 'AUTO_LOITER',
-# 'AUTO_RTL',
-# 'ACRO',
-# 'OFFBOARD',
-# 'STAB',
-# 'RATTITUDE',
-# 'AUTO_TAKEOFF',
-# 'AUTO_LAND',
-# 'AUTO_FOLLOW_TARGET',
-# 'MAX',
+    # 'MANUAL',
+    # 'ALTCTL',
+    # 'POSCTL',
+    # 'AUTO_MISSION',
+    # 'AUTO_LOITER',
+    # 'AUTO_RTL',
+    # 'ACRO',
+    # 'OFFBOARD',
+    # 'STAB',
+    # 'RATTITUDE',
+    # 'AUTO_TAKEOFF',
+    # 'AUTO_LAND',
+    # 'AUTO_FOLLOW_TARGET',
+    # 'MAX',
     def set_mode(self, mode_name):
         if not self.connected:
             print("Not connected")
@@ -160,23 +161,15 @@ class EurusController:
         try:
             mode_map = self.master.mode_mapping()
             if mode_map is None:
-                print("Mode mapping not available (no HEARTBEAT yet?)")
+                print("Mode mapping not available")
                 return 0
 
-            mode_id = mode_map.get(mode_name)
-            if mode_id is None:
+            mode_tuple = mode_map.get(mode_name)
+            if mode_tuple is None:
                 print(f"Mode {mode_name} not supported")
                 return 0
 
-            self.master.mav.command_long_send(
-                self.master.target_system,
-                self.master.target_component,
-                mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                0,
-                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,  # base_mode
-                mode_id,  # custom_mode (номер режима PX4)
-                0, 0, 0, 0, 0,
-            )
+            self.master.set_mode(*mode_tuple)
 
             print(f"Mode change command sent to {mode_name}")
             return 1
