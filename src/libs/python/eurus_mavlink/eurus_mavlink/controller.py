@@ -21,10 +21,21 @@ class EurusController:
             self.connected = False
             return 0
 
+    def disconnect(self):
+        if not self.connected:
+            print("Not connected")
+            return 0
+
+        try:
+            self.master.close()
+            self.connected = False
+            print("Disconnected from FC")
+            return 1
+        except Exception as e:
+            print(f"Disconnect error: {e}")
+            return 0
+
     def is_armed(self):
-        """
-        Возвращает 1 если дрон в состоянии ARMED, 0 если DISARMED
-        """
         try:
             msg = self.master.recv_match(type="HEARTBEAT", blocking=True, timeout=1)
             if not msg:
@@ -51,6 +62,19 @@ class EurusController:
             print(f"Arm error: {e}")
             return 0
 
+    def disarm(self):
+        if not self.connected:
+            print("Not connected")
+            return 0
+
+        try:
+            self.master.motors_disarmed_wait()
+            print("Disarmed!")
+            return 1
+        except Exception as e:
+            print(f"Disarm error: {e}")
+            return 0
+
     def takeoff(self, altitude=2):
         if not self.connected:
             print("Not connected")
@@ -62,12 +86,8 @@ class EurusController:
                 self.master.target_component,
                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
                 0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
+                0, 0, 0, 0,
+                0, 0,
                 altitude
             )
             print("Takeoff command sent!")
@@ -87,12 +107,8 @@ class EurusController:
                 self.master.target_component,
                 mavutil.mavlink.MAV_CMD_NAV_LAND,
                 0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
+                0, 0, 0, 0,
+                0, 0,
                 0
             )
             print("Land command sent!")
@@ -109,6 +125,8 @@ class EurusController:
         try:
             yaw = math.radians(yaw_deg)
 
+            frame = mavutil.mavlink.MAV_FRAME_LOCAL_NED
+
             type_mask = (
                 mavutil.mavlink.POSITION_TARGET_TYPEMASK_VX_IGNORE |
                 mavutil.mavlink.POSITION_TARGET_TYPEMASK_VY_IGNORE |
@@ -120,16 +138,14 @@ class EurusController:
             )
 
             self.master.mav.set_position_target_local_ned_send(
-                int(time.time() * 1000),
-                self.master.target_system,
-                self.master.target_component,
-                mavutil.mavlink.MAV_FRAME_LOCAL_NED,
+                0,
+                self.master.target_system, self.master.target_component,
+                frame,
                 type_mask,
-                float(x), float(y), float(z),
-                0, 0, 0,
-                0, 0, 0,
-                float(yaw),
-                0
+                x, y, z,
+                0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0,
+                yaw, 0.0
             )
 
             print(f"Local NED sent: x={x}, y={y}, z={z}, yaw={yaw_deg}")
@@ -139,20 +155,6 @@ class EurusController:
             print(f"Local position error: {e}")
             return 0
 
-    # 'MANUAL',
-    # 'ALTCTL',
-    # 'POSCTL',
-    # 'AUTO_MISSION',
-    # 'AUTO_LOITER',
-    # 'AUTO_RTL',
-    # 'ACRO',
-    # 'OFFBOARD',
-    # 'STAB',
-    # 'RATTITUDE',
-    # 'AUTO_TAKEOFF',
-    # 'AUTO_LAND',
-    # 'AUTO_FOLLOW_TARGET',
-    # 'MAX',
     def set_mode(self, mode_name):
         if not self.connected:
             print("Not connected")
