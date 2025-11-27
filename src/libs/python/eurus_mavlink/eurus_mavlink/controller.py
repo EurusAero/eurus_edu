@@ -1,7 +1,6 @@
 from pymavlink import mavutil
 import time
 import math
-from .const import *
 
 
 class EurusController:
@@ -138,7 +137,7 @@ class EurusController:
             )
 
             self.master.mav.set_position_target_local_ned_send(
-                0,
+                (time.time() * 1000),
                 self.master.target_system, self.master.target_component,
                 frame,
                 type_mask,
