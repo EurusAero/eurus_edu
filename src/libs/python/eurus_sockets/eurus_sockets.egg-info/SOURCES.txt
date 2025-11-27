@@ -1,9 +1,0 @@
-README.md
-setup.py
-eurus_sockets/__init__.py
-eurus_sockets/const.py
-eurus_sockets/utils.py
-eurus_sockets.egg-info/PKG-INFO
-eurus_sockets.egg-info/SOURCES.txt
-eurus_sockets.egg-info/dependency_links.txt
-eurus_sockets.egg-info/top_level.txt
