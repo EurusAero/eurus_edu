@@ -1,6 +1,6 @@
 import json
 import socket
-from .const import MESSAGES
+from .const import *
 
 class MessagesUtils:
     def __init__(self):
@@ -42,10 +42,10 @@ class MessagesUtils:
 
 
 class SocketsUtils:
-    def __init__(self, start_marker: str, end_marker: str):
+    def __init__(self):
         # Конвертируем маркеры в байты сразу при инициализации
-        self.start_marker = start_marker.encode('utf-8')
-        self.end_marker = end_marker.encode('utf-8')
+        self.start_marker = START_MARKER.encode('utf-8')
+        self.end_marker = END_MARKER.encode('utf-8')
 
     def send_json(self, conn: socket.socket, data_dict: dict):
         """

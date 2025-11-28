@@ -5,31 +5,32 @@ import configparser
 import logging
 import os
 
+# Импорты из вашего пакета
 from EurusEdu.utils import MessagesUtils, SocketsUtils
-from EurusEdu.const import START_MARKER, END_MARKER
+from EurusEdu.const import *
 
+# --- 1. ЗАГРУЗКА КОНФИГУРАЦИИ ---
 config = configparser.ConfigParser()
 config_path = '../eurus.ini'
 
-if not os.path.exists(config_path):
-    print(f"CRITICAL: Config file '{config_path}' not found!")
-    exit(1)
+# Дефолтные значения
+HOST = '127.0.0.1'
+PORT = 65432
+BUFFER_SIZE = 1024
+LOG_LEVEL = 'DEBUG'
+LOG_FILE = None
 
-config.read(config_path)
-
-HOST = config['SERVER']['HOST']
-PORT = int(config['SERVER']['PORT'])
-BUFFER_SIZE = int(config['SERVER']['BUFFER_SIZE'])
-
-# START_MARKER = config['PROTOCOL']['START_MARKER']
-# END_MARKER = config['PROTOCOL']['END_MARKER']
-
-LOG_LEVEL = config['LOGGING']['LEVEL'].upper()
-LOG_FILE = config['LOGGING'].get('FILE', None)
+if os.path.exists(config_path):
+    config.read(config_path)
+    HOST = config['SERVER']['HOST']
+    PORT = int(config['SERVER']['PORT'])
+    BUFFER_SIZE = int(config['SERVER']['BUFFER_SIZE'])
+    LOG_LEVEL = config['LOGGING']['LEVEL'].upper()
+    LOG_FILE = config['LOGGING'].get('FILE', None)
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.DEBUG),
-    format='[%(asctime)s] [%(levelname)s] %(message)s',
+    format='[SERVER] [%(asctime)s] [%(levelname)s] %(message)s',
     handlers=[
         logging.FileHandler(LOG_FILE) if LOG_FILE else logging.NullHandler(),
         logging.StreamHandler()
@@ -37,108 +38,152 @@ logging.basicConfig(
 )
 logger = logging.getLogger("EurusServer")
 
-# Инициализируем утилиты
-msg_utils = MessagesUtils()
-sock_utils = SocketsUtils(START_MARKER, END_MARKER)
 
-
-def process_message(conn, json_data, addr):
+class CommandHandler:
     """
-    Бизнес-логика обработки сообщения.
+    Класс, ответственный за выполнение команд.
+    Сюда мы передаем JSON, и здесь будет жить логика управления железом.
     """
-    if json_data is None:
-        logger.error(f"Ошибка декодирования (Unicode) от {addr}")
-        sock_utils.send_json(conn, {
-            "command": "response",
-            "status": "error",
-            "message": "Unicode decode error"
-        })
-        return
+    def __init__(self, session):
+        self.session = session  # Ссылка на сессию, чтобы отправлять ответы
 
-    try:
-        # 1. Парсинг JSON
-        message = json.loads(json_data)
-        logger.debug(f"Сообщение от {addr}: {json.dumps(message, ensure_ascii=False)}")
+    def handle(self, message: dict):
+        """
+        Главный метод обработки.
+        Сейчас это ЗАГЛУШКА: мы просто отказываем в выполнении.
+        """
+        command = message.get("command")
+        logger.debug(f"CommandHandler получил команду: {command}")
 
-        # 2. Валидация через MessagesUtils
-        result = msg_utils.validate_message(message)
-        logger.info(f"Валидация успешна для {addr}. Результат: {result}")
+        # --- ЗАГЛУШКА ---
+        # Так как реализация железа еще не готова, мы шлем отказ.
+        # Для команд движения (takeoff, land, goto) клиент ждет action_complete.
+        
+        response = {
+            "command": "action_complete",
+            "action": command,
+            "code": CODE_DENIED, # 400
+            "message": "Not implemented yet (Server Stub)"
+        }
+        
+        # Если это запрос телеметрии, клиент ждет response_telemetry,
+        # но пока мы тоже можем вернуть ошибку или пустую телеметрию.
+        if command == "request_telemetry":
+            response = {
+                "command": "response_telemetry",
+                "telemetry": {} # Пустая телеметрия
+            }
 
-        # 3. Отправка ответа
-        sock_utils.send_json(conn, {
-            "command": "response",
-            "status": "success",
-            "message": str(result)
-        })
-
-    except json.JSONDecodeError:
-        logger.warning(f"Невалидный JSON от {addr}: {json_data}")
-        sock_utils.send_json(conn, {
-            "command": "response",
-            "status": "error",
-            "message": "Invalid JSON format"
-        })
-
-    except Exception as e:
-        logger.error(f"Ошибка логики для {addr}: {e}", exc_info=True)
-        sock_utils.send_json(conn, {
-            "command": "response",
-            "status": "error",
-            "message": str(e)
-        })
+        # Отправляем ответ клиенту
+        self.session.send_json(response)
 
 
-def handle_client(conn, addr):
+class ClientSession:
     """
-    Цикл обработки клиента.
+    Класс, обслуживающий соединение.
+    Занимается только чтением, валидацией и передачей команд в Handler.
     """
-    logger.info(f"Новый клиент подключен: {addr}")
-    
-    buffer = b""
-    
-    try:
-        while True:
-            chunk = conn.recv(BUFFER_SIZE)
-            if not chunk:
-                break 
+    def __init__(self, conn, addr):
+        self.conn = conn
+        self.addr = addr
+        self.sock_utils = SocketsUtils()
+        self.msg_utils = MessagesUtils()
+        
+        # Инициализируем обработчик команд
+        self.command_handler = CommandHandler(self)
+        
+        self.socket_lock = threading.Lock()
+
+    def start(self):
+        logger.info(f"Сессия начата для {self.addr}")
+        buffer = b""
+        
+        try:
+            while True:
+                chunk = self.conn.recv(BUFFER_SIZE)
+                if not chunk:
+                    break
+                
+                buffer += chunk
+                messages, buffer = self.sock_utils.parse_buffer(buffer)
+                
+                for msg_str in messages:
+                    if msg_str:
+                        self._process_request(msg_str)
+                        
+        except ConnectionResetError:
+            logger.info(f"Клиент {self.addr} разорвал соединение.")
+        except Exception as e:
+            logger.error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
+        finally:
+            self.conn.close()
+            logger.info(f"Сессия завершена для {self.addr}")
+
+    def send_json(self, data):
+        """Публичный метод для отправки данных (используется CommandHandler-ом)."""
+        with self.socket_lock:
+            try:
+                self.sock_utils.send_json(self.conn, data)
+            except Exception as e:
+                logger.error(f"Не удалось отправить данные {self.addr}: {e}")
+
+    def _process_request(self, json_data):
+        """
+        Валидация и передача управления в CommandHandler.
+        """
+        try:
+            message = json.loads(json_data)
             
-            buffer += chunk
+            # 1. Валидация структуры (utils)
+            self.msg_utils.validate_message(message)
+            
+            # 2. Мгновенный ответ (ACK) - "Я тебя услышал"
+            self.send_json({
+                "command": "response",
+                "status": "success",
+                "message": "Command received"
+            })
+            
+            
+            threading.Thread(
+                target=self.command_handler.handle,
+                args=(message,),
+                daemon=True
+            ).start()
 
-            messages, buffer = sock_utils.parse_buffer(buffer)
-
-            for msg in messages:
-                process_message(conn, msg, addr)
-
-    except ConnectionResetError:
-        logger.info(f"Соединение сброшено клиентом {addr}")
-    except Exception as e:
-        logger.critical(f"Критическая ошибка с клиентом {addr}: {e}", exc_info=True)
-    finally:
-        conn.close()
-        logger.info(f"Соединение с {addr} закрыто")
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+            logger.warning(f"Ошибка валидации от {self.addr}: {e}")
+            self.send_json({
+                "command": "response",
+                "status": "error",
+                "message": str(e)
+            })
 
 
 def start_server():
-    logger.info(f"Запуск сервера на {HOST}:{PORT}...")
+    logger.info(f"Запуск сервера EurusEdu на {HOST}:{PORT}...")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     try:
         server.bind((HOST, PORT))
         server.listen()
-        logger.info("Сервер ожидает подключений...")
+        logger.info("Сервер готов и ожидает подключений.")
 
         while True:
             conn, addr = server.accept()
-            thread = threading.Thread(target=handle_client, args=(conn, addr))
+            session = ClientSession(conn, addr)
+            
+            thread = threading.Thread(target=session.start)
             thread.daemon = True
             thread.start()
-            logger.debug(f"Активных потоков: {threading.active_count() - 1}")
+            
+            logger.debug(f"Активных клиентов: {threading.active_count() - 1}")
 
     except KeyboardInterrupt:
-        logger.info("Остановка сервера (KeyboardInterrupt)...")
+        logger.info("\nОстановка сервера...")
     except Exception as e:
-        logger.critical(f"Ошибка при запуске сервера: {e}", exc_info=True)
+        logger.critical(f"Критическая ошибка сервера: {e}", exc_info=True)
     finally:
         server.close()
 

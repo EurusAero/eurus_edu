@@ -57,10 +57,9 @@ MESSAGES = {
     "disarm": DISARM_MSG
     }
 
-START_MARKER = '<msg>'
-END_MARKER = '</msg>'
+START_MARKER = '<msg>' # Маркер в начале каждого json сообщения
+END_MARKER = '</msg>' # Маркер в конце каждого json сообщения
 
-# Коды состояния действия (Action Codes)
 CODE_IN_PROGRESS = 100  # Действие принято и выполняется
-CODE_SUCCESS     = 200  # Действие успешно завершено
-CODE_DENIED      = 400  # Отказ в выполнении или ошибка
+CODE_SUCCESS = 200  # Действие успешно завершено
+CODE_DENIED = 400  # Отказ в выполнении или ошибка

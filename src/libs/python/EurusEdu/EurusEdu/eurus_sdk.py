@@ -3,11 +3,11 @@ import threading
 import json
 import time
 import logging
+import sys
 from .utils import SocketsUtils
-from .const import START_MARKER, END_MARKER
+from .const import *
 
-
-class EurusEdu:
+class EurusControl:
     def __init__(self, ip: str, port: int, log_file: str = None):
         self.ip = ip
         self.port = port
@@ -15,6 +15,7 @@ class EurusEdu:
         self.is_connected = False
         self.running = False
         
+        # --- Настройка Логгера ---
         self.logger = logging.getLogger("EurusEdu")
         self.logger.setLevel(logging.DEBUG)
         self.logger.handlers = []
@@ -30,29 +31,28 @@ class EurusEdu:
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
 
-        self.sock_utils = SocketsUtils(START_MARKER, END_MARKER)
-        
+        self.sock_utils = SocketsUtils()
         self.listener_thread = None
         
-        # Лок для записи в сокет (чтобы байты разных команд не перемешались)
-        self._socket_lock = threading.Lock()
-        
-        # Лок для блокирующих команд движения (goto, takeoff, land)
-        self._movement_lock = threading.Lock()
+        # --- Синхронизация ---
+        self._socket_lock = threading.Lock()   # Защита отправки данных
+        self._movement_lock = threading.Lock() # Защита логики полета (одна команда за раз)
         
         # События
-        self._response_event = threading.Event()       # Пришел любой ответ (ack)
-        self._action_complete_event = threading.Event() # Пришло action_complete
+        self._response_event = threading.Event()        # Пришел ACK (response)
+        self._action_started_event = threading.Event()  # Пришел код 100 (In Progress)
+        self._action_finished_event = threading.Event() # Пришел код 200 или 400
         self._telemetry_event = threading.Event()       # Пришла телеметрия
         
         # Хранилище данных
         self._last_telemetry_data = {}
-        self._last_response_status = None # success/error
+        self._last_response_status = None
+        self._last_action_code = None
+        self._last_action_message = ""
 
     def connect(self):
-        """Подключение к серверу."""
         if self.is_connected:
-            self.logger.warning("Дрон уже подключен.")
+            self.logger.warning("Уже подключен.")
             return
 
         try:
@@ -71,7 +71,6 @@ class EurusEdu:
             self.is_connected = False
 
     def disconnect(self):
-        """Отключение от сервера."""
         self.running = False
         self.is_connected = False
         if self.sock:
@@ -79,12 +78,10 @@ class EurusEdu:
                 self.sock.close()
             except Exception:
                 pass
-        self.logger.info("Отключено от сервера.")
+        self.logger.info("Соединение закрыто.")
 
     def _listen_server(self):
-        """
-        Фоновый поток: слушает сокет, логирует входящие сообщения и управляет событиями.
-        """
+        """Фоновый поток прослушивания."""
         buffer = b""
         while self.running and self.sock:
             try:
@@ -103,21 +100,27 @@ class EurusEdu:
                         
                     try:
                         msg_dict = json.loads(raw_msg)
-                        # Логируем все входящие сообщения
                         self.logger.info(f"[RX] {json.dumps(msg_dict, ensure_ascii=False)}")
                         
                         command = msg_dict.get("command")
                         
-                        # 1. Обработка стандартного ответа (ACK)
+                        # 1. ACK (подтверждение приема команды)
                         if command == "response":
                             self._last_response_status = msg_dict.get("status")
                             self._response_event.set()
                             
-                        # 2. Обработка завершения действия
+                        # 2. Action Complete (статусы выполнения)
                         elif command == "action_complete":
-                            self._action_complete_event.set()
+                            code = msg_dict.get("code")
+                            self._last_action_message = msg_dict.get("message", "")
                             
-                        # 3. Обработка телеметрии
+                            if code == CODE_IN_PROGRESS:
+                                self._action_started_event.set()
+                            elif code in [CODE_SUCCESS, CODE_DENIED]:
+                                self._last_action_code = code
+                                self._action_finished_event.set()
+                            
+                        # 3. Телеметрия
                         elif command == "response_telemetry":
                             self._last_telemetry_data = msg_dict.get("telemetry", {})
                             self._telemetry_event.set()
@@ -125,124 +128,134 @@ class EurusEdu:
                     except json.JSONDecodeError:
                         self.logger.error(f"Битый JSON: {raw_msg}")
                         
-            except socket.error as e:
+            except socket.error:
                 if self.running:
-                    self.logger.error(f"Ошибка сокета: {e}")
                     self.disconnect()
                 break
 
-    def _send_command(self, payload, wait_for_action=False):
-        """
-        Универсальный метод отправки.
-        1. Отправляет команду.
-        2. Ждет подтверждения (response) 30 секунд.
-        3. Если wait_for_action=True, ждет action_complete (без таймаута или с большим).
-        """
-        if not self.is_connected:
-            self.logger.error("Нет соединения. Команда отклонена.")
-            return
-
-        # Сбрасываем события перед отправкой
-        self._response_event.clear()
-        if wait_for_action:
-            self._action_complete_event.clear()
-
-        # Отправка данных (защищена локом сокета)
+    def _send_raw(self, payload):
+        """Простая отправка без ожиданий (внутренний метод)."""
         with self._socket_lock:
             try:
                 self.sock_utils.send_json(self.sock, payload)
-                self.logger.info(f"[TX] Команда отправлена: {payload['command']}")
+                self.logger.info(f"[TX] {payload['command']}")
             except Exception as e:
-                self.logger.error(f"Ошибка отправки данных: {e}")
+                self.logger.error(f"Ошибка отправки: {e}")
+                self.disconnect()
+
+    def _wait_for_ack(self, timeout=30.0):
+        """Ждет подтверждения приема команды (response)."""
+        if not self._response_event.wait(timeout=timeout):
+            self.logger.critical("ТАЙМ-АУТ: Нет подтверждения (ACK) от сервера 30 сек!")
+            return False
+        if self._last_response_status != "success":
+            self.logger.error("Сервер вернул ошибку в response.")
+            return False
+        return True
+
+    def _send_movement_command(self, payload):
+        """
+        Логика для блокирующих команд (goto, takeoff, land).
+        1. Отправка -> Ждем ACK (30с).
+        2. Ждем CODE 100 (10с). Если нет -> LAND -> Disconnect.
+        3. Ждем CODE 200/400 (бесконечно или долго).
+        """
+        if not self.is_connected:
+            self.logger.error("Нет соединения.")
+            return
+
+        # Блокируем выполнение других команд движения
+        with self._movement_lock:
+            # Сброс событий
+            self._response_event.clear()
+            self._action_started_event.clear()
+            self._action_finished_event.clear()
+
+            # 1. Отправка
+            self._send_raw(payload)
+
+            # 2. Ожидание ACK (30 сек)
+            if not self._wait_for_ack(30.0):
                 self.disconnect()
                 return
 
-        # --- ОЖИДАНИЕ ПОДТВЕРЖДЕНИЯ (30 сек) ---
-        if not self._response_event.wait(timeout=30.0):
-            self.logger.critical("ТАЙМ-АУТ: Нет подтверждения от сервера 30 секунд! Отключаемся.")
+            # 3. Ожидание статуса "В ПРОЦЕССЕ" (10 сек)
+            self.logger.info(f"Ожидание начала выполнения {payload['command']}...")
+            if not self._action_started_event.wait(timeout=10.0):
+                self.logger.critical(f"Команда {payload['command']} не перешла в статус выполнения за 10 cек")
+                self.logger.critical("Инициирую аварийную посадку (LAND)...")
+                
+                #Аварийная отправка LAND (без блокировок, напрямую)
+                self._send_raw({"command": "land"})
+                
+                self.logger.critical("Отключаюсь от сервера.")
+                self.disconnect()
+                return
+
+            self.logger.info(f"Действие {payload['command']} выполняется (Code {CODE_IN_PROGRESS})...")
+
+            # 4. Ожидание ЗАВЕРШЕНИЯ (Code 200 или 400)
+            # Здесь можно поставить wait без таймаута, так как дрон может лететь долго
+            self._action_finished_event.wait()
+            
+            if self._last_action_code == CODE_SUCCESS:
+                self.logger.info(f"Действие {payload['command']} успешно завершено (Code 200).")
+            else:
+                self.logger.error(f"Действие {payload['command']} отклонено/провалено (Code {self._last_action_code}). Msg: {self._last_action_message}")
+
+    def _send_simple_command(self, payload):
+        """Для команд типа arm/disarm (ждем только ACK)."""
+        if not self.is_connected: return
+        
+        self._response_event.clear()
+        self._send_raw(payload)
+        
+        if not self._wait_for_ack(30.0):
             self.disconnect()
-            return
 
-        # Проверяем статус ответа
-        if self._last_response_status != "success":
-            self.logger.error(f"Сервер вернул ошибку на команду {payload['command']}.")
-            return # Не ждем action_complete, если команда отвергнута
-
-        # --- ОЖИДАНИЕ ЗАВЕРШЕНИЯ ДЕЙСТВИЯ (если нужно) ---
-        if wait_for_action:
-            self.logger.info(f"Ожидание завершения действия {payload['command']}...")
-            self._action_complete_event.wait()
-            self.logger.info(f"Действие {payload['command']} завершено.")
-
+    # --- API МЕТОДЫ ---
 
     def arm(self):
-        """Арминг дрона. Ждет подтверждения приема команды."""
-        # Обычно arm не блокирует надолго, но если нужно ждать action_complete,
-        # поменяйте wait_for_action=True. По умолчанию ждем только ACK.
-        self._send_command({"command": "arm"}, wait_for_action=True)
+        self._send_simple_command({"command": "arm"})
 
     def disarm(self):
-        """Дизарминг дрона. Ждет подтверждения приема команды."""
-        self._send_command({"command": "disarm"}, wait_for_action=False)
+        self._send_simple_command({"command": "disarm"})
 
     def takeoff(self, altitude):
-        """Взлет. Блокирует поток до action_complete."""
-        with self._movement_lock:
-            self._send_command({
-                "command": "takeoff",
-                "altitude": float(altitude)
-            }, wait_for_action=True)
+        self._send_movement_command({
+            "command": "takeoff",
+            "altitude": float(altitude)
+        })
 
     def land(self):
-        """Посадка. Блокирует поток до action_complete."""
-        with self._movement_lock:
-            self._send_command({
-                "command": "land"
-            }, wait_for_action=True)
+        self._send_movement_command({"command": "land"})
 
     def goto(self, x, y, z, yaw):
-        """Полет в точку. Блокирует поток до action_complete."""
-        with self._movement_lock:
-            self._send_command({
-                "command": "goto",
-                "x": float(x),
-                "y": float(y),
-                "z": float(z),
-                "yaw": float(yaw)
-            }, wait_for_action=True)
+        self._send_movement_command({
+            "command": "goto",
+            "x": float(x),
+            "y": float(y),
+            "z": float(z),
+            "yaw": float(yaw)
+        })
 
     def request_telemetry(self):
-        """
-        Запрос телеметрии.
-        Не блокирует movement_lock (можно вызывать во время полета).
-        Ждет подтверждения (30с) и затем данных телеметрии.
-        """
-        if not self.is_connected:
-            return None
+        """Запрос телеметрии (не блокирует движение)."""
+        if not self.is_connected: return None
 
         self._telemetry_event.clear()
-        self._response_event.clear() # Также ждем ACK на сам запрос
+        self._response_event.clear() # Ждем ACK на запрос
 
         # Отправляем запрос
-        with self._socket_lock:
-            try:
-                self.sock_utils.send_json(self.sock, {"command": "request_telemetry"})
-            except Exception:
-                return None
+        self._send_raw({"command": "request_telemetry"})
 
-        # 1. Ждем ACK (30 сек)
-        if not self._response_event.wait(timeout=30.0):
-            self.logger.critical("ТАЙМ-АУТ: Нет подтверждения запроса телеметрии! Отключаемся.")
-            self.disconnect()
-            return None
-            
-        if self._last_response_status != "success":
-            self.logger.error("Сервер отклонил запрос телеметрии.")
+        # Ждем ACK
+        if not self._wait_for_ack(30.0):
             return None
 
-        # 2. Ждем сами данные (таймаут 2 сек, чтобы не висеть вечно)
+        # Ждем данные
         if self._telemetry_event.wait(timeout=2.0):
             return self._last_telemetry_data
         else:
-            self.logger.warning("Данные телеметрии не пришли вовремя.")
+            self.logger.warning("Телеметрия не пришла.")
             return None

@@ -1,1 +1,1 @@
-from .eurus_sdk import EurusEdu
+from .eurus_sdk import EurusControl
