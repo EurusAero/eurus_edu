@@ -1,146 +1,144 @@
 import socket
 import json
 import threading
-import time
-# Предполагаем, что эта библиотека у вас есть.
-# Если тестируете без неё, закомментируйте импорт и использование.
-from eurus_sockets.utils import MessagesUtils
+import configparser
+import logging
+import os
 
-# Конфигурация сервера
-HOST = '127.0.0.1'
-PORT = 65432
+from EurusEdu.utils import MessagesUtils, SocketsUtils
+from EurusEdu.const import START_MARKER, END_MARKER
 
-# Маркеры пакета
-START_MARKER = b'<msg>'
-END_MARKER = b'</msg>'
+config = configparser.ConfigParser()
+config_path = '../eurus.ini'
 
-def send_response(conn, data_dict):
-    """
-    Утилита для отправки JSON-ответа клиенту в "обертке" маркеров.
-    """
-    try:
-        response_json = json.dumps(data_dict)
-        # Формируем пакет: <cmd>{JSON}</cmd>
-        packet = START_MARKER + response_json.encode('utf-8') + END_MARKER
-        conn.sendall(packet)
-    except Exception as e:
-        print(f"[ERROR] Не удалось отправить ответ клиенту: {e}")
+if not os.path.exists(config_path):
+    print(f"CRITICAL: Config file '{config_path}' not found!")
+    exit(1)
+
+config.read(config_path)
+
+HOST = config['SERVER']['HOST']
+PORT = int(config['SERVER']['PORT'])
+BUFFER_SIZE = int(config['SERVER']['BUFFER_SIZE'])
+
+# START_MARKER = config['PROTOCOL']['START_MARKER']
+# END_MARKER = config['PROTOCOL']['END_MARKER']
+
+LOG_LEVEL = config['LOGGING']['LEVEL'].upper()
+LOG_FILE = config['LOGGING'].get('FILE', None)
+
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.DEBUG),
+    format='[%(asctime)s] [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE) if LOG_FILE else logging.NullHandler(),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("EurusServer")
+
+# Инициализируем утилиты
+msg_utils = MessagesUtils()
+sock_utils = SocketsUtils(START_MARKER, END_MARKER)
+
 
 def process_message(conn, json_data, addr):
     """
-    Функция бизнес-логики.
-    Обратите внимание: мы добавили аргумент conn, чтобы иметь возможность отвечать.
+    Бизнес-логика обработки сообщения.
     """
-    msg_utils = MessagesUtils()
-    
-    try:
-        # 1. Пытаемся распарсить JSON
-        message = json.loads(json_data)
-        print(f"\n[NEW MESSAGE] От {addr}:")
-        print(json.dumps(message, indent=4, ensure_ascii=False))
-        
-        # 2. Выполняем бизнес-логику
-        # Здесь может возникнуть ошибка внутри compare_messages
-        result = msg_utils.compare_messages(message)
-        print(f"Результат обработки: {result}")
+    if json_data is None:
+        logger.error(f"Ошибка декодирования (Unicode) от {addr}")
+        sock_utils.send_json(conn, {
+            "command": "response",
+            "status": "error",
+            "message": "Unicode decode error"
+        })
+        return
 
-        # (Опционально) Можно отправить подтверждение успеха
-        send_response(conn, {"status": "success", "result": str(result)})
+    try:
+        # 1. Парсинг JSON
+        message = json.loads(json_data)
+        logger.debug(f"Сообщение от {addr}: {json.dumps(message, ensure_ascii=False)}")
+
+        # 2. Валидация через MessagesUtils
+        result = msg_utils.validate_message(message)
+        logger.info(f"Валидация успешна для {addr}. Результат: {result}")
+
+        # 3. Отправка ответа
+        sock_utils.send_json(conn, {
+            "command": "response",
+            "status": "success",
+            "message": str(result)
+        })
 
     except json.JSONDecodeError:
-        err_msg = f"[ERROR] Невалидный JSON от {addr}"
-        print(err_msg)
-        # Отправляем ошибку клиенту
-        send_response(conn, {
-            "status": "error", 
-            "code": 400, 
+        logger.warning(f"Невалидный JSON от {addr}: {json_data}")
+        sock_utils.send_json(conn, {
+            "command": "response",
+            "status": "error",
             "message": "Invalid JSON format"
         })
 
     except Exception as e:
-        # Ловим ошибки бизнес-логики (например, внутри msg_utils)
-        err_msg = f"[ERROR] Внутренняя ошибка обработки: {e}"
-        print(err_msg)
-        # Отправляем ошибку клиенту
-        send_response(conn, {
-            "status": "error", 
-            "code": 500, 
+        logger.error(f"Ошибка логики для {addr}: {e}", exc_info=True)
+        sock_utils.send_json(conn, {
+            "command": "response",
+            "status": "error",
             "message": str(e)
         })
 
 
 def handle_client(conn, addr):
     """
-    Обработчик отдельного клиента.
+    Цикл обработки клиента.
     """
-    print(f"[CONNECTION] Новый клиент подключен: {addr}")
+    logger.info(f"Новый клиент подключен: {addr}")
     
     buffer = b""
     
     try:
         while True:
-            chunk = conn.recv(1024)
+            chunk = conn.recv(BUFFER_SIZE)
             if not chunk:
                 break 
             
             buffer += chunk
 
-            while True:
-                start_index = buffer.find(START_MARKER)
-                end_index = buffer.find(END_MARKER, start_index) if start_index != -1 else -1
+            messages, buffer = sock_utils.parse_buffer(buffer)
 
-                if start_index != -1 and end_index != -1:
-                    payload = buffer[start_index + len(START_MARKER) : end_index]
-                    
-                    # Очистка буфера СРАЗУ, чтобы не потерять хвост при ошибке декодирования
-                    buffer = buffer[end_index + len(END_MARKER):]
-                    
-                    try:
-                        decoded_payload = payload.decode('utf-8')
-                        # Передаем conn в функцию обработки
-                        process_message(conn, decoded_payload, addr)
-                        
-                    except UnicodeDecodeError:
-                        print(f"[ERROR] Ошибка кодировки от {addr}")
-                        send_response(conn, {
-                            "status": "error", 
-                            "code": 400, 
-                            "message": "Unicode decode error"
-                        })
-                else:
-                    break
-            
-            # Небольшая задержка, чтобы не грузить CPU в цикле while True (хотя recv блокирующий)
-            # В данном месте она может быть полезной, если буфер обрабатывается быстрее поступления данных
-            # time.sleep(0.01) 
+            for msg in messages:
+                process_message(conn, msg, addr)
 
     except ConnectionResetError:
-        print(f"[DISCONNECT] Соединение сброшено клиентом {addr}")
+        logger.info(f"Соединение сброшено клиентом {addr}")
     except Exception as e:
-        print(f"[ERROR] Критическая ошибка с клиентом {addr}: {e}")
+        logger.critical(f"Критическая ошибка с клиентом {addr}: {e}", exc_info=True)
     finally:
         conn.close()
-        print(f"[CLOSED] Соединение с {addr} закрыто")
+        logger.info(f"Соединение с {addr} закрыто")
+
 
 def start_server():
-    print(f"[STARTING] Сервер запускается на {HOST}:{PORT}...")
+    logger.info(f"Запуск сервера на {HOST}:{PORT}...")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     try:
         server.bind((HOST, PORT))
         server.listen()
-        print("[LISTENING] Сервер ожидает подключений...")
+        logger.info("Сервер ожидает подключений...")
 
         while True:
             conn, addr = server.accept()
             thread = threading.Thread(target=handle_client, args=(conn, addr))
             thread.daemon = True
             thread.start()
-            print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+            logger.debug(f"Активных потоков: {threading.active_count() - 1}")
 
     except KeyboardInterrupt:
-        print("\n[STOPPING] Остановка сервера...")
+        logger.info("Остановка сервера (KeyboardInterrupt)...")
+    except Exception as e:
+        logger.critical(f"Ошибка при запуске сервера: {e}", exc_info=True)
     finally:
         server.close()
 
