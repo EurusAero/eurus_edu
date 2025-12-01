@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'api_server = eurus_api_server.api_server:start_server',
         ],
     },
 )
