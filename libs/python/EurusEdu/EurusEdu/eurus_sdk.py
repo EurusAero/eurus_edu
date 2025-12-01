@@ -40,8 +40,8 @@ class EurusControl:
         
         # События
         self._response_event = threading.Event()        # Пришел ACK (response)
-        self._action_started_event = threading.Event()  # Пришел код 100 (In Progress)
-        self._action_finished_event = threading.Event() # Пришел код 200 или 400
+        self._action_started_event = threading.Event()  # Пришел код PENDING (Server принял в работу)
+        self._action_finished_event = threading.Event() # Пришел код SUCCESS или DENIED
         self._telemetry_event = threading.Event()       # Пришла телеметрия
         
         # Хранилище данных
@@ -104,21 +104,30 @@ class EurusControl:
                         
                         command = msg_dict.get("command")
                         
-                        # 1. ACK (подтверждение приема команды)
+                        # 1. ACK (подтверждение приема JSON)
                         if command == "response":
                             self._last_response_status = msg_dict.get("status")
                             self._response_event.set()
                             
-                        # 2. Action Complete (статусы выполнения)
+                        # 2. Action Status (статусы выполнения логики)
                         elif command == "action_status":
                             code = msg_dict.get("status")
                             self._last_action_message = msg_dict.get("message", "")
                             
                             if code == PENDING_STATUS:
+                                # Сервер сказал "Принял в обработку"
                                 self._action_started_event.set()
+                                
                             elif code in [COMPLETED_STATUS, DENIED_STATUS]:
+                                # Сервер сказал "Готово" или "Отказано"
                                 self._last_action_code = code
                                 self._action_finished_event.set()
+                                
+                                # ВАЖНО: Если команда сразу отклонена (denied), статус PENDING мог и не прийти.
+                                # Разблокируем ожидание старта, чтобы не словить таймаут.
+                                self._action_started_event.set()
+                            
+                            # RUNNING_STATUS можно игнорировать или логировать, блокировка снимается только по finished
                             
                         # 3. Телеметрия
                         elif command == "response_telemetry":
@@ -144,7 +153,7 @@ class EurusControl:
                 self.disconnect()
 
     def _wait_for_ack(self, timeout=30.0):
-        """Ждет подтверждения приема команды (response)."""
+        """Ждет подтверждения, что сервер валидировал JSON."""
         if not self._response_event.wait(timeout=timeout):
             self.logger.critical("ТАЙМ-АУТ: Нет подтверждения (ACK) от сервера 30 сек!")
             return False
@@ -154,65 +163,68 @@ class EurusControl:
         return True
 
     def _send_movement_command(self, payload):
+        """
+        Блокирующий метод отправки команд.
+        Ждет пока команда не завершится (success) или не будет отклонена (denied).
+        """
         if not self.is_connected:
             self.logger.error("Нет соединения.")
             return
 
-        # Блокируем выполнение других команд движения
+        # Блокируем выполнение других команд движения (Movement Lock)
+        # Следующий вызов этого метода встанет здесь в очередь
         with self._movement_lock:
             # Сброс событий
             self._response_event.clear()
             self._action_started_event.clear()
             self._action_finished_event.clear()
 
-            # 1. Отправка
+            cmd_name = payload['command']
+
+            # 1. Отправка JSON
             self._send_raw(payload)
 
-            # 2. Ожидание ACK (30 сек)
+            # 2. Ожидание ACK (что JSON дошел и валиден)
             if not self._wait_for_ack(30.0):
                 self.disconnect()
                 return
 
-            # 3. Ожидание статуса "В ПРОЦЕССЕ" (10 сек)
-            self.logger.info(f"Ожидание начала выполнения {payload['command']}...")
+            # 3. Ожидание статуса PENDING (или быстрого отказа)
+            self.logger.info(f"Ожидание запуска команды {cmd_name}...")
             if not self._action_started_event.wait(timeout=10.0):
-                self.logger.critical(f"Команда {payload['command']} не перешла в статус выполнения за 10 cек")
-                self.logger.critical("Инициирую аварийную посадку (LAND)...")
-                
-                #Аварийная отправка LAND (без блокировок, напрямую)
-                self._send_raw({"command": "land"})
-                
-                self.logger.critical("Отключаюсь от сервера.")
+                self.logger.critical(f"Команда {cmd_name} не перешла в статус обработки (PENDING) за 10 cек")
+                self.logger.critical("Возможно сервер занят или завис. Отключаюсь.")
                 self.disconnect()
                 return
 
-            self.logger.info(f"Действие {payload['command']} выполняется (Code {RUNNING_STATUS})...")
+            # Если мы здесь, значит команда либо "pending", либо уже быстро завершилась/отклонилась
+            # Проверяем, не отказал ли сервер сразу (busy)
+            if self._action_finished_event.is_set() and self._last_action_code == DENIED_STATUS:
+                 self.logger.error(f"Команда {cmd_name} отклонена сервером: {self._last_action_message}")
+                 return # Выходим, освобождая movement_lock
 
-            # Здесь можно поставить wait без таймаута, так как дрон может лететь долго
+            self.logger.info(f"Команда {cmd_name} выполняется...")
+
+            # 4. Ожидание окончательного статуса (COMPLETED или DENIED)
+            # wait без таймаута, так как полет может длиться долго
             self._action_finished_event.wait()
             
             if self._last_action_code == COMPLETED_STATUS:
-                self.logger.info(f"Действие {payload['command']} успешно завершено (Code 200).")
+                self.logger.info(f"Команда {cmd_name} успешно завершена (Status: {COMPLETED_STATUS}).")
             else:
-                self.logger.error(f"Действие {payload['command']} отклонено/провалено (Code {self._last_action_code}). Msg: {self._last_action_message}")
-
-    def _send_simple_command(self, payload):
-        """Для команд типа arm/disarm (ждем только ACK)."""
-        if not self.is_connected: return
+                self.logger.error(f"Команда {cmd_name} завершилась неудачей (Status: {self._last_action_code}). Msg: {self._last_action_message}")
         
-        self._response_event.clear()
-        self._send_raw(payload)
-        
-        if not self._wait_for_ack(30.0):
-            self.disconnect()
+        # Lock освобождается здесь автоматически, разрешая следующую команду
 
     # --- API МЕТОДЫ ---
 
     def arm(self):
-        self._send_simple_command({"command": "arm"})
+        # Используем movement_command, чтобы ждать завершения арминга
+        self._send_movement_command({"command": "arm"})
 
     def disarm(self):
-        self._send_simple_command({"command": "disarm"})
+        # Используем movement_command, чтобы ждать завершения дизарминга
+        self._send_movement_command({"command": "disarm"})
 
     def takeoff(self, altitude):
         self._send_movement_command({
@@ -236,6 +248,9 @@ class EurusControl:
         """Запрос телеметрии (не блокирует движение)."""
         if not self.is_connected: return None
 
+        # Телеметрия имеет свою логику ожиданий и не использует movement_lock,
+        # поэтому её можно вызывать параллельно полету.
+        
         self._telemetry_event.clear()
         self._response_event.clear() # Ждем ACK на запрос
 
