@@ -74,7 +74,7 @@ def process_video(source, model_path, output_folder="output_videos"):
         # ----------------------------------------
 
         # (Опционально) Показать окно с процессом
-        cv2.imshow("YOLO Processing", annotated_frame)
+        # cv2.imshow("YOLO Processing", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
