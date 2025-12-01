@@ -5,20 +5,15 @@ import configparser
 import logging
 import os
 
-# Импорты из вашего пакета
 from EurusEdu.utils import MessagesUtils, SocketsUtils
 from EurusEdu.const import *
 
-# --- 1. ЗАГРУЗКА КОНФИГУРАЦИИ ---
-config = configparser.ConfigParser()
-config_path = '../eurus.ini'
+import rclpy
+from rclpy.node import node
+from eurus_msgs.msg import Command
 
-# Дефолтные значения
-HOST = '127.0.0.1'
-PORT = 65432
-BUFFER_SIZE = 1024
-LOG_LEVEL = 'DEBUG'
-LOG_FILE = None
+config = configparser.ConfigParser()
+config_path = '/home/orangepi/ros2_ws/src/eurus_edu/eurus_api_server/eurus.ini'
 
 if os.path.exists(config_path):
     config.read(config_path)
@@ -38,6 +33,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("EurusServer")
 
+class CommandPublisher(Node):
+    def __init__(self):
+        self.publisher_ = self.create_publisher(Command, 'topic', 10)
+        
+        self.is_busy = False
+    
+    def publish_new_command(self, command_name: str, data: dict):
+        if self.is_busy:
+            return False
+        
+        msg = Command()
+        
+        
 
 class CommandHandler:
     """
@@ -60,7 +68,7 @@ class CommandHandler:
         # Для команд движения (takeoff, land, goto) клиент ждет action_complete.
         
         response = {
-            "command": "action_complete",
+            "command": "action_status",
             "action": command,
             "code": CODE_DENIED, # 400
             "message": "Not implemented yet (Server Stub)"

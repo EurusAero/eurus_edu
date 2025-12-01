@@ -1,0 +1,17 @@
+network:
+  version: 2
+  renderer: NetworkManager
+  wifis:
+    wlx90de80a49f46:
+      dhcp4: true
+      optional: true
+      access-points:
+        "EURUS_EDU_01":
+          auth:
+            key-management: psk
+            password: "euruswifi"
+          mode: ap
+          band: 5GHz
+          networkmanager:
+            passthrough:
+              wifi-security.proto: "rsn" # WPA2 only

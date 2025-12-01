@@ -1,6 +1,6 @@
 from EurusEdu import EurusControl
 
-drone = EurusControl("127.0.0.1", 65432)
+drone = EurusControl("192.168.31.251", 65432)
 
 drone.connect()
 drone.arm()
