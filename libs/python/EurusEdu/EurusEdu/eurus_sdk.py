@@ -110,13 +110,13 @@ class EurusControl:
                             self._response_event.set()
                             
                         # 2. Action Complete (статусы выполнения)
-                        elif command == "action_complete":
-                            code = msg_dict.get("code")
+                        elif command == "action_status":
+                            code = msg_dict.get("status")
                             self._last_action_message = msg_dict.get("message", "")
                             
-                            if code == CODE_IN_PROGRESS:
+                            if code == PENDING_STATUS:
                                 self._action_started_event.set()
-                            elif code in [CODE_SUCCESS, CODE_DENIED]:
+                            elif code in [COMPLETED_STATUS, DENIED_STATUS]:
                                 self._last_action_code = code
                                 self._action_finished_event.set()
                             
@@ -154,12 +154,6 @@ class EurusControl:
         return True
 
     def _send_movement_command(self, payload):
-        """
-        Логика для блокирующих команд (goto, takeoff, land).
-        1. Отправка -> Ждем ACK (30с).
-        2. Ждем CODE 100 (10с). Если нет -> LAND -> Disconnect.
-        3. Ждем CODE 200/400 (бесконечно или долго).
-        """
         if not self.is_connected:
             self.logger.error("Нет соединения.")
             return
@@ -192,13 +186,12 @@ class EurusControl:
                 self.disconnect()
                 return
 
-            self.logger.info(f"Действие {payload['command']} выполняется (Code {CODE_IN_PROGRESS})...")
+            self.logger.info(f"Действие {payload['command']} выполняется (Code {RUNNING_STATUS})...")
 
-            # 4. Ожидание ЗАВЕРШЕНИЯ (Code 200 или 400)
             # Здесь можно поставить wait без таймаута, так как дрон может лететь долго
             self._action_finished_event.wait()
             
-            if self._last_action_code == CODE_SUCCESS:
+            if self._last_action_code == COMPLETED_STATUS:
                 self.logger.info(f"Действие {payload['command']} успешно завершено (Code 200).")
             else:
                 self.logger.error(f"Действие {payload['command']} отклонено/провалено (Code {self._last_action_code}). Msg: {self._last_action_message}")

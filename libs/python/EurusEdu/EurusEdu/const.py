@@ -38,10 +38,10 @@ RESPONSE_MSG = {
     "message": str
 }
 
-ACTION_COMPLETE_MSG = {
+ACTION_STATUS_MSG = {
     "command": str,
     "action": str,
-    "code": int,
+    "status": str,
     "message": str
 }
 
@@ -50,16 +50,22 @@ MESSAGES = {
     "takeoff": TAKEOFF_MSG,
     "land": LAND_MSG,
     "response": RESPONSE_MSG,
-    "action_complete": ACTION_COMPLETE_MSG,
+    "action_status": ACTION_STATUS_MSG,
     "request_telemetry": TELEMETRY_REQUEST_MSG,
     "response_telemetry": TELEMETRY_RESPONSE_MSG,
     "arm": ARM_MSG,
     "disarm": DISARM_MSG
     }
 
+PENDING_STATUS = "pending"
+RUNNING_STATUS = "running"
+DENIED_STATUS = "denied"
+COMPLETED_STATUS = "success"
+
+STATUS_LIST = [PENDING_STATUS, RUNNING_STATUS, DENIED_STATUS, COMPLETED_STATUS]
+
+DRONE_COMMANDS = ["goto", "takeoff", "land", "arm", "disarm"]
+
 START_MARKER = '<msg>' # Маркер в начале каждого json сообщения
 END_MARKER = '</msg>' # Маркер в конце каждого json сообщения
 
-CODE_IN_PROGRESS = 100  # Действие принято и выполняется
-CODE_SUCCESS = 200  # Действие успешно завершено
-CODE_DENIED = 400  # Отказ в выполнении или ошибка
