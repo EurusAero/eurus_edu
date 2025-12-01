@@ -15,23 +15,16 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from eurus_msgs.msg import Command, Telemetry
 
-# --- КОНФИГУРАЦИЯ ---
 config = configparser.ConfigParser()
 config_path = '/home/orangepi/ros2_ws/src/eurus_edu/eurus_api_server/eurus.ini'
 
-HOST = '0.0.0.0'
-PORT = 8000
-BUFFER_SIZE = 4096
-LOG_LEVEL = 'DEBUG'
-LOG_FILE = None
-
 if os.path.exists(config_path):
     config.read(config_path)
-    HOST = config['SERVER'].get('HOST', HOST)
-    PORT = int(config['SERVER'].get('PORT', PORT))
-    BUFFER_SIZE = int(config['SERVER'].get('BUFFER_SIZE', BUFFER_SIZE))
-    LOG_LEVEL = config['LOGGING'].get('LEVEL', 'DEBUG').upper()
-    LOG_FILE = config['LOGGING'].get('FILE', None)
+    HOST = config['server'].get('host')
+    PORT = int(config['server'].get('port'))
+    BUFFER_SIZE = int(config['server'].get('buffer_size'))
+    LOG_LEVEL = config['logging'].get('level', 'DEBUG').upper()
+    LOG_FILE = config['logging'].get('file', None)
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.DEBUG),
@@ -156,7 +149,6 @@ class EurusApiNode(Node):
         # --- 2. Обработка Команд Дрона (Блокирующие) ---
         if cmd_name in DRONE_COMMANDS:
             if self.is_busy:
-                # Если занят - отказ
                 return {
                     "command": "action_status",
                     "action": cmd_name,
@@ -164,27 +156,22 @@ class EurusApiNode(Node):
                     "message": f"Server busy executing: {self.current_command_name}"
                 }
             
-            # Если свободен - запускаем
             self.is_busy = True
             self.current_command_name = cmd_name
-            self.current_command_id = time.time() # Генерируем ID
-            self.set_active_session(session) # Запоминаем, кому отвечать
+            self.current_command_id = time.time()
+            self.set_active_session(session)
 
-            # Формируем ROS сообщение
             ros_msg = Command()
             ros_msg.timestamp = self.current_command_id
             ros_msg.command = cmd_name
             ros_msg.status = PENDING_STATUS
             
-            # Упаковываем данные команды в JSON строку для поля data
-            # Исключаем само поле 'command' из data, чтобы не дублировать
             data_payload = {k: v for k, v in request_msg.items() if k != "command"}
             ros_msg.data = json.dumps(data_payload)
             
             self.cmd_pub.publish(ros_msg)
             logger.info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
 
-            # Возвращаем первичный статус PENDING
             return {
                 "command": "action_status",
                 "action": cmd_name,
@@ -192,12 +179,21 @@ class EurusApiNode(Node):
                 "message": "Command sent to controller"
             }
 
-        # --- 3. Неизвестная команда ---
         return {
             "command": "response",
             "status": "error",
             "message": f"Unknown command: {cmd_name}"
         }
+    
+    def force_land(self):
+        msg = Command()
+        msg.timestamp = time.time()
+        msg.command = "land"
+        msg.status = PENDING_STATUS
+        msg.data = ""
+        
+        self.cmd_pub.publish(msg)
+        self.is_busy = False
 
 
 class ClientSession:
@@ -235,6 +231,7 @@ class ClientSession:
         except Exception as e:
             logger.error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
         finally:
+            self.ros_node.force_land()
             self.ros_node.remove_active_session(self)
             self.conn.close()
             logger.info(f"Сессия завершена для {self.addr}")
@@ -281,11 +278,9 @@ class ClientSession:
 
 
 def start_server():
-    # Инициализация ROS 2
     rclpy.init()
     eurus_node = EurusApiNode()
     
-    # Запуск ROS спиннера в отдельном потоке
     ros_thread = threading.Thread(target=rclpy.spin, args=(eurus_node,), daemon=True)
     ros_thread.start()
 
@@ -293,19 +288,29 @@ def start_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
+    active_client_thread = None
+
     try:
         server.bind((HOST, PORT))
         server.listen()
-        logger.info("Сервер готов и ожидает подключений.")
 
         while True:
             conn, addr = server.accept()
-            # Передаем ссылку на ноду в сессию
+
+            # Проверка: если есть активный клиент, отбрасываем нового
+            if active_client_thread is not None and active_client_thread.is_alive():
+                logger.warning(f"Входящее соединение от {addr} отклонено: сервер занят другим клиентом.")
+                conn.close()
+                continue
+            
+            # Если место свободно, запускаем сессию
             session = ClientSession(conn, addr, eurus_node)
             
-            thread = threading.Thread(target=session.start)
-            thread.daemon = True
-            thread.start()
+            active_client_thread = threading.Thread(target=session.start)
+            active_client_thread.daemon = True
+            active_client_thread.start()
+            
+            logger.info(f"Клиент {addr} принят.")
 
     except KeyboardInterrupt:
         logger.info("\nОстановка сервера...")
@@ -313,8 +318,11 @@ def start_server():
         logger.critical(f"Критическая ошибка сервера: {e}", exc_info=True)
     finally:
         server.close()
-        eurus_node.destroy_node()
-        rclpy.shutdown()
+        try:
+            eurus_node.destroy_node()
+            rclpy.shutdown()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     start_server()

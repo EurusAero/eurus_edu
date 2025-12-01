@@ -119,15 +119,10 @@ class EurusControl:
                                 self._action_started_event.set()
                                 
                             elif code in [COMPLETED_STATUS, DENIED_STATUS]:
-                                # Сервер сказал "Готово" или "Отказано"
                                 self._last_action_code = code
                                 self._action_finished_event.set()
                                 
-                                # ВАЖНО: Если команда сразу отклонена (denied), статус PENDING мог и не прийти.
-                                # Разблокируем ожидание старта, чтобы не словить таймаут.
                                 self._action_started_event.set()
-                            
-                            # RUNNING_STATUS можно игнорировать или логировать, блокировка снимается только по finished
                             
                         # 3. Телеметрия
                         elif command == "response_telemetry":
@@ -205,8 +200,6 @@ class EurusControl:
 
             self.logger.info(f"Команда {cmd_name} выполняется...")
 
-            # 4. Ожидание окончательного статуса (COMPLETED или DENIED)
-            # wait без таймаута, так как полет может длиться долго
             self._action_finished_event.wait()
             
             if self._last_action_code == COMPLETED_STATUS:
@@ -214,9 +207,6 @@ class EurusControl:
             else:
                 self.logger.error(f"Команда {cmd_name} завершилась неудачей (Status: {self._last_action_code}). Msg: {self._last_action_message}")
         
-        # Lock освобождается здесь автоматически, разрешая следующую команду
-
-    # --- API МЕТОДЫ ---
 
     def arm(self):
         # Используем movement_command, чтобы ждать завершения арминга
