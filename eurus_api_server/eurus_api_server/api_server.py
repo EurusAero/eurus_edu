@@ -102,8 +102,6 @@ class EurusApiNode(Node):
         Коллбек, когда контроллер обновляет статус команды.
         Здесь мы проверяем статус и отправляем ответ клиенту TCP.
         """
-        # Проверяем, относится ли сообщение к текущей активной команде
-        # Сравниваем timestamp (с небольшим допуском, т.к. float)
         if not self.is_busy or abs(msg.timestamp - self.current_command_id) > 0.0001:
             return
 
@@ -114,7 +112,7 @@ class EurusApiNode(Node):
             "command": "action_status",
             "action": msg.command,
             "status": status,
-            "message": "" # Можно добавить поле message в msg ROS, если нужно
+            "message": msg.data
         }
 
         # Отправляем клиенту

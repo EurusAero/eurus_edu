@@ -1,6 +1,7 @@
 INSTALLATION
 
 ```bash
+cd ~/ros2_ws
 colcon build --packages-select eurus_msgs
 source install/setup.bash
 ```
