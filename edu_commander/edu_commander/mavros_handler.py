@@ -5,7 +5,7 @@ import threading
 import time
 
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
-from eurus_msgs.msg import Command
+from edu_msgs.msg import Command
 from EurusEdu.const import *
 
 

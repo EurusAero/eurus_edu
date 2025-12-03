@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from eurus_msgs.msg import Command, Telemetry
+from edu_msgs.msg import Command, Telemetry
 
 config = configparser.ConfigParser()
 config_path = '/home/orangepi/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
