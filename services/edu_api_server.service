@@ -1,14 +1,14 @@
 [Unit]
- Description=Запуск ноды по принятию команд с клиентского сокета
+ Description=Запускает mavros общение с полетником
  After=network-online.target multi-user.target
  Wants=network-online.target
 
 [Service]
  User=orangepi
  WorkingDirectory=/home/orangepi/ros2_ws/
- ExecStart=/bin/bash -c 'ros2 run eurus_api_server api_server'
+ ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_api_server.sh
  Restart=always
- RestartSec=2
+ RestartSec=1
 
 [Install]
  WantedBy=multi-user.target

@@ -6,9 +6,9 @@
 [Service]
  User=orangepi
  WorkingDirectory=/home/orangepi/ros2_ws/
- ExecStart=/bin/bash -c 'ros2 launch /home/orangepi/ros2_ws/src/eurus_edu/eurus_edu/launch/mavros.launch'
+ ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_mavros.sh
  Restart=always
- RestartSec=2
+ RestartSec=1
 
 [Install]
  WantedBy=multi-user.target
