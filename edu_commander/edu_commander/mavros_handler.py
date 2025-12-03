@@ -56,7 +56,7 @@ class MavrosHandler(Node):
 
     def cmd_loop(self):
         self.target_pose.header.stamp = self.get_clock().now().to_msg()
-        self.target_pose.header.frame_id = 1
+        self.target_pose.header.frame_id = "1"
         self.local_pos_pub.publish(self.target_pose)
 
     def _wait_for_services(self):
