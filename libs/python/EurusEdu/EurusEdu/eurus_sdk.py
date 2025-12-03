@@ -115,7 +115,6 @@ class EurusControl:
                             self._last_action_message = msg_dict.get("message", "")
                             
                             if code == PENDING_STATUS:
-                                # Сервер сказал "Принял в обработку"
                                 self._action_started_event.set()
                                 
                             elif code in [COMPLETED_STATUS, DENIED_STATUS]:
@@ -124,7 +123,6 @@ class EurusControl:
                                 
                                 self._action_started_event.set()
                             
-                        # 3. Телеметрия
                         elif command == "response_telemetry":
                             self._last_telemetry_data = msg_dict.get("telemetry", {})
                             self._telemetry_event.set()
@@ -200,7 +198,7 @@ class EurusControl:
             self._action_finished_event.wait()
             
             if self._last_action_code == COMPLETED_STATUS:
-                self.logger.info(f"Команда {cmd_name} успешно завершена (Status: {COMPLETED_STATUS}).")
+                self.logger.info(f"Команда {cmd_name} успешноНео завершена (Status: {COMPLETED_STATUS}).")
             else:
                 self.logger.error(f"Команда {cmd_name} завершилась неудачей (Status: {self._last_action_code}). Msg: {self._last_action_message}")
                 self.disconnect()

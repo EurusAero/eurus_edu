@@ -1,10 +1,14 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 import json
 import threading
 import time
+import math
 
+from transforms3d.euler import euler2quat
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
+from geometry_msgs.msg import PoseStamped
 from edu_msgs.msg import Command
 from EurusEdu.const import *
 
@@ -13,10 +17,20 @@ class MavrosHandler(Node):
     def __init__(self):
         super().__init__("edu_commander")
         
+        # Настройка QoS
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
         self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
         self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
+
+        self.local_pos_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', qos_profile)
         
         self._wait_for_services()
 
@@ -29,8 +43,21 @@ class MavrosHandler(Node):
 
         self.status_pub = self.create_publisher(Command, 'edu/command', 10)
         
+        self.target_pose = PoseStamped()
+        self.target_pose.pose.position.x = 0.0
+        self.target_pose.pose.position.y = 0.0
+        self.target_pose.pose.position.z = 0.0
+        self.target_pose.pose.orientation.w = 1.0
+        
+        self.timer = self.create_timer(0.05, self.cmd_loop)
+
         self.current_task_thread = None
         self.get_logger().info("MavrosHandler готов к работе.")
+
+    def cmd_loop(self):
+        self.target_pose.header.stamp = self.get_clock().now().to_msg()
+        self.target_pose.header.frame_id = 1
+        self.local_pos_pub.publish(self.target_pose)
 
     def _wait_for_services(self):
         """Ждем доступности сервисов MAVROS при запуске."""
@@ -44,22 +71,17 @@ class MavrosHandler(Node):
         self.get_logger().info("Сервисы MAVROS найдены (или таймаут).")
 
     def publish_status(self, original_msg, status, message=""):
-        """Отправка статуса обратно в API сервер."""
         reply = Command()
         reply.timestamp = original_msg.timestamp
         reply.command = original_msg.command
         reply.status = status
         reply.data = message
-        
         self.status_pub.publish(reply)
-        self.get_logger().info(f"Статус команды '{original_msg.command}': {status}")
+        self.get_logger().info(f"Статус '{original_msg.command}': {status} | {message}")
 
     def command_callback(self, msg: Command):
-        """Обработка входящего сообщения из eurus/command."""
         if msg.status != PENDING_STATUS:
             return
-
-        self.get_logger().info(f"Получена команда: {msg.command}")
 
         if self.current_task_thread and self.current_task_thread.is_alive():
             self.publish_status(msg, DENIED_STATUS, "Mavros handler is busy")
@@ -73,10 +95,7 @@ class MavrosHandler(Node):
         self.current_task_thread.start()
 
     def execute_command_logic(self, msg: Command):
-        """Логика выполнения команд (запускается в потоке)."""
-        
         self.publish_status(msg, RUNNING_STATUS)
-        
         cmd_name = msg.command
         data = {}
         try:
@@ -99,33 +118,27 @@ class MavrosHandler(Node):
                 success, error_msg = self.do_takeoff(altitude)
             elif cmd_name == "land":
                 success, error_msg = self.do_land()
+            elif cmd_name == "goto": 
+                success, error_msg = self.do_goto(data)
             elif cmd_name == "set_mode":
                 mode = data.get("mode", "OFFBOARD")
                 success, error_msg = self.do_set_mode(mode)
             else:
                 success = False
-                
                 error_msg = f"Unknown command: {cmd_name}"
-
         except Exception as e:
             success = False
             error_msg = str(e)
-            self.get_logger().error(f"Exception during execution: {e}")
+            self.get_logger().error(f"Exception: {e}")
 
-        # 2. Сообщаем результат
         final_status = COMPLETED_STATUS if success else DENIED_STATUS
         self.publish_status(msg, final_status, error_msg)
 
 
-    # --- MAVROS ACTION WRAPPERS ---
-
     def _call_service_sync(self, client, request):
-        """Вспомогательный метод для синхронного вызова сервиса из потока."""
         future = client.call_async(request)
-        # Ждем завершения future. Так как мы в отдельном потоке, 
-        # rclpy.spin в главном потоке обработает ответ.
         while not future.done():
-            time.sleep(0.1)
+            time.sleep(0.04)
         return future.result()
 
     def do_set_mode(self, mode="OFFBOARD"):
@@ -134,88 +147,72 @@ class MavrosHandler(Node):
         res = self._call_service_sync(self.set_mode_client, req)
         if res.mode_sent:
             return True, "Mode sent"
-        else:
-            return False, f"Mode sent failed: Result {res.result}"
+        return False, f"Mode sent failed: {res.result}"
 
     def do_arm(self):
-        mode_sent, err = self.do_set_mode("OFFBOARD")
-        if not mode_sent:
-            return False, "Failed to set OFFBOARD mode"
+        self.do_set_mode("OFFBOARD")
+        time.sleep(0.5)
         
         req = CommandBool.Request()
         req.value = True
         res = self._call_service_sync(self.arming_client, req)
-        
         if res.success:
             return True, "Armed"
-        else:
-            return False, f"Arming failed: Result {res.result}"
+        return False, f"Arming failed: {res.result}"
 
     def do_disarm(self):
         req = CommandBool.Request()
         req.value = False
         res = self._call_service_sync(self.arming_client, req)
-        
         if res.success:
             return True, "Disarmed"
-        else:
-            return False, f"Disarming failed: Result {res.result}"
+        return False, f"Disarming failed"
 
     def do_takeoff(self, altitude):
-        mode_sent, err = self.do_set_mode("OFFBOARD")
-        if not mode_sent:
-            return False, "Failed to set OFFBOARD mode"
-        
-        # 2. Arm (на всякий случай, если не заармлен)
-        # Примечание: ArduPilot может требовать арминг перед вызовом takeoff
-        arm_req = CommandBool.Request()
-        arm_req.value = True
-        arm_res = self._call_service_sync(self.arming_client, arm_req)
-        if not arm_res.success:
-            # Иногда дрон уже заармлен, это не всегда ошибка, но стоит проверить
-            self.get_logger().warn("Arm command returned false (maybe already armed?)")
+        self.get_logger().info(f"Takeoff to {altitude}m")
 
-        time.sleep(1.0) # Небольшая пауза перед взлетом
+        self.target_pose.pose.position.z = float(altitude)
 
-        # 3. Takeoff
-        req = CommandTOL.Request()
-        req.altitude = float(altitude)
-        req.latitude = 0.0 # Текущая
-        req.longitude = 0.0 # Текущая
-        req.min_pitch = 0.0
-        req.yaw = 0.0
-        
-        res = self._call_service_sync(self.takeoff_client, req)
-        
-        if res.success:
-            # Ожидание набора высоты можно реализовать здесь через подписку на телеметрию,
-            # но для простоты вернем успех запуска команды.
-            return True, "Takeoff initiated"
-        else:
-            return False, f"Takeoff rejected: Result {res.result}"
+        self.do_set_mode("OFFBOARD")
+        self.do_arm()
+        return True, "Takeoff initiated"
 
     def do_land(self):
         req = CommandTOL.Request()
-        # Для посадки координаты обычно 0,0 (садиться здесь)
-        req.latitude = 0.0
-        req.longitude = 0.0
-        
         res = self._call_service_sync(self.land_client, req)
-        
         if res.success:
-            return True, "Landing initiated"
-        else:
-            # Альтернативный вариант - переключить режим
-            self.get_logger().warn("CommandTOL failed, trying SetMode LAND")
-            mode_sent, err = self.do_set_mode("LAND")
-            if mode_sent:
-                return True, "Landing via SetMode"
-            return False, "Landing failed"
+            return True, "Landing (Service)"
+        return False, "Landing failed"
+
+    def do_goto(self, data):
+        try:
+            x = data.get("x", self.target_pose.pose.position.x)
+            y = data.get("y", self.target_pose.pose.position.y)
+            z = data.get("z", self.target_pose.pose.position.z)
+            yaw = data.get("yaw", 0.0)
+
+            self.target_pose.pose.position.x = float(x)
+            self.target_pose.pose.position.y = float(y)
+            self.target_pose.pose.position.z = float(z)
+
+            qw, qx, qy, qz = euler2quat(0, 0, yaw)
+            self.target_pose.pose.orientation.x = qx
+            self.target_pose.pose.orientation.y = qy
+            self.target_pose.pose.orientation.z = qz
+            self.target_pose.pose.orientation.w = qw
+
+            self.get_logger().info(f"GOTO: x={x}, y={y}, z={z}, yaw={yaw}")
+            
+            self.do_set_mode("OFFBOARD")
+
+            return True, f"Moving to x={x}, y={y}, z={z}"
+
+        except ValueError as e:
+            return False, f"Invalid coordinates: {e}"
 
 def main():
     rclpy.init()
     node = MavrosHandler()
-    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
