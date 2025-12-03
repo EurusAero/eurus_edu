@@ -16,7 +16,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from eurus_msgs.msg import Command, Telemetry
 
 config = configparser.ConfigParser()
-config_path = '/home/orangepi/ros2_ws/src/eurus_edu/eurus_api_server/eurus.ini'
+config_path = '/home/orangepi/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
 
 if os.path.exists(config_path):
     config.read(config_path)
@@ -37,12 +37,12 @@ logging.basicConfig(
 logger = logging.getLogger("EurusServer")
 
 
-class EurusApiNode(Node):
+class EduApiNode(Node):
     """
     ROS 2 Node, который связывает TCP сервер с экосистемой ROS.
     """
     def __init__(self):
-        super().__init__('eurus_api_server')
+        super().__init__('edu_api_server')
         
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -51,12 +51,12 @@ class EurusApiNode(Node):
         )
 
         # Публикация команд (отправляем pending)
-        self.cmd_pub = self.create_publisher(Command, 'eurus/command', qos_profile)
+        self.cmd_pub = self.create_publisher(Command, 'edu/command', qos_profile)
         
         # Подписка на изменение статуса команд (от контроллера)
         self.status_sub = self.create_subscription(
             Command, 
-            'eurus/command', 
+            'edu/command', 
             self.command_status_callback, 
             qos_profile
         )
@@ -64,7 +64,7 @@ class EurusApiNode(Node):
         # Подписка на телеметрию
         self.telemetry_sub = self.create_subscription(
             Telemetry,
-            'eurus/telemetry',
+            'edu/telemetry',
             self.telemetry_callback,
             qos_profile
         )
@@ -198,7 +198,7 @@ class ClientSession:
     """
     Класс сессии TCP.
     """
-    def __init__(self, conn, addr, ros_node: EurusApiNode):
+    def __init__(self, conn, addr, ros_node: EduApiNode):
         self.conn = conn
         self.addr = addr
         self.ros_node = ros_node
@@ -277,9 +277,9 @@ class ClientSession:
 
 def start_server():
     rclpy.init()
-    eurus_node = EurusApiNode()
+    edu_node = EduApiNode()
     
-    ros_thread = threading.Thread(target=rclpy.spin, args=(eurus_node,), daemon=True)
+    ros_thread = threading.Thread(target=rclpy.spin, args=(edu_node,), daemon=True)
     ros_thread.start()
 
     logger.info(f"Запуск TCP сервера EurusEdu на {HOST}:{PORT}...")
@@ -302,7 +302,7 @@ def start_server():
                 continue
             
             # Если место свободно, запускаем сессию
-            session = ClientSession(conn, addr, eurus_node)
+            session = ClientSession(conn, addr, edu_node)
             
             active_client_thread = threading.Thread(target=session.start)
             active_client_thread.daemon = True
@@ -317,7 +317,7 @@ def start_server():
     finally:
         server.close()
         try:
-            eurus_node.destroy_node()
+            edu_node.destroy_node()
             rclpy.shutdown()
         except Exception:
             pass

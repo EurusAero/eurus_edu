@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'eurus_api_server'
+package_name = 'edu_api_server'
 
 setup(
     name=package_name,
@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'api_server = eurus_api_server.api_server:start_server',
+            'api_server = edu_api_server.api_server:start_server',
         ],
     },
 )

@@ -46,10 +46,10 @@ class MavrosHandler(Node):
     def publish_status(self, original_msg, status, message=""):
         """Отправка статуса обратно в API сервер."""
         reply = Command()
-        reply.timestamp = original_msg.timestamp # Сохраняем ID команды
+        reply.timestamp = original_msg.timestamp
         reply.command = original_msg.command
         reply.status = status
-        reply.data = message # Можно использовать поле data для сообщений об ошибках
+        reply.data = message
         
         self.status_pub.publish(reply)
         self.get_logger().info(f"Статус команды '{original_msg.command}': {status}")
@@ -132,10 +132,14 @@ class MavrosHandler(Node):
         req = SetMode.Request()
         req.custom_mode = mode
         res = self._call_service_sync(self.set_mode_client, req)
-        return res.mode_sent
+        if res.mode_sent:
+            return True, "Mode sent"
+        else:
+            return False, f"Mode sent failed: Result {res.result}"
 
     def do_arm(self):
-        if not self.do_set_mode("OFFBOARD"):
+        mode_sent, err = self.do_set_mode("OFFBOARD")
+        if not mode_sent:
             return False, "Failed to set OFFBOARD mode"
         
         req = CommandBool.Request()
@@ -158,7 +162,8 @@ class MavrosHandler(Node):
             return False, f"Disarming failed: Result {res.result}"
 
     def do_takeoff(self, altitude):
-        if not self.do_set_mode("OFFBOARD"):
+        mode_sent, err = self.do_set_mode("OFFBOARD")
+        if not mode_sent:
             return False, "Failed to set OFFBOARD mode"
         
         # 2. Arm (на всякий случай, если не заармлен)
@@ -202,7 +207,8 @@ class MavrosHandler(Node):
         else:
             # Альтернативный вариант - переключить режим
             self.get_logger().warn("CommandTOL failed, trying SetMode LAND")
-            if self.do_set_mode("LAND"):
+            mode_sent, err = self.do_set_mode("LAND")
+            if mode_sent:
                 return True, "Landing via SetMode"
             return False, "Landing failed"
 

@@ -184,7 +184,6 @@ class EurusControl:
                 self.disconnect()
                 return
 
-            # 3. Ожидание статуса PENDING (или быстрого отказа)
             self.logger.info(f"Ожидание запуска команды {cmd_name}...")
             if not self._action_started_event.wait(timeout=10.0):
                 self.logger.critical(f"Команда {cmd_name} не перешла в статус обработки (PENDING) за 10 cек")
@@ -192,11 +191,9 @@ class EurusControl:
                 self.disconnect()
                 return
 
-            # Если мы здесь, значит команда либо "pending", либо уже быстро завершилась/отклонилась
-            # Проверяем, не отказал ли сервер сразу (busy)
             if self._action_finished_event.is_set() and self._last_action_code == DENIED_STATUS:
                  self.logger.error(f"Команда {cmd_name} отклонена сервером: {self._last_action_message}")
-                 return # Выходим, освобождая movement_lock
+                 return
 
             self.logger.info(f"Команда {cmd_name} выполняется...")
 
@@ -209,7 +206,9 @@ class EurusControl:
                 self.disconnect()
                 return
 
-        
+    def set_mode(self, mode):
+        self._send_movement_command({"command": "set_mode",
+                                     "mode": mode})
 
     def arm(self):
         # Используем movement_command, чтобы ждать завершения арминга
