@@ -36,6 +36,13 @@ class MavrosHandler(Node):
 
         self._wait_for_services()
 
+        mavros_qos_profile = QoSProfile(
+        reliability=ReliabilityPolicy.BEST_EFFORT,
+        durability=DurabilityPolicy.VOLATILE,
+        history=HistoryPolicy.KEEP_LAST,
+        depth=10
+        )
+        
         self.cmd_sub = self.create_subscription(
             Command,
             'edu/command',
@@ -46,7 +53,7 @@ class MavrosHandler(Node):
             PoseStamped,
             "/mavros/local_position/pose",
             self.local_pos_updater,
-            10
+            mavros_qos_profile
         )
         
         self.status_pub = self.create_publisher(Command, 'edu/command', 10)
