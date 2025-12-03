@@ -1,0 +1,15 @@
+[Unit]
+ Description=Запуск ноды по управлению дроном с помощью mavros
+ After=network-online.target multi-user.target
+ Wants=network-online.target
+ Requires=edu_mavros.service
+
+[Service]
+ User=orangepi
+ WorkingDirectory=/home/orangepi/ros2_ws/
+ ExecStart=/bin/bash -c 'ros2 run edu_commander commander'
+ Restart=always
+ RestartSec=2
+
+[Install]
+ WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+ Description=Запускает mavros общение с полетником
+ After=network-online.target multi-user.target
+ Wants=network-online.target
+
+[Service]
+ User=orangepi
+ WorkingDirectory=/home/orangepi/ros2_ws/
+ ExecStart=/bin/bash -c 'ros2 launch /home/orangepi/ros2_ws/src/eurus_edu/eurus_edu/launch/mavros.launch'
+ Restart=always
+ RestartSec=2
+
+[Install]
+ WantedBy=multi-user.target

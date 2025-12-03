@@ -1,0 +1,14 @@
+[Unit]
+ Description=Запуск ноды по принятию команд с клиентского сокета
+ After=network-online.target multi-user.target
+ Wants=network-online.target
+
+[Service]
+ User=orangepi
+ WorkingDirectory=/home/orangepi/ros2_ws/
+ ExecStart=/bin/bash -c 'ros2 run eurus_api_server api_server'
+ Restart=always
+ RestartSec=2
+
+[Install]
+ WantedBy=multi-user.target
