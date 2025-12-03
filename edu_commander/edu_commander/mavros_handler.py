@@ -44,7 +44,7 @@ class MavrosHandler(Node):
         )
         self.local_pos_sub = self.create_subscription(
             PoseStamped,
-            "mavros/local_position/pose",
+            "/mavros/local_position/pose",
             self.local_pos_updater,
             10
         )
