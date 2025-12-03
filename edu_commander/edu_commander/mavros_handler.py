@@ -22,12 +22,12 @@ class MavrosHandler(Node):
 
         self.cmd_sub = self.create_subscription(
             Command,
-            'eurus/command',
+            'edu/command',
             self.command_callback,
             10
         )
 
-        self.status_pub = self.create_publisher(Command, 'eurus/command', 10)
+        self.status_pub = self.create_publisher(Command, 'edu/command', 10)
         
         self.current_task_thread = None
         self.get_logger().info("MavrosHandler готов к работе.")
