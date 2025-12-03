@@ -4,7 +4,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 import json
 import threading
 import time
-import math
+from math import dist
 
 from transforms3d.euler import euler2quat
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
@@ -29,9 +29,11 @@ class MavrosHandler(Node):
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
         self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
         self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
+        
 
         self.local_pos_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', qos_profile)
-        
+        self.local_pose = PoseStamped()
+
         self._wait_for_services()
 
         self.cmd_sub = self.create_subscription(
@@ -40,23 +42,35 @@ class MavrosHandler(Node):
             self.command_callback,
             10
         )
-
+        self.local_pos_sub = self.create_subscription(
+            PoseStamped,
+            "mavros/local_position/pose",
+            self.local_pos_updater,
+            10
+        )
+        
         self.status_pub = self.create_publisher(Command, 'edu/command', 10)
         
         self.target_pose = PoseStamped()
-        self.target_pose.pose.position.x = 0.0
-        self.target_pose.pose.position.y = 0.0
-        self.target_pose.pose.position.z = 0.0
-        self.target_pose.pose.orientation.w = 1.0
+        self.target_pose = self.local_pose
+        
+        self.prev_command_target = (0, 0, 0)
+        
         
         self.timer = self.create_timer(0.05, self.cmd_loop)
 
+        self.only_arm = True
         self.current_task_thread = None
         self.get_logger().info("MavrosHandler готов к работе.")
 
     def cmd_loop(self):
         self.target_pose.header.stamp = self.get_clock().now().to_msg()
-        self.target_pose.header.frame_id = "1"
+        self.target_pose.header.frame_id = "map"
+                
+        if self.only_arm:
+            self.target_pose.pose.position = self.local_pose.pose.position
+            self.target_pose.pose.orientation = self.local_pose.pose.orientation
+        
         self.local_pos_pub.publish(self.target_pose)
 
     def _wait_for_services(self):
@@ -79,6 +93,35 @@ class MavrosHandler(Node):
         self.status_pub.publish(reply)
         self.get_logger().info(f"Статус '{original_msg.command}': {status} | {message}")
 
+    def local_pos_updater(self, msg: PoseStamped):
+        self.local_pose = msg
+
+    def point_reached(self, deadzone=0.3):
+        local = [float(self.local_pose.pose.position.x), float(self.local_pose.pose.position.y), float(self.local_pose.pose.position.z)]
+        target = [float(self.target_pose.pose.position.x), float(self.target_pose.pose.position.y), float(self.target_pose.pose.position.z)]
+        
+        return dist(local, target) < deadzone
+    
+    def calculate_next_target_position(self, command_coords: list, yaw: int = 0):
+        delta_target = [command_coords[0] - self.prev_command_target[0],
+                        command_coords[1] - self.prev_command_target[1],
+                        command_coords[2] - self.prev_command_target[2]]
+        
+        self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_target[0]
+        self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_target[1]
+        self.target_pose.pose.position.z = self.local_pose.pose.position.z + delta_target[2]
+
+        qw, qx, qy, qz = euler2quat(0, 0, yaw)
+        self.target_pose.pose.orientation.x = qx
+        self.target_pose.pose.orientation.y = qy
+        self.target_pose.pose.orientation.z = qz
+        self.target_pose.pose.orientation.w = qw
+        
+        self.prev_command_target = command_coords
+        
+        return self.target_pose
+        
+    
     def command_callback(self, msg: Command):
         if msg.status != PENDING_STATUS:
             return
@@ -110,15 +153,20 @@ class MavrosHandler(Node):
 
         try:
             if cmd_name == "arm":
+                self.only_arm = True
                 success, error_msg = self.do_arm()
             elif cmd_name == "disarm":
+                self.only_arm = True
                 success, error_msg = self.do_disarm()
             elif cmd_name == "takeoff":
+                self.only_arm = False
                 altitude = data.get("altitude", 2.0)
                 success, error_msg = self.do_takeoff(altitude)
             elif cmd_name == "land":
+                self.only_arm = False
                 success, error_msg = self.do_land()
-            elif cmd_name == "goto": 
+            elif cmd_name == "goto":
+                self.only_arm = False
                 success, error_msg = self.do_goto(data)
             elif cmd_name == "set_mode":
                 mode = data.get("mode", "OFFBOARD")
@@ -140,6 +188,9 @@ class MavrosHandler(Node):
         while not future.done():
             time.sleep(0.04)
         return future.result()
+    
+    def wait_movement(self):
+        pass
 
     def do_set_mode(self, mode="OFFBOARD"):
         req = SetMode.Request()
@@ -149,7 +200,7 @@ class MavrosHandler(Node):
             return True, "Mode sent"
         return False, f"Mode sent failed: {res.result}"
 
-    def do_arm(self):
+    def do_arm(self):        
         self.do_set_mode("OFFBOARD")
         time.sleep(0.5)
         
@@ -170,9 +221,9 @@ class MavrosHandler(Node):
 
     def do_takeoff(self, altitude):
         self.get_logger().info(f"Takeoff to {altitude}m")
-
-        self.target_pose.pose.position.z = float(altitude)
-
+        
+        self.calculate_next_target_position((0, 0, float(altitude)))
+    
         self.do_set_mode("OFFBOARD")
         self.do_arm()
         return True, "Takeoff initiated"
@@ -191,16 +242,8 @@ class MavrosHandler(Node):
             z = data.get("z", self.target_pose.pose.position.z)
             yaw = data.get("yaw", 0.0)
 
-            self.target_pose.pose.position.x = float(x)
-            self.target_pose.pose.position.y = float(y)
-            self.target_pose.pose.position.z = float(z)
-
-            qw, qx, qy, qz = euler2quat(0, 0, yaw)
-            self.target_pose.pose.orientation.x = qx
-            self.target_pose.pose.orientation.y = qy
-            self.target_pose.pose.orientation.z = qz
-            self.target_pose.pose.orientation.w = qw
-
+            self.calculate_next_target_position((x, y, z), yaw)
+            
             self.get_logger().info(f"GOTO: x={x}, y={y}, z={z}, yaw={yaw}")
             
             self.do_set_mode("OFFBOARD")
