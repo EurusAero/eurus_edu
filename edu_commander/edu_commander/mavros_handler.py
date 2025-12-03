@@ -75,7 +75,9 @@ class MavrosHandler(Node):
         self.target_pose.header.frame_id = "map"
                 
         if self.only_arm:
-            self.target_pose.pose.position = self.local_pose.pose.position
+            self.target_pose.pose.position.x = self.local_pose.pose.position.x
+            self.target_pose.pose.position.y = self.local_pose.pose.position.y
+            self.target_pose.pose.position.z = 0.0
             self.target_pose.pose.orientation = self.local_pose.pose.orientation
         
         self.local_pos_pub.publish(self.target_pose)
