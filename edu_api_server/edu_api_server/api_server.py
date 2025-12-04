@@ -13,7 +13,8 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from edu_msgs.msg import Command, Telemetry
+from std_msgs.msg import String
+from edu_msgs.msg import Command
 
 config = configparser.ConfigParser()
 config_path = '/home/orangepi/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
@@ -63,7 +64,7 @@ class EduApiNode(Node):
         
         # Подписка на телеметрию
         self.telemetry_sub = self.create_subscription(
-            Telemetry,
+            String,
             'edu/telemetry',
             self.telemetry_callback,
             qos_profile
