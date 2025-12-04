@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='EurusEdu',
-    version='0.0.1',
+    version='0.0.2',
     author='EURUS',
     author_email='info@eurus-aero.ru',
     description='Eurus-Edu',
