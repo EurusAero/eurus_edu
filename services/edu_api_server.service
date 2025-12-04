@@ -6,7 +6,7 @@
 [Service]
  User=orangepi
  WorkingDirectory=/home/orangepi/ros2_ws/
- ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_api_server.sh
+ ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_api_server.sh
  Restart=always
  RestartSec=1
 

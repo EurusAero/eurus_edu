@@ -4,7 +4,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 import json
 import threading
 import time
-from math import dist
+from math import dist, radians
 
 from transforms3d.euler import euler2quat
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
@@ -111,21 +111,24 @@ class MavrosHandler(Node):
         
         return dist(local, target) < deadzone
     
-    def calculate_next_target_position(self, command_coords: list, yaw: int = 0):
+    def calculate_next_target_position(self, command_coords: list, yaw=None):
         delta_target = [command_coords[0] - self.prev_command_target[0],
                         command_coords[1] - self.prev_command_target[1],
-                        command_coords[2] - self.prev_command_target[2]]
+                        ]
         
         self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_target[0]
         self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_target[1]
-        self.target_pose.pose.position.z = self.local_pose.pose.position.z + delta_target[2]
+        self.target_pose.pose.position.z = command_coords[2]
 
-        qw, qx, qy, qz = euler2quat(0, 0, yaw)
-        self.target_pose.pose.orientation.x = qx
-        self.target_pose.pose.orientation.y = qy
-        self.target_pose.pose.orientation.z = qz
-        self.target_pose.pose.orientation.w = qw
-        
+        if yaw is None:
+            self.target_pose.pose.orientation = self.local_pose.pose.orientation
+        else:
+            qw, qx, qy, qz = euler2quat(0, 0, radians(yaw))
+            self.target_pose.pose.orientation.x = qx
+            self.target_pose.pose.orientation.y = qy
+            self.target_pose.pose.orientation.z = qz
+            self.target_pose.pose.orientation.w = qw
+            
         self.prev_command_target = command_coords
         
         return self.target_pose
