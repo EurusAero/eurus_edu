@@ -6,13 +6,21 @@ DISARM_MSG = {
     "command": str
 }
 
-GOTO_MSG = {
+MOVE_TO_LOCAL_POINT = {
     "command": str,
     "x": (float, int),
     "y": (float, int),
     "z": (float, int),
-    "yaw": (float, int)
+    "yaw": (float, int, None)
      }
+
+MOVE_IN_BODY_FRAME = {
+    "command": str,
+    "x": (float, int),
+    "y": (float, int),
+    "z": (float, int),
+    "yaw": (float, int, None)
+}
 
 TAKEOFF_MSG = {
     "command": str,
@@ -52,7 +60,8 @@ ACTION_STATUS_MSG = {
 }
 
 MESSAGES = {
-    "goto": GOTO_MSG,
+    "move_to_local_point": MOVE_TO_LOCAL_POINT,
+    "move_in_body_frame": MOVE_IN_BODY_FRAME,
     "takeoff": TAKEOFF_MSG,
     "land": LAND_MSG,
     "response": RESPONSE_MSG,
@@ -71,8 +80,45 @@ COMPLETED_STATUS = "success"
 
 STATUS_LIST = [PENDING_STATUS, RUNNING_STATUS, DENIED_STATUS, COMPLETED_STATUS]
 
-DRONE_COMMANDS = ["goto", "takeoff", "land", "arm", "disarm", "set_mode"]
+DRONE_COMMANDS = ["move_to_local_point", "takeoff", "land", "arm", "disarm", "set_mode", "move_in_body_frame"]
 
-START_MARKER = '<msg>' # Маркер в начале каждого json сообщения
-END_MARKER = '</msg>' # Маркер в конце каждого json сообщения
+START_MARKER = '<msg>'
+END_MARKER = '</msg>'
 
+TELEMETRY_DATA = {
+    "state": {
+        "mode": "None",
+        "armed": "None"
+    },
+    
+    "battery": {
+        "voltage": 0.0,
+        "current": 0.0,
+        "percentage": 0.0
+    },
+    
+    "local_position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "pitch": 0.0,
+        "roll": 0.0,
+        "yaw": 0.0,
+    },
+    
+    
+    "setpoint_local": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "yaw": 0.0
+    },
+    
+    "velocity": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "vz": 0.0,
+        "yaw_rate": 0.0
+    },
+    
+}

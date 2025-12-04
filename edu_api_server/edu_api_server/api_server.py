@@ -69,14 +69,12 @@ class EduApiNode(Node):
             qos_profile
         )
 
-        # Состояние
         self.is_busy = False
-        self.current_command_id = 0.0 # timestamp используется как ID
+        self.current_command_id = 0.0
         self.current_command_name = None
         
         self.latest_telemetry = {}
         
-        # Ссылка на активную сессию клиента для отправки асинхронных ответов
         self.active_session = None
         self.session_lock = threading.Lock()
 
@@ -137,14 +135,12 @@ class EduApiNode(Node):
         """
         cmd_name = request_msg.get("command")
         
-        # --- 1. Обработка Телеметрии (Неблокирующая) ---
         if cmd_name == "request_telemetry":
             return {
                 "command": "response_telemetry",
                 "telemetry": self.latest_telemetry
             }
 
-        # --- 2. Обработка Команд Дрона (Блокирующие) ---
         if cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
@@ -247,11 +243,8 @@ class ClientSession:
         try:
             message = json.loads(json_data)
             
-            # 1. Валидация
             self.msg_utils.validate_message(message)
             
-            # 2. Мгновенный ACK (чтобы клиент знал, что JSON дошел)
-            # Примечание: action_status PENDING тоже придет, но response ack - правило хорошего тона
             if message.get("command") != "request_telemetry":
                 self.send_json({
                     "command": "response",
@@ -259,8 +252,6 @@ class ClientSession:
                     "message": "received"
                 })
 
-            # 3. Обработка логики через ROS Node
-            # Этот метод вернет результат немедленного действия (например, отправку PENDING или телеметрию)
             result = self.ros_node.process_client_command(message, self)
             
             if result:
@@ -295,13 +286,11 @@ def start_server():
         while True:
             conn, addr = server.accept()
 
-            # Проверка: если есть активный клиент, отбрасываем нового
             if active_client_thread is not None and active_client_thread.is_alive():
                 logger.warning(f"Входящее соединение от {addr} отклонено: сервер занят другим клиентом.")
                 conn.close()
                 continue
             
-            # Если место свободно, запускаем сессию
             session = ClientSession(conn, addr, edu_node)
             
             active_client_thread = threading.Thread(target=session.start)

@@ -174,10 +174,8 @@ class EurusControl:
 
             cmd_name = payload['command']
 
-            # 1. Отправка JSON
             self._send_raw(payload)
 
-            # 2. Ожидание ACK (что JSON дошел и валиден)
             if not self._wait_for_ack(30.0):
                 self.disconnect()
                 return
@@ -225,13 +223,22 @@ class EurusControl:
     def land(self):
         self._send_movement_command({"command": "land"})
 
-    def goto(self, x, y, z, yaw):
+    def move_to_local_point(self, x, y, z, yaw):
         self._send_movement_command({
-            "command": "goto",
+            "command": "move_to_local_point",
             "x": float(x),
             "y": float(y),
             "z": float(z),
-            "yaw": float(yaw)
+            "yaw": float(yaw) if yaw is not None else None
+        })
+    
+    def move_in_body_frame(self, x, y, z, yaw):
+        self._send_movement_command({
+            "command": "move_in_body_frame",
+            "x": float(x),
+            "y": float(y),
+            "z": float(z),
+            "yaw": float(yaw) if yaw is not None else None
         })
 
     def request_telemetry(self):
@@ -244,7 +251,6 @@ class EurusControl:
         self._telemetry_event.clear()
         self._response_event.clear() # Ждем ACK на запрос
 
-        # Отправляем запрос
         self._send_raw({"command": "request_telemetry"})
 
         # Ждем ACK

@@ -4,9 +4,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 import json
 import threading
 import time
-from math import dist, radians
+from math import dist, radians, cos, sin
 
-from transforms3d.euler import euler2quat
+from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from geometry_msgs.msg import PoseStamped
 from edu_msgs.msg import Command
@@ -17,7 +17,6 @@ class MavrosHandler(Node):
     def __init__(self):
         super().__init__("edu_commander")
         
-        # Настройка QoS
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -105,23 +104,41 @@ class MavrosHandler(Node):
     def local_pos_updater(self, msg: PoseStamped):
         self.local_pose = msg
 
-    def point_reached(self, deadzone=0.3):
+    def point_reached(self, deadzone=0.2):
         local = [float(self.local_pose.pose.position.x), float(self.local_pose.pose.position.y), float(self.local_pose.pose.position.z)]
         target = [float(self.target_pose.pose.position.x), float(self.target_pose.pose.position.y), float(self.target_pose.pose.position.z)]
         
         return dist(local, target) < deadzone
     
-    def calculate_next_target_position(self, command_coords: list, yaw=None):
-        delta_target = [command_coords[0] - self.prev_command_target[0],
-                        command_coords[1] - self.prev_command_target[1],
-                        ]
-        
-        self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_target[0]
-        self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_target[1]
-        self.target_pose.pose.position.z = command_coords[2]
+    def calculate_next_target_position(self, command_coords: list, yaw=None, body_frame=False):
+        if body_frame:
+            fwd_dist = command_coords[0]
+            right_dist = command_coords[1]
+            
+            if yaw is not None:
+                calc_yaw_rad = radians(yaw)
+            else:
+                q = self.local_pose.pose.orientation
+                _, _, calc_yaw_rad = quat2euler([q.w, q.x, q.y, q.z])
+
+            delta_north = fwd_dist * cos(calc_yaw_rad) - right_dist * sin(calc_yaw_rad)
+            delta_east  = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
+
+            self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_north
+            self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_east
+            self.target_pose.pose.position.z = command_coords[2]
+            
+        else:
+            # Логика для глобальных координат (как было у вас)
+            delta_target = [command_coords[0] - self.prev_command_target[0],
+                            command_coords[1] - self.prev_command_target[1]]
+            
+            self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_target[0]
+            self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_target[1]
+            self.target_pose.pose.position.z = command_coords[2]
 
         if yaw is None:
-            self.target_pose.pose.orientation = self.local_pose.pose.orientation
+            pass
         else:
             qw, qx, qy, qz = euler2quat(0, 0, radians(yaw))
             self.target_pose.pose.orientation.x = qx
@@ -129,10 +146,16 @@ class MavrosHandler(Node):
             self.target_pose.pose.orientation.z = qz
             self.target_pose.pose.orientation.w = qw
             
-        self.prev_command_target = command_coords
+        if body_frame:
+            self.prev_command_target = [
+                self.target_pose.pose.position.x,
+                self.target_pose.pose.position.y,
+                self.target_pose.pose.position.z
+            ]
+        else:
+            self.prev_command_target = command_coords
         
         return self.target_pose
-        
     
     def command_callback(self, msg: Command):
         if msg.status != PENDING_STATUS:
@@ -177,12 +200,15 @@ class MavrosHandler(Node):
             elif cmd_name == "land":
                 self.only_arm = False
                 success, error_msg = self.do_land()
-            elif cmd_name == "goto":
+            elif cmd_name == "move_to_local_point":
                 self.only_arm = False
-                success, error_msg = self.do_goto(data)
+                success, error_msg = self.do_move_to_local_point(data)
             elif cmd_name == "set_mode":
                 mode = data.get("mode", "OFFBOARD")
                 success, error_msg = self.do_set_mode(mode)
+            elif cmd_name == "move_in_body_frame":
+                self.only_arm = False
+                success, error_msg = self.do_move_in_body_frame(data)
             else:
                 success = False
                 error_msg = f"Unknown command: {cmd_name}"
@@ -247,16 +273,34 @@ class MavrosHandler(Node):
             return True, "Landing (Service)"
         return False, "Landing failed"
 
-    def do_goto(self, data):
+    def do_move_to_local_point(self, data):
         try:
             x = data.get("x", self.target_pose.pose.position.x)
             y = data.get("y", self.target_pose.pose.position.y)
             z = data.get("z", self.target_pose.pose.position.z)
-            yaw = data.get("yaw", 0.0)
+            yaw = data.get("yaw", None)
 
             self.calculate_next_target_position((x, y, z), yaw)
             
-            self.get_logger().info(f"GOTO: x={x}, y={y}, z={z}, yaw={yaw}")
+            self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
+            
+            self.do_set_mode("OFFBOARD")
+
+            return True, f"Moving to x={x}, y={y}, z={z}"
+
+        except ValueError as e:
+            return False, f"Invalid coordinates: {e}"
+    
+    def do_move_in_body_frame(self, data):
+        try:
+            x = data.get("x", self.target_pose.pose.position.x)
+            y = data.get("y", self.target_pose.pose.position.y)
+            z = data.get("z", self.target_pose.pose.position.z)
+            yaw = data.get("yaw", None)
+
+            self.calculate_next_target_position((x, y, z), yaw, body_frame=True)
+            
+            self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
             
             self.do_set_mode("OFFBOARD")
 
