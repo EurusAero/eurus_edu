@@ -110,6 +110,12 @@ class MavrosHandler(Node):
         
         return dist(local, target) < deadzone
     
+    def calculate_takeoff_position(self, altitude):
+        self.target_pose.position.z = altitude
+        self.prev_command_target = [0, 0, altitude]
+        
+        return self.target_pose
+    
     def calculate_next_target_position(self, command_coords: list, yaw=None, body_frame=False):
         if body_frame:
             fwd_dist = command_coords[0]
@@ -129,7 +135,6 @@ class MavrosHandler(Node):
             self.target_pose.pose.position.z = command_coords[2]
             
         else:
-            # Логика для глобальных координат (как было у вас)
             delta_target = [command_coords[0] - self.prev_command_target[0],
                             command_coords[1] - self.prev_command_target[1]]
             
@@ -284,7 +289,7 @@ class MavrosHandler(Node):
             
             self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
             
-            self.do_set_mode("OFFBOARD")
+            # self.do_set_mode("OFFBOARD")
 
             return True, f"Moving to x={x}, y={y}, z={z}"
 
@@ -302,7 +307,7 @@ class MavrosHandler(Node):
             
             self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
             
-            self.do_set_mode("OFFBOARD")
+            # self.do_set_mode("OFFBOARD")
 
             return True, f"Moving to x={x}, y={y}, z={z}"
 
