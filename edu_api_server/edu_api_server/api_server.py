@@ -88,7 +88,7 @@ class EduApiNode(Node):
             if self.active_session == session:
                 self.active_session = None
 
-    def telemetry_callback(self, msg: Telemetry):
+    def telemetry_callback(self, msg):
         """Обновляем кэш телеметрии из топика."""
         try:
             data = json.loads(msg.data)
