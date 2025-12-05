@@ -72,7 +72,7 @@ class TelemetryHandler(Node):
         self.telemetry_msg["state"]["system_status"] = self.state_msg.system_status
         
         self.telemetry_msg["battery"]["voltage"] = self.battery_msg.voltage
-        self.telemetry_msg["battery"]["cell_voltage"] = self.battery_msg.cell_voltage
+        self.telemetry_msg["battery"]["cell_voltage"] = list(self.battery_msg.cell_voltage)
         self.telemetry_msg["battery"]["current"] = self.battery_msg.current
         self.telemetry_msg["battery"]["percentage"] = self.battery_msg.percentage
         
