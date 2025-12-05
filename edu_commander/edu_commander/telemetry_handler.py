@@ -106,7 +106,7 @@ class TelemetryHandler(Node):
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)
         
-        self.telemetry_publisher.publish(self.ros_msg)
+        self.telemetry_pub.publish(self.ros_msg)
         
 
 def main():
