@@ -1,8 +1,4 @@
-ARM_MSG = {
-    "command": str
-}
-
-DISARM_MSG = {
+ARM_MSG, DISARM_MSG, LAND_MSG, TELEMETRY_REQUEST_MSG, POINT_REACHED = {
     "command": str
 }
 
@@ -27,18 +23,9 @@ TAKEOFF_MSG = {
     "altitude": (float, int)
     }
 
-LAND_MSG = {
-    "command": str
-    }
-
-
 SET_MODE_MSG = {
     "command": str,
     "mode": str
-}
-
-TELEMETRY_REQUEST_MSG = {
-    "command": str,
 }
 
 TELEMETRY_RESPONSE_MSG = {
@@ -121,5 +108,7 @@ TELEMETRY_DATA = {
         "vx": 0.0,
         "vy": 0.0,
         "vz": 0.0,
-    }
+    },
+    
+    "point_reached": False
 }

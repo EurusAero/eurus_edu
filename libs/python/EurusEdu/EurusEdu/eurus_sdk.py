@@ -42,6 +42,7 @@ class EurusControl:
         self._action_started_event = threading.Event()
         self._action_finished_event = threading.Event()
         self._telemetry_event = threading.Event()
+        self._point_reached_event = threading.Event()
         
         self._last_telemetry_data = {}
         self._last_response_status = None
@@ -80,6 +81,7 @@ class EurusControl:
         self._action_started_event.set()
         self._action_finished_event.set()
         self._telemetry_event.set()
+        self._point_reached_event.set()
 
         if self.sock:
             try:
@@ -138,6 +140,11 @@ class EurusControl:
                         elif command == "response_telemetry":
                             self._last_telemetry_data = msg_dict.get("telemetry", {})
                             self._telemetry_event.set()
+                        
+                        elif command == "point_reached":
+                            self._last_point_reached_data = msg_dict.get("point_reached", {})
+                            self._point_reached_event.set()
+                            
                             
                     except json.JSONDecodeError:
                         self.logger.error(f"Битый JSON: {raw_msg}")
@@ -263,4 +270,17 @@ class EurusControl:
             return self._last_telemetry_data
         else:
             # self.logger.warning("Телеметрия не пришла.") # Можно убрать спам логов
+            return None
+    
+    def point_reached(self):
+        if not self.is_connected: return None
+        
+        self._point_reached_event.clear()
+        self._response_event.clear()
+        
+        self._send_raw({"command": "point_reached"})
+        
+        if self._smart_wait(self._point_reached_event, timeout=2.0):
+            return self._last_point_reached_data
+        else:
             return None

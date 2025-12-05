@@ -141,8 +141,12 @@ class EduApiNode(Node):
                 "command": "response_telemetry",
                 "telemetry": self.latest_telemetry
             }
-
-        if cmd_name in DRONE_COMMANDS:
+        elif cmd_name == "point_reached":
+            return {
+                "command": "point_reached",
+                "point_reached": self.latest_telemetry["point_reached"]
+            }
+        elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
                     "command": "action_status",

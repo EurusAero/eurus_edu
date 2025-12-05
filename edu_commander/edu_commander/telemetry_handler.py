@@ -10,7 +10,7 @@ from std_msgs.msg import String
 
 from EurusEdu.const import *
 from transforms3d.euler import quat2euler
-from math import degrees
+from math import degrees, dist
 
 
 class TelemetryHandler(Node):
@@ -74,7 +74,7 @@ class TelemetryHandler(Node):
         self.telemetry_msg["battery"]["voltage"] = self.battery_msg.voltage
         self.telemetry_msg["battery"]["cell_voltage"] = list(self.battery_msg.cell_voltage)
         self.telemetry_msg["battery"]["current"] = self.battery_msg.current
-        self.telemetry_msg["battery"]["percentage"] = self.battery_msg.percentage
+        self.telemetry_msg["battery"]["percentage"] = int(self.battery_msg.percentage * 100)
         
         pose = self.local_position_msg.pose.position
         orient = self.local_position_msg.pose.orientation
@@ -104,6 +104,10 @@ class TelemetryHandler(Node):
         self.telemetry_msg["velocity"]["vx"] = velocity.x
         self.telemetry_msg["velocity"]["vy"] = velocity.y
         self.telemetry_msg["velocity"]["vz"] = velocity.z
+        
+        point_reached = dist([pose.x, pose.y, pose.z], [setpoint_pose.x, setpoint_pose.y, setpoint_pose.z]) <= 0.2
+        
+        self.telemetry_msg["point_reached"] = point_reached
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)
         
