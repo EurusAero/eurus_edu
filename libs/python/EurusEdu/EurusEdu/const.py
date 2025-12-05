@@ -14,7 +14,7 @@ TELEMETRY_REQUEST_MSG = {
     "command": str
 }
 
-POINT_REACHED = {
+POINT_REACHED_MSG = {
     "command": str
 }
 
@@ -73,7 +73,8 @@ MESSAGES = {
     "response_telemetry": TELEMETRY_RESPONSE_MSG,
     "arm": ARM_MSG,
     "disarm": DISARM_MSG,
-    "set_mode": SET_MODE_MSG
+    "set_mode": SET_MODE_MSG,
+    "point_reached": POINT_REACHED_MSG
     }
 
 PENDING_STATUS = "pending"

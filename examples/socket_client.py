@@ -2,13 +2,13 @@ from EurusEdu import EurusControl
 import time
 import threading
 
-def telem_thread(drone):
+def telem_thread(drone: EurusControl):
     # Проверяем, что дрон подключен, чтобы цикл остановился при дисконнекте
     while drone.is_connected:  
         try:
-            a = drone.request_telemetry()
+            a = drone.point_reached()
             # if a: print(a) # Лучше проверять, пришло ли что-то
-            print(a["battery"])
+            print(a)
             time.sleep(1)
         except Exception:
             break
