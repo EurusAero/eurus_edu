@@ -72,6 +72,7 @@ class TelemetryHandler(Node):
         self.telemetry_msg["state"]["system_status"] = self.state_msg.system_status
         
         self.telemetry_msg["battery"]["voltage"] = self.battery_msg.voltage
+        self.telemetry_msg["battery"]["cell_voltage"] = self.battery_msg.cell_voltage
         self.telemetry_msg["battery"]["current"] = self.battery_msg.current
         self.telemetry_msg["battery"]["percentage"] = self.battery_msg.percentage
         
@@ -84,8 +85,8 @@ class TelemetryHandler(Node):
         
         orientation_angles = quat2euler((orient.w, orient.x, orient.y, orient.z))
         
-        self.telemetry_msg["local_position"]["pitch"] = degrees(orientation_angles[0])
-        self.telemetry_msg["local_position"]["roll"] = degrees(orientation_angles[1])
+        self.telemetry_msg["local_position"]["roll"] = degrees(orientation_angles[0])
+        self.telemetry_msg["local_position"]["pitch"] = degrees(orientation_angles[1])
         self.telemetry_msg["local_position"]["yaw"] = degrees(orientation_angles[2])
         
         setpoint_pose = self.setpoint_position_msg.pose.position
@@ -96,7 +97,7 @@ class TelemetryHandler(Node):
         self.telemetry_msg["setpoint_local"]["x"] = setpoint_pose.x
         self.telemetry_msg["setpoint_local"]["y"] = setpoint_pose.y
         self.telemetry_msg["setpoint_local"]["z"] = setpoint_pose.z
-        self.telemetry_msg["setpoint_local"]["yaw"] = setpoint_orientation_angles[2]
+        self.telemetry_msg["setpoint_local"]["yaw"] = degrees(setpoint_orientation_angles[2])
         
         velocity = self.velocity_msg.twist.linear
         

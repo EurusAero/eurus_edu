@@ -7,6 +7,8 @@ import sys
 from .utils import SocketsUtils
 from .const import *
 
+
+
 class EurusControl:
     def __init__(self, ip: str, port: int, log_file: str = None):
         self.ip = ip
@@ -15,7 +17,6 @@ class EurusControl:
         self.is_connected = False
         self.running = False
         
-        # --- Настройка Логгера ---
         self.logger = logging.getLogger("EurusEdu")
         self.logger.setLevel(logging.DEBUG)
         self.logger.handlers = []
@@ -34,17 +35,14 @@ class EurusControl:
         self.sock_utils = SocketsUtils()
         self.listener_thread = None
         
-        # --- Синхронизация ---
-        self._socket_lock = threading.Lock()   # Защита отправки данных
-        self._movement_lock = threading.Lock() # Защита логики полета (одна команда за раз)
+        self._socket_lock = threading.Lock()
+        self._movement_lock = threading.Lock()
         
-        # События
-        self._response_event = threading.Event()        # Пришел ACK (response)
-        self._action_started_event = threading.Event()  # Пришел код PENDING (Server принял в работу)
-        self._action_finished_event = threading.Event() # Пришел код SUCCESS или DENIED
-        self._telemetry_event = threading.Event()       # Пришла телеметрия
+        self._response_event = threading.Event()
+        self._action_started_event = threading.Event()
+        self._action_finished_event = threading.Event()
+        self._telemetry_event = threading.Event()
         
-        # Хранилище данных
         self._last_telemetry_data = {}
         self._last_response_status = None
         self._last_action_code = None
@@ -57,6 +55,7 @@ class EurusControl:
 
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(1.0)
             self.sock.connect((self.ip, self.port))
             self.is_connected = True
             self.running = True
@@ -71,8 +70,17 @@ class EurusControl:
             self.is_connected = False
 
     def disconnect(self):
+        if not self.running: return # Уже отключены
+        
         self.running = False
         self.is_connected = False
+        
+        # Разблокируем любые зависшие ожидания
+        self._response_event.set()
+        self._action_started_event.set()
+        self._action_finished_event.set()
+        self._telemetry_event.set()
+
         if self.sock:
             try:
                 self.sock.close()
@@ -83,9 +91,18 @@ class EurusControl:
     def _listen_server(self):
         """Фоновый поток прослушивания."""
         buffer = b""
-        while self.running and self.sock:
+        while self.running:
             try:
-                chunk = self.sock.recv(1024)
+                # Благодаря self.sock.settimeout(1.0), этот вызов будет
+                # выбрасывать socket.timeout каждую секунду, если данных нет.
+                # Это позволяет циклу проверить while self.running.
+                try:
+                    chunk = self.sock.recv(1024)
+                except socket.timeout:
+                    continue # Просто проверяем self.running и слушаем дальше
+                except OSError:
+                    break # Сокет закрыт
+
                 if not chunk:
                     self.logger.warning("Сервер закрыл соединение.")
                     self.disconnect()
@@ -95,33 +112,28 @@ class EurusControl:
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
                 
                 for raw_msg in messages:
-                    if raw_msg is None:
-                        continue
-                        
+                    if raw_msg is None: continue
                     try:
                         msg_dict = json.loads(raw_msg)
-                        self.logger.info(f"[RX] {json.dumps(msg_dict, ensure_ascii=False)}")
-                        
                         command = msg_dict.get("command")
                         
-                        # 1. ACK (подтверждение приема JSON)
                         if command == "response":
+                            self.logger.info(f"[RX] ACK: {msg_dict.get('status')}")
                             self._last_response_status = msg_dict.get("status")
                             self._response_event.set()
                             
-                        # 2. Action Status (статусы выполнения логики)
                         elif command == "action_status":
                             code = msg_dict.get("status")
                             self._last_action_message = msg_dict.get("message", "")
-                            
+                            self.logger.info(f"[RX] {command}: {code} ({self._last_action_message})")
+
                             if code == PENDING_STATUS:
                                 self._action_started_event.set()
-                                
                             elif code in [COMPLETED_STATUS, DENIED_STATUS]:
                                 self._last_action_code = code
                                 self._action_finished_event.set()
-                                
-                                self._action_started_event.set()
+                                # На случай если PENDING пропустили или сервер сразу ответил итогом
+                                self._action_started_event.set() 
                             
                         elif command == "response_telemetry":
                             self._last_telemetry_data = msg_dict.get("telemetry", {})
@@ -130,136 +142,125 @@ class EurusControl:
                     except json.JSONDecodeError:
                         self.logger.error(f"Битый JSON: {raw_msg}")
                         
-            except socket.error:
+            except Exception as e:
+                self.logger.error(f"Ошибка в listener: {e}")
                 if self.running:
                     self.disconnect()
                 break
 
     def _send_raw(self, payload):
-        """Простая отправка без ожиданий (внутренний метод)."""
         with self._socket_lock:
             try:
-                self.sock_utils.send_json(self.sock, payload)
-                self.logger.info(f"[TX] {payload['command']}")
+                if self.sock:
+                    self.sock_utils.send_json(self.sock, payload)
+                    if payload["command"] != "request_telemetry":
+                        self.logger.info(f"[TX] {payload['command']}")
             except Exception as e:
                 self.logger.error(f"Ошибка отправки: {e}")
                 self.disconnect()
 
-    def _wait_for_ack(self, timeout=30.0):
-        """Ждет подтверждения, что сервер валидировал JSON."""
-        if not self._response_event.wait(timeout=timeout):
-            self.logger.critical("ТАЙМ-АУТ: Нет подтверждения (ACK) от сервера 30 сек!")
-            return False
-        if self._last_response_status != "success":
-            self.logger.error("Сервер вернул ошибку в response.")
-            return False
+    def _smart_wait(self, event: threading.Event, timeout: float = None, error_msg: str = None) -> bool:
+        start_time = time.time()
+        step = 0.5
+
+        while not event.is_set():
+            if not self.running:
+                return False
+            
+            if timeout and (time.time() - start_time > timeout):
+                if error_msg:
+                    self.logger.critical(error_msg)
+                return False
+
+            try:
+                event.wait(timeout=step)
+            except KeyboardInterrupt:
+                self.disconnect()
+                raise
+
         return True
 
     def _send_movement_command(self, payload):
-        """
-        Блокирующий метод отправки команд.
-        Ждет пока команда не завершится (success) или не будет отклонена (denied).
-        """
         if not self.is_connected:
             self.logger.error("Нет соединения.")
             return
 
-        # Блокируем выполнение других команд движения (Movement Lock)
-        # Следующий вызов этого метода встанет здесь в очередь
-        with self._movement_lock:
-            # Сброс событий
-            self._response_event.clear()
-            self._action_started_event.clear()
-            self._action_finished_event.clear()
+        try:
+            with self._movement_lock:
+                self._response_event.clear()
+                self._action_started_event.clear()
+                self._action_finished_event.clear()
 
-            cmd_name = payload['command']
+                cmd_name = payload['command']
+                self._send_raw(payload)
 
-            self._send_raw(payload)
+                # 1. Ждем ACK (30 сек)
+                if not self._smart_wait(self._response_event, 30.0, "ТАЙМ-АУТ: Нет ACK от сервера!"):
+                    return
 
-            if not self._wait_for_ack(30.0):
-                self.disconnect()
-                return
+                if self._last_response_status != "success":
+                    self.logger.error("Сервер вернул ошибку в response.")
+                    return
+                
+                if not self._smart_wait(self._action_started_event, 10.0, f"Команда {cmd_name} не перешла в PENDING"):
+                    return
 
-            self.logger.info(f"Ожидание запуска команды {cmd_name}...")
-            if not self._action_started_event.wait(timeout=10.0):
-                self.logger.critical(f"Команда {cmd_name} не перешла в статус обработки (PENDING) за 10 cек")
-                self.logger.critical("Возможно сервер занят или завис. Отключаюсь.")
-                self.disconnect()
-                return
+                if self._action_finished_event.is_set() and self._last_action_code == DENIED_STATUS:
+                     self.logger.error(f"Команда {cmd_name} отклонена: {self._last_action_message}")
+                     return
 
-            if self._action_finished_event.is_set() and self._last_action_code == DENIED_STATUS:
-                 self.logger.error(f"Команда {cmd_name} отклонена сервером: {self._last_action_message}")
-                 return
 
-            self.logger.info(f"Команда {cmd_name} выполняется...")
+                if not self._smart_wait(self._action_finished_event, timeout=None):
+                    self.logger.warning("Ожидание завершения прервано (дисконнект).")
+                    return
+                
+                if self._last_action_code == COMPLETED_STATUS:
+                    self.logger.info(f"Команда {cmd_name} успешно завершена.")
+                else:
+                    self.logger.error(f"Команда {cmd_name} провалена (Status: {self._last_action_code}). Msg: {self._last_action_message}")
+                    self.disconnect()
 
-            self._action_finished_event.wait()
-            
-            if self._last_action_code == COMPLETED_STATUS:
-                self.logger.info(f"Команда {cmd_name} успешноНео завершена (Status: {COMPLETED_STATUS}).")
-            else:
-                self.logger.error(f"Команда {cmd_name} завершилась неудачей (Status: {self._last_action_code}). Msg: {self._last_action_message}")
-                self.disconnect()
-                return
+        except KeyboardInterrupt:
+            self.disconnect()
+            raise # Обязательно пробрасываем выше
 
     def set_mode(self, mode):
-        self._send_movement_command({"command": "set_mode",
-                                     "mode": mode})
+        self._send_movement_command({"command": "set_mode", "mode": mode})
 
     def arm(self):
-        # Используем movement_command, чтобы ждать завершения арминга
         self._send_movement_command({"command": "arm"})
 
     def disarm(self):
-        # Используем movement_command, чтобы ждать завершения дизарминга
         self._send_movement_command({"command": "disarm"})
 
     def takeoff(self, altitude):
-        self._send_movement_command({
-            "command": "takeoff",
-            "altitude": float(altitude)
-        })
+        self._send_movement_command({"command": "takeoff", "altitude": float(altitude)})
 
     def land(self):
         self._send_movement_command({"command": "land"})
 
-    def move_to_local_point(self, x, y, z, yaw):
+    def move_to_local_point(self, x, y, z, yaw=None):
         self._send_movement_command({
-            "command": "move_to_local_point",
-            "x": float(x),
-            "y": float(y),
-            "z": float(z),
+            "command": "move_to_local_point", "x": float(x), "y": float(y), "z": float(z),
             "yaw": float(yaw) if yaw is not None else None
         })
     
-    def move_in_body_frame(self, x, y, z, yaw):
+    def move_in_body_frame(self, x, y, z, yaw=None):
         self._send_movement_command({
-            "command": "move_in_body_frame",
-            "x": float(x),
-            "y": float(y),
-            "z": float(z),
+            "command": "move_in_body_frame", "x": float(x), "y": float(y), "z": float(z),
             "yaw": float(yaw) if yaw is not None else None
         })
 
     def request_telemetry(self):
-        """Запрос телеметрии (не блокирует движение)."""
         if not self.is_connected: return None
-
-        # Телеметрия имеет свою логику ожиданий и не использует movement_lock,
-        # поэтому её можно вызывать параллельно полету.
         
         self._telemetry_event.clear()
-        self._response_event.clear() # Ждем ACK на запрос
+        self._response_event.clear()
 
         self._send_raw({"command": "request_telemetry"})
 
-        # Ждем ACK
-        if not self._wait_for_ack(30.0):
-            return None
-
-        # Ждем данные
-        if self._telemetry_event.wait(timeout=2.0):
+        if self._smart_wait(self._telemetry_event, timeout=2.0):
             return self._last_telemetry_data
         else:
-            self.logger.warning("Телеметрия не пришла.")
+            # self.logger.warning("Телеметрия не пришла.") # Можно убрать спам логов
             return None

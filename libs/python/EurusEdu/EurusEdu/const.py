@@ -95,6 +95,7 @@ TELEMETRY_DATA = {
     
     "battery": {
         "voltage": 0.0,
+        "cell_voltage": 0.0,
         "current": 0.0,
         "percentage": 0.0
     },
