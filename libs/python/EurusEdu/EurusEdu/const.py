@@ -1,4 +1,20 @@
-ARM_MSG, DISARM_MSG, LAND_MSG, TELEMETRY_REQUEST_MSG, POINT_REACHED = {
+ARM_MSG = {
+    "command": str
+}
+
+DISARM_MSG = {
+    "command": str
+}
+
+LAND_MSG = {
+    "command": str
+}
+
+TELEMETRY_REQUEST_MSG = {
+    "command": str
+}
+
+POINT_REACHED = {
     "command": str
 }
 
