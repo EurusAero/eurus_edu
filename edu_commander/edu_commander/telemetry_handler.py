@@ -82,7 +82,7 @@ class TelemetryHandler(Node):
         self.telemetry_msg["local_position"]["y"] = pose.y
         self.telemetry_msg["local_position"]["z"] = pose.z
         
-        orientation_angles = quat2euler(orient.w, orient.x, orient.y, orient.z)
+        orientation_angles = quat2euler((orient.w, orient.x, orient.y, orient.z))
         
         self.telemetry_msg["local_position"]["pitch"] = degrees(orientation_angles[0])
         self.telemetry_msg["local_position"]["roll"] = degrees(orientation_angles[1])
@@ -91,7 +91,7 @@ class TelemetryHandler(Node):
         setpoint_pose = self.setpoint_position_msg.pose.position
         setpoint_orient = self.setpoint_position_msg.pose.orientation
         
-        setpoint_orientation_angles = quat2euler(setpoint_orient.w, setpoint_orient.x, setpoint_orient.y, setpoint_orient.z)        
+        setpoint_orientation_angles = quat2euler((setpoint_orient.w, setpoint_orient.x, setpoint_orient.y, setpoint_orient.z))        
         
         self.telemetry_msg["setpoint_local"]["x"] = setpoint_pose.x
         self.telemetry_msg["setpoint_local"]["y"] = setpoint_pose.y
