@@ -6,7 +6,7 @@ def telem_thread(drone: EurusControl):
     # Проверяем, что дрон подключен, чтобы цикл остановился при дисконнекте
     while drone.is_connected:  
         try:
-            a = drone.point_reached()
+            a = drone.request_telemetry()
             # if a: print(a) # Лучше проверять, пришло ли что-то
             print(a)
             time.sleep(1)
