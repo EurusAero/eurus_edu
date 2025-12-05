@@ -250,7 +250,7 @@ class ClientSession:
             
             self.msg_utils.validate_message(message)
             
-            if message.get("command") != "request_telemetry":
+            if message.get("command") in DRONE_COMMANDS:
                 self.send_json({
                     "command": "response",
                     "status": "success",

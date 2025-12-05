@@ -160,7 +160,7 @@ class EurusControl:
             try:
                 if self.sock:
                     self.sock_utils.send_json(self.sock, payload)
-                    if payload["command"] != "request_telemetry":
+                    if payload["command"] in DRONE_COMMANDS:
                         self.logger.info(f"[TX] {payload['command']}")
             except Exception as e:
                 self.logger.error(f"Ошибка отправки: {e}")
