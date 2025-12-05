@@ -3,4 +3,4 @@
 source /opt/ros/humble/setup.bash
 source /home/orangepi/ros2_ws/install/setup.bash
 
-exec ros2 run edu_commander telemetry_handler
+exec ros2 run edu_commander telem_sender
