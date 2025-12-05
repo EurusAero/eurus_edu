@@ -87,8 +87,10 @@ END_MARKER = '</msg>'
 
 TELEMETRY_DATA = {
     "state": {
+        "connected": False,
+        "armed": False,
         "mode": "None",
-        "armed": "None"
+        "system_status": 0
     },
     
     "battery": {
@@ -118,7 +120,5 @@ TELEMETRY_DATA = {
         "vx": 0.0,
         "vy": 0.0,
         "vz": 0.0,
-        "yaw_rate": 0.0
-    },
-    
+    }
 }

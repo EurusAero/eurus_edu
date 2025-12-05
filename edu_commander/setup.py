@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'commander = edu_commander.mavros_handler:main',
+            'telem_sender = edu_commander.telemetry_handler:main'
         ],
     },
 )

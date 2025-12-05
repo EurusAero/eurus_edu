@@ -111,7 +111,7 @@ class MavrosHandler(Node):
         return dist(local, target) < deadzone
     
     def calculate_takeoff_position(self, altitude):
-        self.target_pose.position.z = altitude
+        self.target_pose.pose.position.z = altitude
         self.prev_command_target = [0, 0, altitude]
         
         return self.target_pose
@@ -265,7 +265,7 @@ class MavrosHandler(Node):
     def do_takeoff(self, altitude):
         self.get_logger().info(f"Takeoff to {altitude}m")
         
-        self.calculate_next_target_position((0, 0, float(altitude)))
+        self.calculate_takeoff_position(float(altitude))
     
         self.do_set_mode("OFFBOARD")
         self.do_arm()
