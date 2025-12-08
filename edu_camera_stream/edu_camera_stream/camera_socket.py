@@ -24,12 +24,17 @@ PORT = 8001
 BUFFER_SIZE = 4096
 LOG_LEVEL = 'INFO'
 LOG_FILE = None
+FPS = 30
 
 if os.path.exists(config_path):
     config.read(config_path)
-    HOST = config['server'].get('host', HOST)
-    PORT = config['server'].getint('port', PORT)
-    FPS = config['camera'].getint('fps', 30)
+    if 'server' in config:
+        HOST = config['server'].get('host', HOST)
+        PORT = config['server'].getint('port', PORT)
+    if 'camera' in config:
+        FPS = config['camera'].getint('fps', FPS)
+    if 'logging' in config:
+        LOG_LEVEL = config['logging'].get('level', 'INFO').upper()
 
 
 logging.basicConfig(
@@ -45,7 +50,7 @@ logger = logging.getLogger("EurusCamServer")
 
 class CameraBridgeNode(Node):
     """
-    ROS 2 Node: Слушает топик с камерой и сохраняет последний кадр.
+    ROS 2 Node: Слушает топик с камерой и топик с результатами нейросети.
     """
     def __init__(self):
         super().__init__('edu_camera_server')
@@ -56,6 +61,7 @@ class CameraBridgeNode(Node):
             depth=1
         )
 
+        # Подписка на камеру
         self.sub = self.create_subscription(
             CompressedImage,
             '/edu/camera_frame',
@@ -63,21 +69,24 @@ class CameraBridgeNode(Node):
             qos_profile
         )
         
+        # Подписка на результаты YOLO
         self.target_sub = self.create_subscription(
             String,
-            self.
-            )
+            '/edu/targets',
+            self.target_callback,
+            10
+        )
         
         self.latest_frame_b64 = None
+        self.latest_targets = None
+        
         self.last_frame_time = 0
         self.lock = threading.Lock()
         
-        logger.info("CameraBridgeNode запущен, ожидание кадров...")
+        logger.info("CameraBridgeNode запущен, ожидание кадров и таргетов...")
 
     def image_callback(self, msg: CompressedImage):
-        """
-        Получаем JPEG байты, конвертируем в Base64 для отправки через JSON.
-        """
+        """Получаем JPEG байты, конвертируем в Base64."""
         try:
             b64_data = base64.b64encode(msg.data).decode('utf-8')
             
@@ -88,14 +97,28 @@ class CameraBridgeNode(Node):
         except Exception as e:
             logger.error(f"Ошибка обработки кадра: {e}")
 
+    def target_callback(self, msg: String):
+        """Получаем JSON строку от YOLO ноды."""
+        try:
+            # Парсим JSON, чтобы убедиться, что он валидный перед сохранением
+            data = json.loads(msg.data)
+            with self.lock:
+                self.latest_targets = data
+        except json.JSONDecodeError:
+            logger.error(f"Получен битый JSON в /edu/targets: {msg.data}")
+
     def get_frame(self):
         with self.lock:
             return self.latest_frame_b64
+            
+    def get_targets(self):
+        with self.lock:
+            return self.latest_targets
 
 
 class CameraSession:
     """
-    Сессия для отправки видео.
+    Сессия для отправки видео и данных обнаружения.
     """
     def __init__(self, conn, addr, ros_node: CameraBridgeNode):
         self.conn = conn
@@ -159,6 +182,9 @@ class CameraSession:
             
             elif command == "stop_stream":
                 self.stop_stream()
+                
+            elif command == "get_target":
+                self._send_targets()
 
         except json.JSONDecodeError:
             pass
@@ -174,6 +200,23 @@ class CameraSession:
             self.send_json(response)
         else:
             self.send_json({"command": "error", "message": "No frame available"})
+
+    def _send_targets(self):
+        targets = self.ros_node.get_targets()
+        
+        if targets:
+            # targets уже является словарем (распарсенным JSON), отправляем как есть
+            # YOLO нода уже должна была добавить "command": "targets_response"
+            self.send_json(targets)
+        else:
+            # Если данных от нейросети еще нет, шлем пустой ответ
+            empty_response = {
+                "command": "targets_response",
+                "red_targets": [],
+                "blue_targets": [],
+                "all_targets": []
+            }
+            self.send_json(empty_response)
 
     def start_stream(self):
         self.is_streaming = True
@@ -210,7 +253,6 @@ class CameraSession:
             
             loop_interval = last_loop_time - now
             time.sleep(max(0, (interval - loop_interval)))
-            
 
 
 def start_server():

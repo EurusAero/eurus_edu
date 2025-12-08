@@ -36,9 +36,15 @@ class EurusCamera:
         self.listener_thread = None
         self._socket_lock = threading.Lock()
         
+        # --- Видео Буфер ---
         self._frame_lock = threading.Lock()
         self._current_frame = None 
         self._last_frame_ts = 0
+        
+        # --- Таргеты (Данные нейросети) ---
+        self._targets_lock = threading.Lock()
+        self._latest_targets = None
+        self._targets_event = threading.Event()
         
     def connect(self):
         if self.is_connected:
@@ -64,6 +70,7 @@ class EurusCamera:
     def disconnect(self):
         self.running = False
         self.is_connected = False
+        self._targets_event.set() # Разблокируем ожидания
         if self.sock:
             try:
                 self.sock.close()
@@ -74,8 +81,6 @@ class EurusCamera:
     def _listen_camera(self):
         """
         Этот поток постоянно читает данные из сокета.
-        Его задача - как можно быстрее разобрать JSON, декодировать картинку
-        и положить её в self._current_frame.
         """
         buffer = b""
         while self.running:
@@ -102,18 +107,24 @@ class EurusCamera:
                         msg_dict = json.loads(raw_msg)
                         cmd = msg_dict.get("command")
                         
-                        # Если пришел кадр (одиночный или из потока)
+                        # 1. Обработка кадров
                         if cmd in ["stream_frame", "frame_response"]:
                             b64_data = msg_dict.get("image")
                             ts = msg_dict.get("timestamp", 0)
                             
                             if b64_data:
                                 self._decode_and_store_frame(b64_data, ts)
+                        
+                        # 2. Обработка таргетов
+                        elif cmd == "targets_response":
+                            with self._targets_lock:
+                                self._latest_targets = msg_dict
+                            self._targets_event.set()
                                 
                     except json.JSONDecodeError:
-                        pass # Игнорируем битые пакеты (в видео это не критично)
+                        pass 
                     except Exception as e:
-                        self.logger.error(f"Ошибка обработки кадра: {e}")
+                        self.logger.error(f"Ошибка обработки сообщения камеры: {e}")
 
             except Exception as e:
                 self.logger.error(f"Ошибка в listener камеры: {e}")
@@ -128,7 +139,6 @@ class EurusCamera:
             np_arr = np.frombuffer(img_data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
-            # 3. Сохраняем как "последний актуальный"
             if frame is not None:
                 with self._frame_lock:
                     self._current_frame = frame
@@ -159,19 +169,39 @@ class EurusCamera:
     def request_single_frame(self):
         """Запросить один кадр (обновится в read())"""
         self._send_cmd({"command": "get_frame"})
+        
+    def get_targets(self, timeout=2.0):
+        """
+        Блокирующий запрос таргетов от нейросети.
+        Возвращает словарь: 
+        {
+            "red_targets": [...], 
+            "blue_targets": [...], 
+            "all_targets": [...]
+        }
+        или None при таймауте.
+        """
+        if not self.is_connected: return None
+        
+        self._targets_event.clear()
+        self._send_cmd({"command": "get_target"})
+        
+        if self._targets_event.wait(timeout=timeout):
+            with self._targets_lock:
+                # Возвращаем копию словаря, чтобы избежать гонки данных при чтении
+                return dict(self._latest_targets) if self._latest_targets else None
+        else:
+            self.logger.warning("Таймаут получения таргетов")
+            return None
 
     def read(self):
         """
         Аналог cv2.VideoCapture.read().
         Возвращает (ret, frame).
-        ret - True, если кадр валиден.
-        frame - numpy массив изображения (BGR).
-        
-        Метод НЕ БЛОКИРУЕТСЯ на ожидании сети. Он возвращает то, что есть в буфере прямо сейчас.
         """
         with self._frame_lock:
             if self._current_frame is not None:
-                return True, self._current_frame.copy() # Возвращаем копию, чтобы не было гонки
+                return True, self._current_frame.copy()
             else:
                 return False, None
 
