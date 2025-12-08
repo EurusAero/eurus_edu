@@ -1,22 +1,16 @@
-ARM_MSG = {
+COMMAND_MSG_SAMPLE = {
     "command": str
 }
 
-DISARM_MSG = {
-    "command": str
-}
+ARM_MSG = COMMAND_MSG_SAMPLE
 
-LAND_MSG = {
-    "command": str
-}
+DISARM_MSG = COMMAND_MSG_SAMPLE
 
-TELEMETRY_REQUEST_MSG = {
-    "command": str
-}
+LAND_MSG = COMMAND_MSG_SAMPLE
 
-POINT_REACHED_MSG = {
-    "command": str
-}
+TELEMETRY_REQUEST_MSG = COMMAND_MSG_SAMPLE
+
+POINT_REACHED_MSG = COMMAND_MSG_SAMPLE
 
 MOVE_TO_LOCAL_POINT = {
     "command": str,
@@ -62,6 +56,10 @@ ACTION_STATUS_MSG = {
     "message": str
 }
 
+GET_FRAME_MSG = COMMAND_MSG_SAMPLE
+
+GET_STREAM_MSG = COMMAND_MSG_SAMPLE
+
 MESSAGES = {
     "move_to_local_point": MOVE_TO_LOCAL_POINT,
     "move_in_body_frame": MOVE_IN_BODY_FRAME,
@@ -74,7 +72,9 @@ MESSAGES = {
     "arm": ARM_MSG,
     "disarm": DISARM_MSG,
     "set_mode": SET_MODE_MSG,
-    "point_reached": POINT_REACHED_MSG
+    "point_reached": POINT_REACHED_MSG,
+    "get_frame": GET_FRAME_MSG,
+    "get_stream": GET_STREAM_MSG
     }
 
 PENDING_STATUS = "pending"

@@ -19,7 +19,8 @@ setup(
     license='Apache-2.0',
     entry_points={
         'console_scripts': [ 
-            "camera_capture = edu_camera_stream.camera_capture:main"
+            "camera_capture = edu_camera_stream.camera_capture:main",
+            "camera_socket = edu_camera_stream.camera_socket:start_server"
         ],
     },
 )
