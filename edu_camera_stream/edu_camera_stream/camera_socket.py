@@ -26,13 +26,10 @@ LOG_FILE = None
 
 if os.path.exists(config_path):
     config.read(config_path)
-    if 'server' in config:
-        HOST = config['server'].get('host', HOST)
-        PORT = int(config['camera_server'].get('port', 8001)) if 'camera_server' in config else 8001
-    
-    if 'LOGGING' in config:
-        LOG_LEVEL = config['LOGGING'].get('LEVEL', 'INFO').upper()
-        LOG_FILE = config['LOGGING'].get('FILE_CAMERA', None)
+    HOST = config['server'].get('host', HOST)
+    PORT = config['server'].getint('port', PORT)
+    FPS = config['camera'].getint('fps', 30)
+
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -52,7 +49,6 @@ class CameraBridgeNode(Node):
     def __init__(self):
         super().__init__('edu_camera_server')
         
-        # QoS должен совпадать с паблишером (BEST_EFFORT)
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
@@ -77,8 +73,6 @@ class CameraBridgeNode(Node):
         Получаем JPEG байты, конвертируем в Base64 для отправки через JSON.
         """
         try:
-            # msg.data уже содержит байты jpeg (так как CompressedImage)
-            # Конвертируем байты в base64 строку
             b64_data = base64.b64encode(msg.data).decode('utf-8')
             
             with self.lock:
@@ -190,22 +184,13 @@ class CameraSession:
     def _stream_loop(self):
         """Цикл отправки кадров."""
         last_sent_time = 0
-        target_fps = 20 # Ограничим FPS отправки, чтобы не забить канал
-        interval = 1.0 / target_fps
+        interval = 1.0 / FPS
         
         while self.is_streaming and self.running:
             now = time.time()
             
-            # Простая стабилизация FPS
-            if now - last_sent_time < interval:
-                time.sleep(0.005)
-                continue
-
             frame = self.ros_node.get_frame()
             if frame:
-                # Проверяем, не отправляем ли мы старый кадр (опционально)
-                # Но лучше слать, чтобы клиент знал, что связь жива
-                
                 response = {
                     "command": "stream_frame",
                     "image": frame,
@@ -213,11 +198,11 @@ class CameraSession:
                 }
                 
                 if not self.send_json(response):
-                    break # Ошибка отправки - выход
+                    break
                 
-                last_sent_time = now
-            else:
-                time.sleep(0.1)
+            last_loop_time = time.time()
+            
+            
 
 
 def start_server():

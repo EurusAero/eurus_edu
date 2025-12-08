@@ -1,5 +1,5 @@
 [Unit]
- Description=Запускает mavros общение с полетником
+ Description=Запускает api сервер для взаимодействия клиента и дрона
  After=network-online.target multi-user.target
  Wants=network-online.target
 

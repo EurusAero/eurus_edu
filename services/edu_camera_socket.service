@@ -1,12 +1,12 @@
 [Unit]
- Description=Запускает отправку телеметрии в ROS топик
+ Description=Запускает сокет для общения с камерой
  After=network-online.target multi-user.target
  Wants=network-online.target
 
 [Service]
  User=orangepi
  WorkingDirectory=/home/orangepi/ros2_ws/
- ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_telemetry_handler.sh
+ ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_camera_socket.sh
  Restart=always
  RestartSec=1
 
