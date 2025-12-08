@@ -20,7 +20,7 @@ class MJPEGCameraPublisher(Node):
         self.pub = self.create_publisher(CompressedImage, '/edu/camera_frame', qos_profile)
         
         config = configparser.ConfigParser()
-        config_path = "camera_config.ini" 
+        config_path = "/home/orangepi/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini" 
         
         width = 640
         height = 480
