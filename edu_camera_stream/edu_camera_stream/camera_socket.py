@@ -183,7 +183,7 @@ class CameraSession:
 
     def _stream_loop(self):
         """Цикл отправки кадров."""
-        last_sent_time = 0
+        last_loop_time = 0
         interval = 1.0 / FPS
         
         while self.is_streaming and self.running:
@@ -202,6 +202,8 @@ class CameraSession:
                 
             last_loop_time = time.time()
             
+            loop_interval = last_loop_time - now
+            time.sleep(max(0, (interval - loop_interval)))
             
 
 
