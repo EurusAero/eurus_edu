@@ -109,10 +109,10 @@ class MavrosHandler(Node):
         target = [float(self.target_pose.pose.position.x), float(self.target_pose.pose.position.y), float(self.target_pose.pose.position.z)]
         
         return dist(local, target) < deadzone
-    
+
     def calculate_takeoff_position(self, altitude):
         self.target_pose.pose.position.z = altitude
-        self.prev_command_target = [0, 0, altitude]
+        self.prev_command_target = [self.prev_command_target[0], self.prev_command_target[1], altitude]
         
         return self.target_pose
     
@@ -192,28 +192,31 @@ class MavrosHandler(Node):
         error_msg = ""
 
         try:
-            if cmd_name == "arm":
+            if cmd_name in ["arm", "disarm"]:
                 self.only_arm = True
+            else:
+                self.only_arm = False
+            
+            if cmd_name == "arm":
                 success, error_msg = self.do_arm()
             elif cmd_name == "disarm":
-                self.only_arm = True
                 success, error_msg = self.do_disarm()
             elif cmd_name == "takeoff":
-                self.only_arm = False
                 altitude = data.get("altitude", 2.0)
                 success, error_msg = self.do_takeoff(altitude)
             elif cmd_name == "land":
-                self.only_arm = False
                 success, error_msg = self.do_land()
             elif cmd_name == "move_to_local_point":
-                self.only_arm = False
                 success, error_msg = self.do_move_to_local_point(data)
             elif cmd_name == "set_mode":
                 mode = data.get("mode", "OFFBOARD")
                 success, error_msg = self.do_set_mode(mode)
             elif cmd_name == "move_in_body_frame":
-                self.only_arm = False
                 success, error_msg = self.do_move_in_body_frame(data)
+            elif cmd_name == "start_target_tracking":
+                success, error_msg = False, False
+            elif cmd_name == "stop_target_tracking":
+                success, error_msg = False, False
             else:
                 success = False
                 error_msg = f"Unknown command: {cmd_name}"
@@ -289,8 +292,6 @@ class MavrosHandler(Node):
             
             self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
             
-            # self.do_set_mode("OFFBOARD")
-
             return True, f"Moving to x={x}, y={y}, z={z}"
 
         except ValueError as e:
