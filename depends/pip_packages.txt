@@ -1,2 +1,4 @@
 pyserial
-transformы3d
+transforms3d
+numpy
+opencv-python

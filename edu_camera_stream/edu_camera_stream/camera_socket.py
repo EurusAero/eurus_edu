@@ -14,6 +14,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import String
 
 config = configparser.ConfigParser()
 config_path = '/home/orangepi/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini'
@@ -61,6 +62,11 @@ class CameraBridgeNode(Node):
             self.image_callback,
             qos_profile
         )
+        
+        self.target_sub = self.create_subscription(
+            String,
+            self.
+            )
         
         self.latest_frame_b64 = None
         self.last_frame_time = 0
@@ -136,7 +142,7 @@ class CameraSession:
                 return True
             except Exception as e:
                 logger.error(f"Ошибка отправки данных: {e}")
-                self.running = False # Разрываем соединение при ошибке отправки
+                self.running = False
                 return False
 
     def _process_command(self, json_data):

@@ -60,6 +60,8 @@ GET_FRAME_MSG = COMMAND_MSG_SAMPLE
 
 GET_STREAM_MSG = COMMAND_MSG_SAMPLE
 
+GET_TARGET_MSG = COMMAND_MSG_SAMPLE
+
 MESSAGES = {
     "move_to_local_point": MOVE_TO_LOCAL_POINT,
     "move_in_body_frame": MOVE_IN_BODY_FRAME,
@@ -74,7 +76,8 @@ MESSAGES = {
     "set_mode": SET_MODE_MSG,
     "point_reached": POINT_REACHED_MSG,
     "get_frame": GET_FRAME_MSG,
-    "get_stream": GET_STREAM_MSG
+    "get_stream": GET_STREAM_MSG,
+    "get_target": GET_TARGET_MSG
     }
 
 PENDING_STATUS = "pending"
