@@ -188,7 +188,6 @@ class EurusCamera:
         
         if self._targets_event.wait(timeout=timeout):
             with self._targets_lock:
-                # Возвращаем копию словаря, чтобы избежать гонки данных при чтении
                 return dict(self._latest_targets) if self._latest_targets else None
         else:
             self.logger.warning("Таймаут получения таргетов")

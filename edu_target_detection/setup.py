@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            "target_detection = edu_target_detection.edu_target_detection:main"
         ],
     },
 )
