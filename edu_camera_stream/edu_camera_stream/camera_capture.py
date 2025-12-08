@@ -63,8 +63,8 @@ class MJPEGCameraPublisher(Node):
         if self.cap.isOpened():
             self.cap.release()
 
-def main(args=None):
-    rclpy.init(args=args)
+def main():
+    rclpy.init()
     node = MJPEGCameraPublisher()
     rclpy.spin(node)
     node.destroy_node()
