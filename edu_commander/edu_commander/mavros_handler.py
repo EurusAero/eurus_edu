@@ -32,7 +32,7 @@ class MavrosHandler(Node):
         
 
         self.local_pos_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', qos_profile)
-        self.raw_velocity_pub = self.create_publisher(PoseStamped, "/mavros/setpoint_raw/local", qos_profile)
+        self.raw_velocity_pub = self.create_publisher(PositionTarget, "/mavros/setpoint_raw/local", qos_profile)
         
         self.local_pose = PoseStamped()
 
@@ -86,8 +86,8 @@ class MavrosHandler(Node):
             
             self.local_pos_pub.publish(self.target_pose)
         elif self.current_control_method == "RAW_VELOCITY":
-            self.target_pose.header.stamp = self.get_clock().now().to_msg()
-            self.target_pose.header.frame_id = "map"
+            self.target_raw.header.stamp = self.get_clock().now().to_msg()
+            self.target_raw.header.frame_id = "map"
             
             self.target_raw.coordinate_frame = 8
             self.target_raw.type_mask = 1479
