@@ -305,6 +305,9 @@ class MavrosHandler(Node):
     def do_land(self):
         req = CommandTOL.Request()
         res = self._call_service_sync(self.land_client, req)
+        
+        self.current_control_method = "LOCAL_POSITION"
+        
         if res.success:
             return True, "Landing (Service)"
         return False, "Landing failed"

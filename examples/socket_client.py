@@ -13,20 +13,36 @@ def telem_thread(drone: EurusControl):
         except Exception:
             break
 
-drone = EurusControl("192.168.31.120", 65432)
+drone = EurusControl("10.42.0.1", 65432)
 drone.connect()
 
-b = threading.Thread(target=telem_thread, args=(drone, ), daemon=True)
-b.start()
+# b = threading.Thread(target=telem_thread, args=(drone, ), daemon=True)
+# b.start()
 
-# drone.arm()
+drone.arm()
+time.sleep(1)
+drone.takeoff(1)
+time.sleep(5)
+drone.set_velocity(0.5, 0, 0)
+# drone.move_in_body_frame(0.5, 0, 2, 180)
+# time.sleep(5)
+# drone.move_in_body_frame(0, -0.5, 2, 180)
+# time.sleep(5)
+# drone.move_in_body_frame(-0.5, 0, 2, 180)
+time.sleep(1)
+# drone.set_velocity(0, 0.5, 0, 0)
+drone.move_to_local_point(0, 0, 1)
+time.sleep(1)
 drone.set_velocity(0, 0, 0, 0)
-try:
-    print("Программа запущена. Нажмите Ctrl+C для выхода.")
-    while True:
-        time.sleep(1) # Просто крутимся и ждем прерывания
+time.sleep(1)
+drone.land()
+# drone.set_velocity(0, 0, 0, 0)
+# try:
+#     print("Программа запущена. Нажмите Ctrl+C для выхода.")
+#     while True:
+#         time.sleep(1) # Просто крутимся и ждем прерывания``
 
-except KeyboardInterrupt:
-    print("\n[Main] Нажат Ctrl+C! Завершаем работу...")
-    drone.disconnect() # Корректно закрываем сокеты
-    # Поток 'b' сам умрет, так как он daemon=True и основной поток завершается
+# except KeyboardInterrupt:
+#     print("\n[Main] Нажат Ctrl+C! Завершаем работу...")
+#     drone.disconnect() # Корректно закрываем сокеты
+#     # Поток 'b' сам умрет, так как он daemon=True и основной поток завершается
