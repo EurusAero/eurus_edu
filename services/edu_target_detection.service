@@ -1,13 +1,12 @@
 [Unit]
- Description=Запускает api сервер для взаимодействия клиента и дрона
+ Description=Запускает обработку картинки нейросетью
  After=network-online.target multi-user.target
  Wants=network-online.target
 
 [Service]
  User=orangepi
  WorkingDirectory=/home/orangepi/ros2_ws/
- ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_api_server.sh
- TimeoutStopSec=2
+ ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_target_detection.sh
  Restart=always
  RestartSec=1
 

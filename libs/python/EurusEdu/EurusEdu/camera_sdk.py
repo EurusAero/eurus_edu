@@ -36,15 +36,15 @@ class EurusCamera:
         self.listener_thread = None
         self._socket_lock = threading.Lock()
         
-        # --- Видео Буфер ---
         self._frame_lock = threading.Lock()
         self._current_frame = None 
         self._last_frame_ts = 0
         
-        # --- Таргеты (Данные нейросети) ---
         self._targets_lock = threading.Lock()
         self._latest_targets = None
         self._targets_event = threading.Event()
+        
+        self._last_target_request_ts = 0 
         
     def connect(self):
         if self.is_connected:
@@ -70,7 +70,7 @@ class EurusCamera:
     def disconnect(self):
         self.running = False
         self.is_connected = False
-        self._targets_event.set() # Разблокируем ожидания
+        self._targets_event.set()
         if self.sock:
             try:
                 self.sock.close()
@@ -79,14 +79,11 @@ class EurusCamera:
         self.logger.info("Соединение с камерой закрыто.")
 
     def _listen_camera(self):
-        """
-        Этот поток постоянно читает данные из сокета.
-        """
         buffer = b""
         while self.running:
             try:
                 try:
-                    chunk = self.sock.recv(4096 * 4) # Читаем большими кусками
+                    chunk = self.sock.recv(4096 * 4)
                 except socket.timeout:
                     continue
                 except OSError:
@@ -107,24 +104,26 @@ class EurusCamera:
                         msg_dict = json.loads(raw_msg)
                         cmd = msg_dict.get("command")
                         
-                        # 1. Обработка кадров
                         if cmd in ["stream_frame", "frame_response"]:
                             b64_data = msg_dict.get("image")
                             ts = msg_dict.get("timestamp", 0)
-                            
                             if b64_data:
                                 self._decode_and_store_frame(b64_data, ts)
                         
-                        # 2. Обработка таргетов
                         elif cmd == "targets_response":
+                            # Добавляем локальное время получения, чтобы знать свежесть данных
+                            msg_dict["received_at"] = time.time()
+                            
                             with self._targets_lock:
                                 self._latest_targets = msg_dict
+                            
+                            # Разблокируем тех, кто ждет в blocking режиме
                             self._targets_event.set()
                                 
                     except json.JSONDecodeError:
                         pass 
                     except Exception as e:
-                        self.logger.error(f"Ошибка обработки сообщения камеры: {e}")
+                        self.logger.error(f"Ошибка обработки сообщения: {e}")
 
             except Exception as e:
                 self.logger.error(f"Ошибка в listener камеры: {e}")
@@ -135,7 +134,6 @@ class EurusCamera:
     def _decode_and_store_frame(self, b64_data, timestamp):
         try:
             img_data = base64.b64decode(b64_data)
-            
             np_arr = np.frombuffer(img_data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
@@ -155,56 +153,43 @@ class EurusCamera:
                 self.logger.error(f"Ошибка отправки команды: {e}")
                 self.disconnect()
 
-
     def start_stream(self):
-        """Запросить непрерывный поток кадров"""
-        self.logger.info("Запуск видеопотока...")
         self._send_cmd({"command": "get_stream"})
 
     def stop_stream(self):
-        """Остановить поток"""
-        self.logger.info("Остановка видеопотока...")
         self._send_cmd({"command": "stop_stream"})
 
-    def request_single_frame(self):
-        """Запросить один кадр (обновится в read())"""
-        self._send_cmd({"command": "get_frame"})
-        
-    def get_targets(self, timeout=2.0):
-        """
-        Блокирующий запрос таргетов от нейросети.
-        Возвращает словарь: 
-        {
-            "red_targets": [...], 
-            "blue_targets": [...], 
-            "all_targets": [...]
-        }
-        или None при таймауте.
-        """
-        if not self.is_connected: return None
-        
-        self._targets_event.clear()
-        self._send_cmd({"command": "get_target"})
-        
-        if self._targets_event.wait(timeout=timeout):
-            with self._targets_lock:
-                return dict(self._latest_targets) if self._latest_targets else None
-        else:
-            self.logger.warning("Таймаут получения таргетов")
-            return None
-
     def read(self):
-        """
-        Аналог cv2.VideoCapture.read().
-        Возвращает (ret, frame).
-        """
+        """Возвращает последний кадр: (True/False, frame)"""
         with self._frame_lock:
             if self._current_frame is not None:
                 return True, self._current_frame.copy()
             else:
                 return False, None
 
-    def get_latest_timestamp(self):
-        """Возвращает timestamp последнего полученного кадра"""
-        with self._frame_lock:
-            return self._last_frame_ts
+    def get_targets(self, blocking=False, timeout=2.0):
+        if not self.is_connected: return None
+
+        now = time.time()
+        should_send = True
+        
+        if not blocking:
+            if now - self._last_target_request_ts < 0.1:
+                should_send = False
+        
+        if should_send:
+            if blocking: self._targets_event.clear()
+            self._send_cmd({"command": "get_target"})
+            self._last_target_request_ts = now
+
+        if blocking:
+            if self._targets_event.wait(timeout=timeout):
+                with self._targets_lock:
+                    return dict(self._latest_targets) if self._latest_targets else None
+            else:
+                self.logger.warning("Таймаут получения таргетов")
+                return None
+        
+        else:
+            with self._targets_lock:
+                return dict(self._latest_targets) if self._latest_targets else None

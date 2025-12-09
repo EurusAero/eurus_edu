@@ -259,7 +259,6 @@ def start_server():
     rclpy.init()
     camera_node = CameraBridgeNode()
     
-    # ROS spin в отдельном потоке
     ros_thread = threading.Thread(target=rclpy.spin, args=(camera_node,), daemon=True)
     ros_thread.start()
 

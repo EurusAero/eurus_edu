@@ -7,6 +7,7 @@
  User=orangepi
  WorkingDirectory=/home/orangepi/ros2_ws/
  ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_camera_socket.sh
+ TimeoutStopSec=2
  Restart=always
  RestartSec=1
 
