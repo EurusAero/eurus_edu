@@ -96,7 +96,7 @@ COMPLETED_STATUS = "success"
 
 STATUS_LIST = [PENDING_STATUS, RUNNING_STATUS, DENIED_STATUS, COMPLETED_STATUS]
 
-DRONE_COMMANDS = ["move_to_local_point", "takeoff", "land", "arm", "disarm", "set_mode", "move_in_body_frame"]
+DRONE_COMMANDS = ["move_to_local_point", "takeoff", "land", "arm", "disarm", "set_mode", "move_in_body_frame", "set_velocity"]
 
 START_MARKER = '<msg>'
 END_MARKER = '</msg>'

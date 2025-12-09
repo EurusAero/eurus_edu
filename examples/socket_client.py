@@ -8,7 +8,7 @@ def telem_thread(drone: EurusControl):
         try:
             a = drone.request_telemetry()
             # if a: print(a) # Лучше проверять, пришло ли что-то
-            print(a)
+            # print(a)
             time.sleep(1)
         except Exception:
             break
@@ -20,7 +20,7 @@ b = threading.Thread(target=telem_thread, args=(drone, ), daemon=True)
 b.start()
 
 # drone.arm()
-
+drone.set_velocity(0, 0, 0, 0)
 try:
     print("Программа запущена. Нажмите Ctrl+C для выхода.")
     while True:
