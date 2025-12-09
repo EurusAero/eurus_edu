@@ -55,7 +55,7 @@ def draw_targets(frame, targets_data):
 
 def main():
     # Укажите актуальный IP адрес
-    cam = EurusCamera("192.168.31.120", 8001)
+    cam = EurusCamera("10.42.0.1", 8001)
 
     try:
         cam.connect()

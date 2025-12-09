@@ -257,6 +257,15 @@ class EurusControl:
             "command": "move_in_body_frame", "x": float(x), "y": float(y), "z": float(z),
             "yaw": float(yaw) if yaw is not None else None
         })
+    
+    def set_velocity(self, vx, vy, vz, yaw_rate=None):
+        self._send_movement_command({
+            "command": "set_velocity",
+            "vx": float(vx),
+            "vy": float(vy),
+            "vz": float(vz),
+            "yaw_rate": float(yaw_rate) if yaw_rate is not None else None
+        })
 
     def request_telemetry(self):
         if not self.is_connected: return None
@@ -284,3 +293,4 @@ class EurusControl:
             return self._last_point_reached_data
         else:
             return None
+    

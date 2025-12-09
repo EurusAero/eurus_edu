@@ -56,6 +56,14 @@ ACTION_STATUS_MSG = {
     "message": str
 }
 
+SET_VELOCITY_MSG = {
+    "command": str,
+    "vx": (int, float),
+    "vy": (int, float),
+    "vz": (int, float),
+    "yaw_rate": (int, float, None)
+}
+
 GET_FRAME_MSG = COMMAND_MSG_SAMPLE
 
 GET_STREAM_MSG = COMMAND_MSG_SAMPLE
@@ -77,7 +85,8 @@ MESSAGES = {
     "point_reached": POINT_REACHED_MSG,
     "get_frame": GET_FRAME_MSG,
     "get_stream": GET_STREAM_MSG,
-    "get_target": GET_TARGET_MSG
+    "get_target": GET_TARGET_MSG,
+    "set_velocity": SET_VELOCITY_MSG
     }
 
 PENDING_STATUS = "pending"

@@ -7,7 +7,7 @@ import time
 from math import dist, radians, cos, sin
 
 from transforms3d.euler import euler2quat, quat2euler
-from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
+from mavros_msgs.srv import CommandBool, CommandTOL, SetMode, PositionTarget
 from geometry_msgs.msg import PoseStamped
 from edu_msgs.msg import Command
 from EurusEdu.const import *
@@ -31,6 +31,8 @@ class MavrosHandler(Node):
         
 
         self.local_pos_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', qos_profile)
+        self.raw_velocity_pub = self.create_publisher(PoseStamped, "/mavros/setpoint_raw/local", qos_profile)
+        
         self.local_pose = PoseStamped()
 
         self._wait_for_services()
@@ -59,28 +61,39 @@ class MavrosHandler(Node):
         
         self.target_pose = PoseStamped()
         self.target_pose = self.local_pose
+        self.target_raw = PositionTarget()
         
         self.prev_command_target = (0, 0, 0)
-        
         
         self.timer = self.create_timer(0.05, self.cmd_loop)
 
         self.only_arm = True
         self.current_task_thread = None
+        self.current_control_method = "LOCAL_POSITION" # LOCAL_POSITION, RAW_VELOCITY 
         self.get_logger().info("MavrosHandler готов к работе.")
 
     def cmd_loop(self):
-        self.target_pose.header.stamp = self.get_clock().now().to_msg()
-        self.target_pose.header.frame_id = "map"
-                
-        if self.only_arm:
-            self.target_pose.pose.position.x = self.local_pose.pose.position.x
-            self.target_pose.pose.position.y = self.local_pose.pose.position.y
-            self.target_pose.pose.position.z = self.local_pose.pose.position.z - 2
-            self.target_pose.pose.orientation = self.local_pose.pose.orientation
+        if self.current_control_method == "LOCAL_POSITION":
+            self.target_pose.header.stamp = self.get_clock().now().to_msg()
+            self.target_pose.header.frame_id = "map"
+                    
+            if self.only_arm:
+                self.target_pose.pose.position.x = self.local_pose.pose.position.x
+                self.target_pose.pose.position.y = self.local_pose.pose.position.y
+                self.target_pose.pose.position.z = self.local_pose.pose.position.z - 2
+                self.target_pose.pose.orientation = self.local_pose.pose.orientation
+            
+            self.local_pos_pub.publish(self.target_pose)
+        elif self.current_control_method == "RAW_VELOCITY":
+            self.target_pose.header.stamp = self.get_clock().now().to_msg()
+            self.target_pose.header.frame_id = "map"
+            
+            self.target_raw.coordinate_frame = 8
+            self.target_raw.type_mask = 1479
+            
+            self.raw_velocity_pub.publish(self.target_raw)
+            
         
-        self.local_pos_pub.publish(self.target_pose)
-
     def _wait_for_services(self):
         """Ждем доступности сервисов MAVROS при запуске."""
         self.get_logger().info("Ожидание сервисов MAVROS...")
@@ -113,6 +126,8 @@ class MavrosHandler(Node):
     def calculate_takeoff_position(self, altitude):
         self.target_pose.pose.position.z = altitude
         self.prev_command_target = [self.prev_command_target[0], self.prev_command_target[1], altitude]
+        
+        self.current_control_method = "LOCAL_POSITION"
         
         return self.target_pose
     
@@ -160,7 +175,21 @@ class MavrosHandler(Node):
         else:
             self.prev_command_target = command_coords
         
+        self.current_control_method = "LOCAL_POSITION"
+        
         return self.target_pose
+    
+    def calculate_next_target_velocity(self, vx, vy, vz, yaw_rate=None):
+        self.target_raw.velocity.x = vx
+        self.target_raw.velocity.y = vy
+        self.target_raw.velocity.z = vz
+        
+        if yaw_rate is not None:
+            self.target_raw.yaw_rate = radians(yaw_rate)
+        
+        self.current_control_method = "RAW_VELOCITY"
+        
+        return self.target_raw
     
     def command_callback(self, msg: Command):
         if msg.status != PENDING_STATUS:
@@ -213,10 +242,8 @@ class MavrosHandler(Node):
                 success, error_msg = self.do_set_mode(mode)
             elif cmd_name == "move_in_body_frame":
                 success, error_msg = self.do_move_in_body_frame(data)
-            elif cmd_name == "start_target_tracking":
-                success, error_msg = False, False
-            elif cmd_name == "stop_target_tracking":
-                success, error_msg = False, False
+            elif cmd_name == "set_velocity":
+                success, error_msg = self.do_set_velocity(data)
             else:
                 success = False
                 error_msg = f"Unknown command: {cmd_name}"
@@ -281,6 +308,22 @@ class MavrosHandler(Node):
             return True, "Landing (Service)"
         return False, "Landing failed"
 
+    def do_set_velocity(self, data):
+        try:
+            vx = data.get("vx", self.target_raw.velocity.x)
+            vy = data.get("vy", self.target_raw.velocity.y)
+            vz = data.get("vz", self.target_raw.velocity.z)
+            yaw_rate = data.get("yaw_rate", None)
+
+            self.calculate_next_target_velocity(vx, vy, vz, yaw_rate)
+            
+            self.get_logger().info(f"setting velocity: vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}")
+            
+            return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}"
+            
+        except ValueError as e:
+            return False, f"Invalid values: {e}"
+        
     def do_move_to_local_point(self, data):
         try:
             x = data.get("x", self.target_pose.pose.position.x)
