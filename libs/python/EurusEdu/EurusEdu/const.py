@@ -17,7 +17,7 @@ MOVE_TO_LOCAL_POINT = {
     "x": (float, int),
     "y": (float, int),
     "z": (float, int),
-    "yaw": (float, int, None)
+    "yaw": (float, int, type(None))
      }
 
 MOVE_IN_BODY_FRAME = {
@@ -25,7 +25,7 @@ MOVE_IN_BODY_FRAME = {
     "x": (float, int),
     "y": (float, int),
     "z": (float, int),
-    "yaw": (float, int, None)
+    "yaw": (float, int, type(None))
 }
 
 TAKEOFF_MSG = {
@@ -61,7 +61,7 @@ SET_VELOCITY_MSG = {
     "vx": (int, float),
     "vy": (int, float),
     "vz": (int, float),
-    "yaw_rate": (int, float, None)
+    "yaw_rate": (int, float, type(None))
 }
 
 GET_FRAME_MSG = COMMAND_MSG_SAMPLE

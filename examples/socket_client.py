@@ -1,48 +1,180 @@
-from EurusEdu import EurusControl
+from EurusEdu import EurusControl, EurusCamera
 import time
 import threading
+import cv2
+import numpy as np
 
-def telem_thread(drone: EurusControl):
-    # Проверяем, что дрон подключен, чтобы цикл остановился при дисконнекте
-    while drone.is_connected:  
+class TargetFinder:
+    def __init__(self, ip="10.42.0.1", drone_port=65432, camera_port=8001):
+        self.drone = EurusControl(ip, drone_port)
+        self.camera = EurusCamera(ip, camera_port)
+
+        print("1. Подключение...")
+        self.drone.connect()
+        self.camera.connect()
+        
+        # !!! ВАЖНО: Нужно явно запустить стрим !!!
+        print("2. Запуск видеопотока...")
+        self.camera.start_stream()
+        
+        self.closest_red_target = None
+        self.all_targets = None 
+        self.running = True
+
+    def start(self):
+        # Запускаем потоки обработки данных и управления
+        targets_thread = threading.Thread(target=self.targets_update, daemon=True)
+        targets_thread.start()
+        
+        control_thread = threading.Thread(target=self.start_tracking, daemon=True)
+        control_thread.start()
+    
+    def targets_update(self):
+        while self.running:
+            try:
+                # Получаем цели (класс EurusCamera сам отправляет запрос внутри)
+                targets = self.camera.get_targets()
+                self.all_targets = targets 
+                
+                temp_closest = None
+                
+                if targets and isinstance(targets, dict) and "red_targets" in targets:
+                    red_list = targets["red_targets"]
+                    if red_list:
+                        # Ищем цель с самой большой высотой (h)
+                        for red_target in red_list:
+                            if temp_closest is None:
+                                temp_closest = red_target
+                            elif red_target["h"] > temp_closest["h"]:
+                                temp_closest = red_target
+                    
+                    self.closest_red_target = temp_closest
+                else:
+                    self.closest_red_target = None
+                    
+            except Exception as e:
+                print(f"Error targets: {e}")
+                
+            time.sleep(0.05)
+    
+    def start_tracking(self):
+        self.drone.arm()
+        time.sleep(2)
+        self.drone.takeoff(1)
+        time.sleep(5)
+        yaw_reached = False
+        z_reached = False
+        x_reached = False
+        while self.running:
+            if self.closest_red_target is not None:
+                # Координаты и размеры
+                tx = self.closest_red_target["x"]
+                ty = self.closest_red_target["y"]
+                th = self.closest_red_target["h"]
+                
+                # --- P-регулятор ---
+                
+                # Yaw (поворот) - держим x=320 (центр кадра 640x480)
+                if tx > 360: yaw_rate = -10
+                elif tx < 280: yaw_rate = 10
+                else:
+                    yaw_rate = 0
+                    yaw_reached = True
+                
+                # Z (высота) - держим y=240
+                if ty > 280: vz = -0.1
+                elif ty < 200: vz = 0.1
+                else:
+                    vz = 0
+                    z_reached = True
+                
+                # X (вперед-назад) - держим размер h=160
+                if th > 150: vx = -0.1  # Слишком близко
+                elif th < 100: vx = 0.1 # Слишком далеко
+                else:
+                    vx = 0
+                    x_reached = True
+                
+                # print(f"Track: vX={vx} vZ={vz} Yaw={yaw_rate} (H={th})")
+                self.drone.set_velocity(vx, 0, vz, yaw_rate)
+                
+            else:
+                # Если цели нет - висим на месте
+                self.drone.set_velocity(0, 0, 0, 0)
+                pass
+            
+            # if x_reached and z_reached and yaw_reached:
+            #     self.drone.move_in_body_frame(-1, 0, 1)
+            #     time.sleep(7)
+            #     self.drone.land()
+            #     break
+                
+            time.sleep(0.05)
+
+    def draw_target(self, img, target, color, thickness):
         try:
-            a = drone.request_telemetry()
-            # if a: print(a) # Лучше проверять, пришло ли что-то
-            # print(a)
-            time.sleep(1)
-        except Exception:
-            break
+            x, y = int(target["x"]), int(target["y"])
+            w, h = int(target["w"]), int(target["h"])
+            
+            top_left = (int(x - w / 2), int(y - h / 2))
+            bottom_right = (int(x + w / 2), int(y + h / 2))
+            
+            cv2.rectangle(img, top_left, bottom_right, color, thickness)
+            cv2.circle(img, (x, y), 2, color, -1)
+        except:
+            pass
 
-drone = EurusControl("10.42.0.1", 65432)
-drone.connect()
+    def run_display(self):
+        print("Открываю окно просмотра...")
+        cv2.namedWindow("Eurus View", cv2.WINDOW_NORMAL)
+        
+        while self.running:
+            # Используем метод read() из вашего класса EurusCamera
+            ret, frame = self.camera.read()
+            
+            if ret and frame is not None:
+                # 1. Рисуем все найденные (синим)
+                if self.all_targets and "red_targets" in self.all_targets:
+                    for t in self.all_targets["red_targets"]:
+                        self.draw_target(frame, t, (255, 0, 0), 1)
 
-# b = threading.Thread(target=telem_thread, args=(drone, ), daemon=True)
-# b.start()
+                # 2. Рисуем ту, за которой летим (зеленым)
+                if self.closest_red_target:
+                    self.draw_target(frame, self.closest_red_target, (0, 255, 0), 3)
+                    
+                    # Инфо на экране
+                    info = f"DIST(H): {int(self.closest_red_target['h'])}"
+                    cv2.putText(frame, info, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-drone.arm()
-time.sleep(1)
-drone.takeoff(1)
-time.sleep(5)
-drone.set_velocity(0.5, 0, 0)
-# drone.move_in_body_frame(0.5, 0, 2, 180)
-# time.sleep(5)
-# drone.move_in_body_frame(0, -0.5, 2, 180)
-# time.sleep(5)
-# drone.move_in_body_frame(-0.5, 0, 2, 180)
-time.sleep(1)
-# drone.set_velocity(0, 0.5, 0, 0)
-drone.move_to_local_point(0, 0, 1)
-time.sleep(1)
-drone.set_velocity(0, 0, 0, 0)
-time.sleep(1)
-drone.land()
-# drone.set_velocity(0, 0, 0, 0)
-# try:
-#     print("Программа запущена. Нажмите Ctrl+C для выхода.")
-#     while True:
-#         time.sleep(1) # Просто крутимся и ждем прерывания``
+                # 3. Прицел
+                h, w = frame.shape[:2]
+                cv2.line(frame, (w//2, h//2-20), (w//2, h//2+20), (0,255,255), 2)
+                cv2.line(frame, (w//2-20, h//2), (w//2+20, h//2), (0,255,255), 2)
+                
+                cv2.imshow("Eurus View", frame)
+                
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    self.running = False
+                    break
+            else:
+                # Если кадр не пришел, немного ждем, чтобы не грузить CPU
+                time.sleep(0.01)
 
-# except KeyboardInterrupt:
-#     print("\n[Main] Нажат Ctrl+C! Завершаем работу...")
-#     drone.disconnect() # Корректно закрываем сокеты
-#     # Поток 'b' сам умрет, так как он daemon=True и основной поток завершается
+        # Очистка
+        self.camera.stop_stream()
+        self.camera.disconnect()
+        cv2.destroyAllWindows()
+        self.drone.land()
+
+if __name__ == "__main__":
+    # IP адрес дрона/сервера
+    finder = TargetFinder("10.42.0.1")
+    
+    # Запускаем логику в фоне
+    finder.start()
+    
+    # Запускаем отрисовку в главном потоке
+    try:
+        finder.run_display()
+    except KeyboardInterrupt:
+        finder.running = False

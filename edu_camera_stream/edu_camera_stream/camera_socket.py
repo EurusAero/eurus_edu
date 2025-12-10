@@ -100,7 +100,6 @@ class CameraBridgeNode(Node):
     def target_callback(self, msg: String):
         """Получаем JSON строку от YOLO ноды."""
         try:
-            # Парсим JSON, чтобы убедиться, что он валидный перед сохранением
             data = json.loads(msg.data)
             with self.lock:
                 self.latest_targets = data
@@ -205,8 +204,6 @@ class CameraSession:
         targets = self.ros_node.get_targets()
         
         if targets:
-            # targets уже является словарем (распарсенным JSON), отправляем как есть
-            # YOLO нода уже должна была добавить "command": "targets_response"
             self.send_json(targets)
         else:
             # Если данных от нейросети еще нет, шлем пустой ответ

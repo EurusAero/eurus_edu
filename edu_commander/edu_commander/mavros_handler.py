@@ -35,6 +35,7 @@ class MavrosHandler(Node):
         self.raw_velocity_pub = self.create_publisher(PositionTarget, "/mavros/setpoint_raw/local", qos_profile)
         
         self.local_pose = PoseStamped()
+        self.home_position = PoseStamped()
 
         self._wait_for_services()
 
@@ -64,10 +65,10 @@ class MavrosHandler(Node):
         self.target_pose = self.local_pose
         self.target_raw = PositionTarget()
         
-        self.prev_command_target = (0, 0, 0)
         
         self.timer = self.create_timer(0.05, self.cmd_loop)
 
+        self.first_arm = True
         self.only_arm = True
         self.current_task_thread = None
         self.current_control_method = "LOCAL_POSITION" # LOCAL_POSITION, RAW_VELOCITY 
@@ -126,7 +127,6 @@ class MavrosHandler(Node):
 
     def calculate_takeoff_position(self, altitude):
         self.target_pose.pose.position.z = altitude
-        self.prev_command_target = [self.prev_command_target[0], self.prev_command_target[1], altitude]
         
         self.current_control_method = "LOCAL_POSITION"
         
@@ -151,11 +151,9 @@ class MavrosHandler(Node):
             self.target_pose.pose.position.z = command_coords[2]
             
         else:
-            delta_target = [command_coords[0] - self.prev_command_target[0],
-                            command_coords[1] - self.prev_command_target[1]]
             
-            self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_target[0]
-            self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_target[1]
+            self.target_pose.pose.position.x = self.home_position.pose.position.x + command_coords[0]
+            self.target_pose.pose.position.y = self.home_position.pose.position.y + command_coords[1]
             self.target_pose.pose.position.z = command_coords[2]
 
         if yaw is None:
@@ -167,15 +165,6 @@ class MavrosHandler(Node):
             self.target_pose.pose.orientation.z = qz
             self.target_pose.pose.orientation.w = qw
             
-        if body_frame:
-            self.prev_command_target = [
-                self.target_pose.pose.position.x,
-                self.target_pose.pose.position.y,
-                self.target_pose.pose.position.z
-            ]
-        else:
-            self.prev_command_target = command_coords
-        
         self.current_control_method = "LOCAL_POSITION"
         
         return self.target_pose
@@ -265,6 +254,9 @@ class MavrosHandler(Node):
     
     def wait_movement(self):
         pass
+    
+    def set_home_position(self):
+        self.home_position = self.local_pose
 
     def do_set_mode(self, mode="OFFBOARD"):
         req = SetMode.Request()
@@ -277,6 +269,10 @@ class MavrosHandler(Node):
     def do_arm(self):        
         self.do_set_mode("OFFBOARD")
         time.sleep(0.5)
+        
+        if self.first_arm:
+            self.set_home_position()
+            self.first_arm = False
         
         req = CommandBool.Request()
         req.value = True
@@ -305,9 +301,7 @@ class MavrosHandler(Node):
     def do_land(self):
         req = CommandTOL.Request()
         res = self._call_service_sync(self.land_client, req)
-        
-        self.current_control_method = "LOCAL_POSITION"
-        
+                
         if res.success:
             return True, "Landing (Service)"
         return False, "Landing failed"
