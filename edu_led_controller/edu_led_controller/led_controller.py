@@ -20,7 +20,7 @@ class WS2812Controller:
         
         self._running = False
         self._thread = None
-        self._mode = "static"
+        self._mode = "base"
         self._color = [0, 0, 0]
         self._effect_speed = 0.05
         self._step = 0
@@ -176,7 +176,7 @@ class WS2812Controller:
 
 class LedNode(Node):
     def __init__(self, led_controller: WS2812Controller):
-        super().__init__('eurus_led_driver')
+        super().__init__('led_controller')
         self.led = led_controller
         
         # Подписка на топик, куда API сервер кидает JSON
@@ -209,7 +209,6 @@ class LedNode(Node):
                 self.led.set_static(color)
                 
             elif effect == "blink":
-                # Можно добавить параметр скорости в JSON, если нужно
                 self.led.set_blink(color, delay=0.5)
                 
             elif effect == "rainbow":
@@ -245,11 +244,9 @@ def main(args=None):
         leds.start()
         # Включаем "base" режим по умолчанию при старте
         leds.set_base()
-        
         # Инициализация ROS 2
         rclpy.init(args=args)
         node = LedNode(leds)
-        
         # Spin блокирует этот поток, пока ROS узел работает
         rclpy.spin(node)
         

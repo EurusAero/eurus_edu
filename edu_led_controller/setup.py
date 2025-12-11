@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            "led_controller = edu_led_controller.led_controller.main"
+            "led_controller = edu_led_controller.led_controller:main"
         ],
     },
 )
