@@ -51,8 +51,11 @@ class EduApiNode(Node):
             depth=10
         )
 
-        # Публикация команд (отправляем pending)
+        # Публикация команд для дрона (отправляем pending)
         self.cmd_pub = self.create_publisher(Command, 'edu/command', qos_profile)
+        
+        # [НОВОЕ] Публикация команд для LED ленты (JSON String)
+        self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
         
         # Подписка на изменение статуса команд (от контроллера)
         self.status_sub = self.create_subscription(
@@ -133,10 +136,25 @@ class EduApiNode(Node):
         """
         Обработка входящего JSON от клиента.
         Возвращает ответ (словарь), который нужно отправить немедленно (ACK или Telemetry).
+        Если возвращает None, ответ клиенту не отправляется.
         """
         cmd_name = request_msg.get("command")
         
-        if cmd_name == "request_telemetry":
+        # [НОВОЕ] Обработка команды LED
+        if cmd_name == "led_control":
+            try:
+                # Превращаем весь JSON запроса в строку и кидаем в топик
+                msg = String()
+                msg.data = json.dumps(request_msg)
+                self.led_pub.publish(msg)
+                logger.info(f"LED команда отправлена в топик: {request_msg.get('effect', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Ошибка публикации LED команды: {e}")
+            
+            # Возвращаем None, чтобы не отправлять ответ клиенту
+            return None
+
+        elif cmd_name == "request_telemetry":
             return {
                 "command": "response_telemetry",
                 "telemetry": self.latest_telemetry
@@ -144,7 +162,7 @@ class EduApiNode(Node):
         elif cmd_name == "point_reached":
             return {
                 "command": "point_reached",
-                "point_reached": self.latest_telemetry["point_reached"]
+                "point_reached": self.latest_telemetry.get("point_reached", False)
             }
         elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
@@ -171,12 +189,7 @@ class EduApiNode(Node):
             self.cmd_pub.publish(ros_msg)
             logger.info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
 
-            return {
-                "command": "action_status",
-                "action": cmd_name,
-                "status": PENDING_STATUS,
-                "message": "Command sent to controller"
-            }
+            return None
 
         return {
             "command": "response",
@@ -250,7 +263,9 @@ class ClientSession:
             
             self.msg_utils.validate_message(message)
             
-            if message.get("command") in DRONE_COMMANDS:
+            cmd = message.get("command")
+
+            if cmd in DRONE_COMMANDS:
                 self.send_json({
                     "command": "response",
                     "status": "success",

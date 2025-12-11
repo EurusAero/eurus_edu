@@ -64,6 +64,14 @@ SET_VELOCITY_MSG = {
     "yaw_rate": (int, float, type(None))
 }
 
+LED_CONTROL_MSG = {
+    "command": str,
+    "nLED": int,
+    "effect": str,
+    "brightness": (int, float),
+    "color": list
+}
+
 GET_FRAME_MSG = COMMAND_MSG_SAMPLE
 
 GET_STREAM_MSG = COMMAND_MSG_SAMPLE
@@ -86,7 +94,8 @@ MESSAGES = {
     "get_frame": GET_FRAME_MSG,
     "get_stream": GET_STREAM_MSG,
     "get_target": GET_TARGET_MSG,
-    "set_velocity": SET_VELOCITY_MSG
+    "set_velocity": SET_VELOCITY_MSG,
+    "led_control": LED_CONTROL_MSG
     }
 
 PENDING_STATUS = "pending"

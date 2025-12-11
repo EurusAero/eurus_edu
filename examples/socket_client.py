@@ -13,7 +13,6 @@ class TargetFinder:
         self.drone.connect()
         self.camera.connect()
         
-        # !!! ВАЖНО: Нужно явно запустить стрим !!!
         print("2. Запуск видеопотока...")
         self.camera.start_stream()
         
@@ -67,48 +66,38 @@ class TargetFinder:
         x_reached = False
         while self.running:
             if self.closest_red_target is not None:
+                last_target_found = time.time()
                 # Координаты и размеры
                 tx = self.closest_red_target["x"]
                 ty = self.closest_red_target["y"]
                 th = self.closest_red_target["h"]
-                
-                # --- P-регулятор ---
-                
+                                
                 # Yaw (поворот) - держим x=320 (центр кадра 640x480)
                 if tx > 360: yaw_rate = -10
                 elif tx < 280: yaw_rate = 10
                 else:
                     yaw_rate = 0
-                    yaw_reached = True
                 
                 # Z (высота) - держим y=240
                 if ty > 280: vz = -0.1
                 elif ty < 200: vz = 0.1
                 else:
                     vz = 0
-                    z_reached = True
                 
-                # X (вперед-назад) - держим размер h=160
                 if th > 150: vx = -0.1  # Слишком близко
                 elif th < 100: vx = 0.1 # Слишком далеко
                 else:
                     vx = 0
-                    x_reached = True
                 
                 # print(f"Track: vX={vx} vZ={vz} Yaw={yaw_rate} (H={th})")
                 self.drone.set_velocity(vx, 0, vz, yaw_rate)
                 
             else:
-                # Если цели нет - висим на месте
-                self.drone.set_velocity(0, 0, 0, 0)
-                pass
+                if (time.time() - last_target_found) >= 5:
+                    self.drone.set_velocity(0, 0, 0, 20)
+                else:
+                    self.drone.set_velocity(0, 0, 0, 0)
             
-            # if x_reached and z_reached and yaw_reached:
-            #     self.drone.move_in_body_frame(-1, 0, 1)
-            #     time.sleep(7)
-            #     self.drone.land()
-            #     break
-                
             time.sleep(0.05)
 
     def draw_target(self, img, target, color, thickness):

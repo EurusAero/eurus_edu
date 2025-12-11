@@ -10,12 +10,13 @@ from .const import *
 
 
 class EurusControl:
-    def __init__(self, ip: str, port: int, log_file: str = None):
+    def __init__(self, ip: str, port: int, console_log: bool = True, log_file: str = None):
         self.ip = ip
         self.port = port
         self.sock = None
         self.is_connected = False
         self.running = False
+        self.console_log = console_log
         
         self.logger = logging.getLogger("EurusEdu")
         self.logger.setLevel(logging.DEBUG)
@@ -120,21 +121,22 @@ class EurusControl:
                         command = msg_dict.get("command")
                         
                         if command == "response":
-                            self.logger.info(f"[RX] ACK: {msg_dict.get('status')}")
+                            if self.console_log:
+                                self.logger.info(f"[RX] ACK: {msg_dict.get('status')}")
                             self._last_response_status = msg_dict.get("status")
                             self._response_event.set()
                             
                         elif command == "action_status":
                             code = msg_dict.get("status")
                             self._last_action_message = msg_dict.get("message", "")
-                            self.logger.info(f"[RX] {command}: {code} ({self._last_action_message})")
+                            if self.console_log:
+                                self.logger.info(f"[RX] {command}: {code} ({self._last_action_message})")
 
                             if code == PENDING_STATUS:
                                 self._action_started_event.set()
                             elif code in [COMPLETED_STATUS, DENIED_STATUS]:
                                 self._last_action_code = code
                                 self._action_finished_event.set()
-                                # На случай если PENDING пропустили или сервер сразу ответил итогом
                                 self._action_started_event.set() 
                             
                         elif command == "response_telemetry":
@@ -160,7 +162,7 @@ class EurusControl:
             try:
                 if self.sock:
                     self.sock_utils.send_json(self.sock, payload)
-                    if payload["command"] in DRONE_COMMANDS:
+                    if payload["command"] in DRONE_COMMANDS and self.console_log:
                         self.logger.info(f"[TX] {payload['command']}")
             except Exception as e:
                 self.logger.error(f"Ошибка отправки: {e}")
@@ -294,3 +296,29 @@ class EurusControl:
         else:
             return None
     
+    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 15, brightness: float = 1.0):
+        """
+        Управление LED лентой без ожидания ответа (Fire-and-forget).
+        
+        :param effect: Тип эффекта ('static', 'blink', 'rainbow', 'komet', 'clear', 'base')
+        :param r: Красный (0-255)
+        :param g: Зеленый (0-255)
+        :param b: Синий (0-255)
+        :param nLED: Количество светодиодов (по умолчанию 15)
+        :param brightness: Яркость (0.0 - 1.0)
+        """
+        if not self.is_connected:
+            self.logger.error("Нет соединения для отправки команды LED.")
+            return
+
+        payload = {
+            "command": "led_control",
+            "effect": str(effect),
+            "nLED": int(nLED),
+            "brightness": float(brightness),
+            "color": [int(r), int(g), int(b)]
+        }
+        
+        # Используем _send_raw напрямую, минуя блокировки _movement_lock 
+        # и ожидания событий (Event wait).
+        self._send_raw(payload)
