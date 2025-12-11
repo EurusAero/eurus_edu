@@ -78,6 +78,8 @@ GET_STREAM_MSG = COMMAND_MSG_SAMPLE
 
 GET_TARGET_MSG = COMMAND_MSG_SAMPLE
 
+LASERTAG_SHOT_MSG = COMMAND_MSG_SAMPLE
+
 MESSAGES = {
     "move_to_local_point": MOVE_TO_LOCAL_POINT,
     "move_in_body_frame": MOVE_IN_BODY_FRAME,
@@ -95,7 +97,8 @@ MESSAGES = {
     "get_stream": GET_STREAM_MSG,
     "get_target": GET_TARGET_MSG,
     "set_velocity": SET_VELOCITY_MSG,
-    "led_control": LED_CONTROL_MSG
+    "led_control": LED_CONTROL_MSG,
+    "laser_shot": LASERTAG_SHOT_MSG
     }
 
 PENDING_STATUS = "pending"

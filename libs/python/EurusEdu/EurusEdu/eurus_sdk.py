@@ -8,7 +8,6 @@ from .utils import SocketsUtils
 from .const import *
 
 
-
 class EurusControl:
     def __init__(self, ip: str, port: int, console_log: bool = True, log_file: str = None):
         self.ip = ip
@@ -36,19 +35,28 @@ class EurusControl:
         self.sock_utils = SocketsUtils()
         self.listener_thread = None
         
-        self._socket_lock = threading.Lock()
-        self._movement_lock = threading.Lock()
+        # Локи
+        self._socket_lock = threading.Lock()    # Для защиты отправки байтов в сокет
+        self._movement_lock = threading.Lock()  # Для блокировки команд движения
         
+        # События синхронизации
         self._response_event = threading.Event()
         self._action_started_event = threading.Event()
         self._action_finished_event = threading.Event()
         self._telemetry_event = threading.Event()
         self._point_reached_event = threading.Event()
+    
+        self._laser_event = threading.Event()
         
+        # Данные
         self._last_telemetry_data = {}
+        self._last_point_reached_data = {}
         self._last_response_status = None
+        
         self._last_action_code = None
         self._last_action_message = ""
+        
+        self._last_laser_status = None
 
     def connect(self):
         if self.is_connected:
@@ -83,6 +91,7 @@ class EurusControl:
         self._action_finished_event.set()
         self._telemetry_event.set()
         self._point_reached_event.set()
+        self._laser_event.set()
 
         if self.sock:
             try:
@@ -96,15 +105,12 @@ class EurusControl:
         buffer = b""
         while self.running:
             try:
-                # Благодаря self.sock.settimeout(1.0), этот вызов будет
-                # выбрасывать socket.timeout каждую секунду, если данных нет.
-                # Это позволяет циклу проверить while self.running.
                 try:
                     chunk = self.sock.recv(1024)
                 except socket.timeout:
-                    continue # Просто проверяем self.running и слушаем дальше
+                    continue 
                 except OSError:
-                    break # Сокет закрыт
+                    break 
 
                 if not chunk:
                     self.logger.warning("Сервер закрыл соединение.")
@@ -127,17 +133,28 @@ class EurusControl:
                             self._response_event.set()
                             
                         elif command == "action_status":
+                            action_name = msg_dict.get("action")
                             code = msg_dict.get("status")
-                            self._last_action_message = msg_dict.get("message", "")
-                            if self.console_log:
-                                self.logger.info(f"[RX] {command}: {code} ({self._last_action_message})")
+                            message = msg_dict.get("message", "")
 
-                            if code == PENDING_STATUS:
-                                self._action_started_event.set()
-                            elif code in [COMPLETED_STATUS, DENIED_STATUS]:
-                                self._last_action_code = code
-                                self._action_finished_event.set()
-                                self._action_started_event.set() 
+                            if action_name == "laser_shot":
+                                if self.console_log:
+                                    self.logger.info(f"[RX-LASER] {code}")
+                                
+                                if code in [COMPLETED_STATUS, DENIED_STATUS]:
+                                    self._last_laser_status = code
+                                    self._laser_event.set()
+                            else:
+                                self._last_action_message = message
+                                if self.console_log:
+                                    self.logger.info(f"[RX] {command} ({action_name}): {code} ({self._last_action_message})")
+
+                                if code == PENDING_STATUS:
+                                    self._action_started_event.set()
+                                elif code in [COMPLETED_STATUS, DENIED_STATUS]:
+                                    self._last_action_code = code
+                                    self._action_finished_event.set()
+                                    self._action_started_event.set() 
                             
                         elif command == "response_telemetry":
                             self._last_telemetry_data = msg_dict.get("telemetry", {})
@@ -146,7 +163,6 @@ class EurusControl:
                         elif command == "point_reached":
                             self._last_point_reached_data = msg_dict.get("point_reached", {})
                             self._point_reached_event.set()
-                            
                             
                     except json.JSONDecodeError:
                         self.logger.error(f"Битый JSON: {raw_msg}")
@@ -218,7 +234,6 @@ class EurusControl:
                      self.logger.error(f"Команда {cmd_name} отклонена: {self._last_action_message}")
                      return
 
-
                 if not self._smart_wait(self._action_finished_event, timeout=None):
                     self.logger.warning("Ожидание завершения прервано (дисконнект).")
                     return
@@ -280,7 +295,6 @@ class EurusControl:
         if self._smart_wait(self._telemetry_event, timeout=2.0):
             return self._last_telemetry_data
         else:
-            # self.logger.warning("Телеметрия не пришла.") # Можно убрать спам логов
             return None
     
     def point_reached(self):
@@ -295,17 +309,10 @@ class EurusControl:
             return self._last_point_reached_data
         else:
             return None
-    
+
     def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 15, brightness: float = 1.0):
         """
         Управление LED лентой без ожидания ответа (Fire-and-forget).
-        
-        :param effect: Тип эффекта ('static', 'blink', 'rainbow', 'komet', 'clear', 'base')
-        :param r: Красный (0-255)
-        :param g: Зеленый (0-255)
-        :param b: Синий (0-255)
-        :param nLED: Количество светодиодов (по умолчанию 15)
-        :param brightness: Яркость (0.0 - 1.0)
         """
         if not self.is_connected:
             self.logger.error("Нет соединения для отправки команды LED.")
@@ -319,6 +326,34 @@ class EurusControl:
             "color": [int(r), int(g), int(b)]
         }
         
-        # Используем _send_raw напрямую, минуя блокировки _movement_lock 
-        # и ожидания событий (Event wait).
         self._send_raw(payload)
+
+    def laser_shot(self):
+        """
+        Отправляет команду выстрела.
+        Не блокирует другие команды управления (можно вызывать параллельно с полетом).
+        Блокирует только текущий поток на ~0.5 сек до получения ответа о выстреле.
+        """
+        if not self.is_connected:
+            return False
+
+        # 1. Сбрасываем только флаг лазера
+        self._laser_event.clear()
+        self._last_laser_status = None
+
+        payload = {"command": "laser_shot"}
+        
+        self._send_raw(payload)
+
+        # 3. Ждем подтверждения выполнения (Success/Denied) именно для лазера
+        # Таймаут 2 секунды (выстрел длится 0.5)
+        if self._smart_wait(self._laser_event, timeout=2.0):
+            if self._last_laser_status == COMPLETED_STATUS:
+                self.logger.info("Laser shot successful.")
+                return True
+            else:
+                self.logger.warning(f"Laser shot failed/denied: {self._last_laser_status}")
+                return False
+        else:
+            self.logger.error("Laser shot timeout (no confirmation from server).")
+            return False

@@ -54,10 +54,19 @@ class EduApiNode(Node):
         # Публикация команд для дрона (отправляем pending)
         self.cmd_pub = self.create_publisher(Command, 'edu/command', qos_profile)
         
-        # [НОВОЕ] Публикация команд для LED ленты (JSON String)
+        # Публикация команд для LED ленты (JSON String)
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
         
-        # Подписка на изменение статуса команд (от контроллера)
+        # Публикация и подписка для Лазертага
+        self.lasertag_pub = self.create_publisher(String, 'edu/lasertag', qos_profile)
+        self.lasertag_sub = self.create_subscription(
+            String,
+            'edu/lasertag',
+            self.lasertag_callback,
+            qos_profile
+        )
+
+        # Подписка на изменение статуса команд дрона (от контроллера)
         self.status_sub = self.create_subscription(
             Command, 
             'edu/command', 
@@ -99,10 +108,39 @@ class EduApiNode(Node):
         except json.JSONDecodeError:
             logger.error("Получена некорректная JSON телеметрия из ROS топика")
 
+    def lasertag_callback(self, msg):
+        """
+        Обработка ответов от ноды лазертага.
+        Нода присылает JSON с command="shoot" и status="success".
+        Мы транслируем это клиенту как action="laser_shot".
+        """
+        try:
+            data = json.loads(msg.data)
+            cmd = data.get("command")
+            status = data.get("status")
+            
+            # Мы реагируем только на успешное завершение выстрела
+            if cmd == "shoot" and status == COMPLETED_STATUS:
+                response_data = {
+                    "command": "action_status",
+                    "action": "laser_shot", # SDK ждет именно это имя
+                    "status": COMPLETED_STATUS,
+                    "message": data.get("message", "Shot fired")
+                }
+                
+                with self.session_lock:
+                    if self.active_session:
+                        self.active_session.send_json(response_data)
+                        logger.info("Подтверждение выстрела отправлено клиенту.")
+
+        except json.JSONDecodeError:
+            logger.error("Ошибка JSON в lasertag callback")
+        except Exception as e:
+            logger.error(f"Ошибка обработки callback лазертага: {e}")
+
     def command_status_callback(self, msg: Command):
         """
-        Коллбек, когда контроллер обновляет статус команды.
-        Здесь мы проверяем статус и отправляем ответ клиенту TCP.
+        Коллбек, когда контроллер обновляет статус команд ДВИЖЕНИЯ.
         """
         if not self.is_busy or abs(msg.timestamp - self.current_command_id) > 0.0001:
             return
@@ -117,42 +155,62 @@ class EduApiNode(Node):
             "message": msg.data
         }
 
-        # Отправляем клиенту
         with self.session_lock:
             if self.active_session:
                 self.active_session.send_json(response_data)
 
-        # Логика разблокировки
         if status in [COMPLETED_STATUS, DENIED_STATUS]:
             self.is_busy = False
             self.current_command_name = None
             logger.info(f"Поток команд разблокирован. Команда '{msg.command}' завершена со статусом {status}.")
-        
-        elif status == RUNNING_STATUS:
-            # Просто информируем, блокировку не снимаем
-            pass
 
     def process_client_command(self, request_msg: dict, session):
         """
         Обработка входящего JSON от клиента.
-        Возвращает ответ (словарь), который нужно отправить немедленно (ACK или Telemetry).
-        Если возвращает None, ответ клиенту не отправляется.
         """
         cmd_name = request_msg.get("command")
         
-        # [НОВОЕ] Обработка команды LED
         if cmd_name == "led_control":
             try:
-                # Превращаем весь JSON запроса в строку и кидаем в топик
                 msg = String()
                 msg.data = json.dumps(request_msg)
                 self.led_pub.publish(msg)
                 logger.info(f"LED команда отправлена в топик: {request_msg.get('effect', 'unknown')}")
             except Exception as e:
                 logger.error(f"Ошибка публикации LED команды: {e}")
-            
-            # Возвращаем None, чтобы не отправлять ответ клиенту
             return None
+
+        elif cmd_name == "laser_shot":
+            try:
+                # Нода лазертага ждет команду "shoot"
+                payload = {
+                    "command": "shoot",
+                    "status": PENDING_STATUS,
+                    "timestamp": time.time()
+                }
+                
+                msg = String()
+                msg.data = json.dumps(payload)
+                self.lasertag_pub.publish(msg)
+                
+                logger.info("Команда выстрела отправлена в топик /edu/lasertag")
+                
+                self.set_active_session(session)
+                
+                return {
+                    "command": "action_status",
+                    "action": "laser_shot",
+                    "status": PENDING_STATUS,
+                    "message": "Shot initiated"
+                }
+            except Exception as e:
+                logger.error(f"Ошибка отправки выстрела: {e}")
+                return {
+                    "command": "action_status",
+                    "action": "laser_shot",
+                    "status": DENIED_STATUS,
+                    "message": str(e)
+                }
 
         elif cmd_name == "request_telemetry":
             return {
@@ -164,6 +222,7 @@ class EduApiNode(Node):
                 "command": "point_reached",
                 "point_reached": self.latest_telemetry.get("point_reached", False)
             }
+            
         elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
@@ -189,7 +248,12 @@ class EduApiNode(Node):
             self.cmd_pub.publish(ros_msg)
             logger.info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
 
-            return None
+            return {
+                "command": "action_status",
+                "action": cmd_name,
+                "status": PENDING_STATUS,
+                "message": "Command sent to controller"
+            }
 
         return {
             "command": "response",
@@ -260,9 +324,7 @@ class ClientSession:
     def _handle_request(self, json_data):
         try:
             message = json.loads(json_data)
-            
             self.msg_utils.validate_message(message)
-            
             cmd = message.get("command")
 
             if cmd in DRONE_COMMANDS:
