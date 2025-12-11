@@ -37,7 +37,7 @@ class LasertagNode(Node):
             10
         )
 
-        self.get_logger().info(f"Lasertag Node Started. Watching {self.topic_name}...")
+        self.get_logger().info(f"Lasertag Node Started. Watching /edu/lasertag...")
         
         self._shooting_lock = threading.Lock()
 
@@ -98,7 +98,7 @@ class LasertagNode(Node):
         msg.data = json.dumps(response_data)
         
         self.lasertag_pub.publish(msg)
-        self.get_logger().info(f"Published completion to {self.topic_name}: {response_data}")
+        self.get_logger().info(f"Published completion {response_data}")
 
 def main(args=None):
     rclpy.init(args=args)
