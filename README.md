@@ -5,7 +5,9 @@
 # Docs
 
 -   Создание объектов дрона и камеры
+
     drone = EurusControl(ip, drone_port)
+
     входные параметры:
 
     -   ip: str ip
@@ -16,10 +18,13 @@
     camera = EurusCamera(ip, camera_port)
 
 -   Подключение к ним
+
     drone.connect()
+
     camera.connect()
 
 -   Запуск видеопотока.
+
     camera.start_stream()
 
 ## Методы объекта дрона
@@ -92,7 +97,9 @@ set_velocity(self, vx, vy, vz, yaw_rate)
 ### Лазерная пушка
 
 pin лазерa = 13
+
 drone.laser_shot()
+
 Отправляет команду выстрела.
 Не блокирует другие команды управления (можно вызывать параллельно с полетом).
 Блокирует только текущий поток на ~0.5 сек до получения ответа о выстреле.
@@ -153,7 +160,8 @@ telemetry_data:
 
 ### LED
 
-led_control
+led_control(effect)
+
 Входные параметры:
 
 -   effect (string) - режим свечения
