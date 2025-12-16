@@ -4,13 +4,16 @@ import threading
 import cv2
 import numpy as np
 
-class TargetFinder:
-    def __init__(self, ip="10.42.0.1", drone_port=65432, camera_port=8001, target_red = True, target_blue = False):
+class TargetFinderAndShooter:
+    def __init__(self, ip="10.42.0.1", drone_port=65432, camera_port=8001, target_red = True, target_blue = False, hold_height = 240):
         self.drone = EurusControl(ip, drone_port)
         self.camera = EurusCamera(ip, camera_port)
 
         self.target_blue = target_blue
         self.target_red = target_red
+
+        self.hold_height = hold_height
+
 
         print("1. Подключение...")
         self.drone.connect()
@@ -72,16 +75,12 @@ class TargetFinder:
                                 temp_closest = blue_target
                     
                     self.closest_blue_target = temp_closest
-                    if self.closest_target is not None and self.closest_red_target["h"] < self.closest_target["h"]:
-                        self.closest_target = self.closest_red_target
+                    if self.closest_target is not None and self.closest_blue_target["h"] < self.closest_target["h"]:
+                        self.closest_target = self.closest_blue_target
                     else:
                         self.closest_target = self.closest_target
                 else:
                     self.closest_blue_target = None
-                
-                if self.closest_blue_target is not None:
-                    if self.closest_red_target is not None:
-                        if 
                     
             except Exception as e:
                 print(f"Error targets: {e}")
@@ -96,13 +95,14 @@ class TargetFinder:
         yaw_reached = False
         z_reached = False
         x_reached = False
+        last_shot_time = time.time() 
         while self.running:
-            if self.closest_red_target is not None:
+            if self.closest_target is not None:
                 last_target_found = time.time()
                 # Координаты и размеры
-                tx = self.closest_red_target["x"]
-                ty = self.closest_red_target["y"]
-                th = self.closest_red_target["h"]
+                tx = self.closest_target["x"]
+                ty = self.closest_target["y"]
+                th = self.closest_target["h"]
                                 
                 # Yaw (поворот) - держим x=320 (центр кадра 640x480)
                 if tx > 360: yaw_rate = -10
@@ -120,6 +120,11 @@ class TargetFinder:
                 elif th < 100: vx = 0.1 # Слишком далеко
                 else:
                     vx = 0
+
+                # Если достаточно близко к цели стреляет в неё каждые 5 сек
+                if th > 100 and th < 150 and time.time() - last_shot_time > 5:
+                    self.drone.laser_shot()
+                    last_shot_time = time.time()
                 
                 # print(f"Track: vX={vx} vZ={vz} Yaw={yaw_rate} (H={th})")
                 self.drone.set_velocity(vx, 0, vz, yaw_rate)
@@ -155,16 +160,18 @@ class TargetFinder:
             
             if ret and frame is not None:
                 # 1. Рисуем все найденные (синим)
-                if self.all_targets and "red_targets" in self.all_targets:
+                if self.all_targets:
                     for t in self.all_targets["red_targets"]:
                         self.draw_target(frame, t, (255, 0, 0), 1)
+                    for t in self.all_targets["blue_targets"]:
+                        self.draw_target(frame, t, (0, 0, 255), 1)
 
                 # 2. Рисуем ту, за которой летим (зеленым)
-                if self.closest_red_target:
-                    self.draw_target(frame, self.closest_red_target, (0, 255, 0), 3)
+                if self.closest_target:
+                    self.draw_target(frame, self.closest_target, (0, 255, 0), 3)
                     
                     # Инфо на экране
-                    info = f"DIST(H): {int(self.closest_red_target['h'])}"
+                    info = f"DIST(H): {int(self.closest_target['h'])}"
                     cv2.putText(frame, info, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
                 # 3. Прицел
@@ -188,8 +195,11 @@ class TargetFinder:
         self.drone.land()
 
 if __name__ == "__main__":
-    # IP адрес дрона/сервера
-    finder = TargetFinder("10.42.0.1")
+    # Создание объекта для трекинга и стрельбы по целям задаются параметры
+    # IP адрес дрона/сервера 
+    # стрелять и искать синие цели
+    # стрелять и искать краснные цели
+    finder = TargetFinderAndShooter("10.42.0.1",target_blue= False, target_red= True)
     
     # Запускаем логику в фоне
     finder.start()
