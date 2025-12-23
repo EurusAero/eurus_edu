@@ -1,19 +1,32 @@
 from EurusEdu import EurusControl, EurusCamera
+
 import time
 import threading
 import cv2
 import numpy as np
 
 class TargetFinderAndShooter:
-    def __init__(self, ip="10.42.0.1", drone_port=65432, camera_port=8001, target_red = True, target_blue = False, hold_height = 240):
+    def __init__(self, ip="10.42.0.1", drone_port=65432, camera_port=8001, target_red = True, target_blue = False, switch_between = False):
         self.drone = EurusControl(ip, drone_port)
         self.camera = EurusCamera(ip, camera_port)
+
+        self.camera_wit = 720
+        self.wit_diviation = 20
+        self.camera_height = 480
+        self.height_diviation = 20
+
+        self.max_h = 150
+        self.min_h = 50
+
+        self.shoot = False
 
         self.target_blue = target_blue
         self.target_red = target_red
 
-        self.hold_height = hold_height
-
+        if self.target_blue and self.target_red:
+            self.switch_between = switch_between 
+        else:
+            self.switch_between = False
 
         print("1. Подключение...")
         self.drone.connect()
@@ -29,20 +42,69 @@ class TargetFinderAndShooter:
         self.all_targets = None 
         self.running = True
 
+        self.speed_mod = 2.0
+
+        # shoot, search, track, takeoff, land
+        self.drone.led_control(effect = "static",r = 100,g = 100,b = 100, nLED = 16, brightness = 1)
+        self.mode = "default"
+        self.modes = {
+            "shoot" : ["blink", 255, 0, 0, 16, 1],
+            "search" : ["static", 0, 150, 150, 16, 1],
+            "track" : ["static", 0, 255, 0, 16, 1],
+            "takeoff" : ["blink", 0, 0, 255, 16, 1],
+            "land" : ["blink", 0, 255, 0, 16 ,1],
+            "default" : ["static", 100, 100, 100, 16 ,1],
+            "arm" : ["blink", 255, 255, 255, 16 ,1]
+        }
+    
+    def change_mod(self, mod : str):
+        if mod in self.modes.keys() and self.mode != mod:
+            self.mode = mod
+            mod_param = self.modes[mod]
+            self.drone.led_control(effect = mod_param[0],r = mod_param[1],g = mod_param[2],b = mod_param[3], nLED = mod_param[4], brightness = mod_param[5])
+
     def start(self):
         # Запускаем потоки обработки данных и управления
         targets_thread = threading.Thread(target=self.targets_update, daemon=True)
         targets_thread.start()
         
         control_thread = threading.Thread(target=self.start_tracking, daemon=True)
-        control_thread.start()
+        control_thread.start() 
+
+        shoot_thread = threading.Thread(target=self.shooter_thread, daemon=True)
+        shoot_thread.start() 
     
+    def shooter_thread(self):
+        while self.running:
+            try:
+                if self.shoot:
+                    self.shoot = False
+                    res = self.drone.laser_shot()
+                    print("IGiygfyuohaoug")
+                    if self.switch_between and res:
+                        if self.closest_target["class"] == "red target":
+                            self.target_red = False
+                            self.target_blue = True
+                        else: 
+                            self.target_blue = False
+                            self.target_red = True
+                    
+            except Exception as e:
+                print(f"Error targets: {e}")
+                
+            time.sleep(0.05)
+
     def targets_update(self):
         while self.running:
             try:
                 # Получаем цели (класс EurusCamera сам отправляет запрос внутри)
                 targets = self.camera.get_targets()
+                #print(targets)
+                #time.sleep(3)
                 self.all_targets = targets 
+                self.closest_target = None
+                self.closest_blue_target = None
+                self.closest_red_target = None
                 
                 temp_closest = None
                 
@@ -59,11 +121,9 @@ class TargetFinderAndShooter:
                     self.closest_red_target = temp_closest
                     if self.closest_target is not None and self.closest_red_target["h"] < self.closest_target["h"]:
                         self.closest_target = self.closest_red_target
-                    else:
-                        self.closest_target = self.closest_target
                 else:
                     self.closest_red_target = None
-
+                temp_closest = None
                 if self.target_blue and targets and isinstance(targets, dict) and "blue_targets" in targets:
                     blue_list = targets["blue_targets"]
                     if blue_list:
@@ -77,10 +137,20 @@ class TargetFinderAndShooter:
                     self.closest_blue_target = temp_closest
                     if self.closest_target is not None and self.closest_blue_target["h"] < self.closest_target["h"]:
                         self.closest_target = self.closest_blue_target
-                    else:
-                        self.closest_target = self.closest_target
                 else:
                     self.closest_blue_target = None
+
+                if self.closest_target is None and (self.closest_blue_target is not None or self.closest_red_target is not None):
+                    if self.closest_red_target is not None:
+                        if self.closest_blue_target is not None:
+                            if self.closest_blue_target["h"] < self.closest_red_target["h"]:
+                                self.closest_target = self.closest_blue_target
+                            else:
+                                self.closest_target = self.closest_red_target
+                        else:
+                            self.closest_target = self.closest_red_target
+                    else:
+                        self.closest_target = self.closest_blue_target
                     
             except Exception as e:
                 print(f"Error targets: {e}")
@@ -88,16 +158,24 @@ class TargetFinderAndShooter:
             time.sleep(0.05)
     
     def start_tracking(self):
+        self.change_mod("arm")
         self.drone.arm()
+        #self.drone.set_velocity(0, 0, 0, 0)
         time.sleep(2)
-        self.drone.takeoff(1)
+        self.change_mod("takeoff")
+        self.drone.takeoff(1.5)
         time.sleep(5)
-        yaw_reached = False
-        z_reached = False
-        x_reached = False
-        last_shot_time = time.time() 
+        self.change_mod("search")
+        last_target_found = time.time()
+        last_shot_time = time.time() - 10
         while self.running:
+            vx = 0
+            vy = 0 
+            vz = 0 
+            yaw_rate = 0
             if self.closest_target is not None:
+                if time.time() - last_shot_time > 1:
+                    self.change_mod("track")
                 last_target_found = time.time()
                 # Координаты и размеры
                 tx = self.closest_target["x"]
@@ -105,37 +183,40 @@ class TargetFinderAndShooter:
                 th = self.closest_target["h"]
                                 
                 # Yaw (поворот) - держим x=320 (центр кадра 640x480)
-                if tx > 360: yaw_rate = -10
-                elif tx < 280: yaw_rate = 10
+                if tx > self.camera_wit/2 + self.wit_diviation: yaw_rate = -10
+                elif tx < self.camera_wit/2 - self.wit_diviation: yaw_rate = 10
                 else:
                     yaw_rate = 0
                 
                 # Z (высота) - держим y=240
-                if ty > 280: vz = -0.1
-                elif ty < 200: vz = 0.1
+                if ty > self.camera_height/2 + self.height_diviation: vz = -0.1
+                elif ty < self.camera_height/2 - self.height_diviation: vz = 0.1
                 else:
                     vz = 0
                 
-                if th > 150: vx = -0.1  # Слишком близко
-                elif th < 100: vx = 0.1 # Слишком далеко
+                if th > self.max_h: vx = -0.1  # Слишком близко
+                elif th < self.min_h: vx = 0.1 # Слишком далеко
                 else:
                     vx = 0
 
                 # Если достаточно близко к цели стреляет в неё каждые 5 сек
-                if th > 100 and th < 150 and time.time() - last_shot_time > 5:
-                    self.drone.laser_shot()
+                if th > self.min_h and th < self.max_h and time.time() - last_shot_time > 5:
+                    self.change_mod("shoot")
                     last_shot_time = time.time()
-                
-                # print(f"Track: vX={vx} vZ={vz} Yaw={yaw_rate} (H={th})")
-                self.drone.set_velocity(vx, 0, vz, yaw_rate)
+                    #threading.Thread()
+                    self.shoot = True
                 
             else:
                 if (time.time() - last_target_found) >= 5:
-                    self.drone.set_velocity(0, 0, 0, 20)
-                else:
-                    self.drone.set_velocity(0, 0, 0, 0)
-            
+                    self.change_mod("search")
+                    yaw_rate = 20
+                    # pass
+                        
+            self.drone.set_velocity(vx * self.speed_mod, 0 * self.speed_mod, vz * self.speed_mod, yaw_rate)
+
             time.sleep(0.05)
+        else: 
+            self.change_mod("search")
 
     def draw_target(self, img, target, color, thickness):
         try:
@@ -152,7 +233,8 @@ class TargetFinderAndShooter:
 
     def run_display(self):
         print("Открываю окно просмотра...")
-        cv2.namedWindow("Eurus View", cv2.WINDOW_NORMAL)
+
+        cv2.namedWindow("Eurus View", cv2.WINDOW_AUTOSIZE)
         
         while self.running:
             # Используем метод read() из вашего класса EurusCamera
@@ -199,7 +281,7 @@ if __name__ == "__main__":
     # IP адрес дрона/сервера 
     # стрелять и искать синие цели
     # стрелять и искать краснные цели
-    finder = TargetFinderAndShooter("10.42.0.1",target_blue= False, target_red= True)
+    finder = TargetFinderAndShooter("10.42.0.1",target_blue= True, target_red= False, switch_between = False)
     
     # Запускаем логику в фоне
     finder.start()
