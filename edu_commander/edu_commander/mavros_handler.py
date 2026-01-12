@@ -126,6 +126,8 @@ class MavrosHandler(Node):
         return dist(local, target) < deadzone
 
     def calculate_takeoff_position(self, altitude):
+        self.target_pose.pose.position.x = self.local_pose.pose.position.x
+        self.target_pose.pose.position.y = self.local_pose.pose.position.y
         self.target_pose.pose.position.z = altitude
         
         self.current_control_method = "LOCAL_POSITION"
@@ -227,7 +229,7 @@ class MavrosHandler(Node):
                 success, error_msg = self.do_land()
             elif cmd_name == "move_to_local_point":
                 success, error_msg = self.do_move_to_local_point(data)
-            elif cmd_name == "set_mode":
+            elif cmd_name == "set_mode": 
                 mode = data.get("mode", "OFFBOARD")
                 success, error_msg = self.do_set_mode(mode)
             elif cmd_name == "move_in_body_frame":
@@ -270,9 +272,9 @@ class MavrosHandler(Node):
         self.do_set_mode("OFFBOARD")
         time.sleep(0.5)
         
-        if self.first_arm:
-            self.set_home_position()
-            self.first_arm = False
+        # if self.first_arm:
+        self.set_home_position()
+            # self.first_arm = False
         
         req = CommandBool.Request()
         req.value = True
