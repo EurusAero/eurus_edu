@@ -1,5 +1,7 @@
 import json
 import socket
+import os
+import time
 from .const import *
 
 class MessagesUtils:
@@ -84,3 +86,58 @@ class SocketsUtils:
                 break
         
         return messages, buffer
+    
+    
+class GpioController:
+    """
+    Простой класс для управления GPIO через sysfs (файловую систему).
+    """
+    BASE_PATH = "/sys/class/gpio"
+
+    def __init__(self, pin_number):
+        """
+        :param pin_number: Номер GPIO пина в sysfs
+        """
+        self.pin = str(pin_number)
+        self.pin_path = os.path.join(self.BASE_PATH, f"gpio{self.pin}")
+
+    def export(self):
+        """Активирует пин"""
+        if not os.path.exists(self.pin_path):
+            try:
+                with open(os.path.join(self.BASE_PATH, "export"), 'w') as f:
+                    f.write(self.pin)
+            except OSError as e:
+                raise Exception(f"Error exporting pin {self.pin}: {e}")
+
+    def set_mode(self, mode):
+        """
+        Установка режима: 'in' (вход) или 'out' (выход)
+        """
+        direction_path = os.path.join(self.pin_path, "direction")
+        try:
+            with open(direction_path, 'w') as f:
+                f.write(mode)
+        except OSError as e:
+            raise Exception(f"Error setting mode for pin {self.pin}: {e}")
+
+    def write(self, value):
+        """
+        Запись значения: 1 (High) или 0 (Low)
+        """
+        value_path = os.path.join(self.pin_path, "value")
+        val_str = "1" if value else "0"
+        try:
+            with open(value_path, 'w') as f:
+                f.write(val_str)
+        except OSError as e:
+            raise Exception(f"Error writing to pin {self.pin}: {e}")
+
+    def cleanup(self):
+        """Освобождает пин (unexport)"""
+        if os.path.exists(self.pin_path):
+            try:
+                with open(os.path.join(self.BASE_PATH, "unexport"), 'w') as f:
+                    f.write(self.pin)
+            except OSError:
+                pass

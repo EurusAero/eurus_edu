@@ -3,27 +3,29 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 import json
-import wiringpi
 import time
 import threading
 
 from EurusEdu.const import *
+from EurusEdu.utils import GpioController
 
-LASER_PIN = 13
+LASER_PIN = 92
 
 class LasertagNode(Node):
     def __init__(self):
         super().__init__('lasertag_node')
         
+        self.laser_gpio = GpioController(LASER_PIN)
+        
         try:
-            wiringpi.wiringPiSetup() 
-            wiringpi.pinMode(LASER_PIN, wiringpi.OUTPUT)
-            wiringpi.digitalWrite(LASER_PIN, 0)
-            self.get_logger().info(f"GPIO initialized. Laser Pin wPi: {LASER_PIN}")
+            self.laser_gpio.export()     
+            self.laser_gpio.set_mode("out")
+            self.laser_gpio.write(0)
+            
+            self.get_logger().info(f"GPIO initialized via Sysfs. Laser GPIO: {LASER_PIN}")
         except Exception as e:
-            self.get_logger().error(f"Failed to init wiringPi: {e}")
+            self.get_logger().error(f"Failed to init GPIO: {e}")
 
-        # Слушаем команды
         self.lasertag_sub = self.create_subscription(
             String,
             '/edu/lasertag',
@@ -68,18 +70,20 @@ class LasertagNode(Node):
         Выполнение выстрела и отправка ответа в edu/lasertag
         """
         if not self._shooting_lock.acquire(blocking=False):
+            self.get_logger().warn("Shot ignored: already shooting.")
             return
 
         try:
-            # 1. Включаем лазер
-            wiringpi.digitalWrite(LASER_PIN, 1)
+            self.laser_gpio.write(1)
             
             time.sleep(0.5)
             
-            wiringpi.digitalWrite(LASER_PIN, 0)
+            self.laser_gpio.write(0)
 
             self.send_completed_status(cmd_timestamp)
 
+        except Exception as e:
+            self.get_logger().error(f"Hardware error during shot: {e}")
         finally:
             self._shooting_lock.release()
 
@@ -109,7 +113,12 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        wiringpi.digitalWrite(LASER_PIN, 0)
+        try:
+            node.laser_gpio.write(0)
+            node.laser_gpio.cleanup()
+        except:
+            pass
+            
         node.destroy_node()
         rclpy.shutdown()
 
