@@ -231,7 +231,7 @@ class LedNode(Node):
 
 def main(args=None):
     # Конфигурация ленты
-    N_LEDS = 15
+    N_LEDS = 40
     CHANNEL = 4
     PORT = 1
     SPEED = 3200000 
