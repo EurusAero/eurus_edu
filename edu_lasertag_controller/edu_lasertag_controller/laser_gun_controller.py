@@ -24,6 +24,8 @@ class LasertagNode(Node):
             
             self.get_logger().info(f"GPIO initialized via Sysfs. Laser GPIO: {LASER_PIN}")
         except Exception as e:
+            if "Permission denied" in str(e):
+                raise Exception("Permission denied for GPIO access..")
             self.get_logger().error(f"Failed to init GPIO: {e}")
 
         self.lasertag_sub = self.create_subscription(
