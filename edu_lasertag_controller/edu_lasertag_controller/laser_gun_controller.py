@@ -117,7 +117,7 @@ def main(args=None):
     finally:
         try:
             node.laser_gpio.write(0)
-            node.laser_gpio.cleanup()
+            # node.laser_gpio.cleanup()
         except:
             pass
             
