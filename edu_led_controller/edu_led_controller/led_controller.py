@@ -41,7 +41,8 @@ class WS2812Controller:
         Кодировка для SPI: 1 бит данных -> 4 бита SPI.
         0 -> 1000 (0x8), 1 -> 1100 (0xC).
         """
-        tx = []
+        tx = [0x00] * 40 
+
         for rgb in data:
             if self.order == "GRB":
                 color_bytes = (rgb[1], rgb[0], rgb[2])
@@ -64,7 +65,8 @@ class WS2812Controller:
                     
                     tx.append(val)
         
-        tx.append(0x00)
+        tx.extend([0x00] * 5)
+        
         return bytes(tx)
 
     def _show(self, rgb_list):
@@ -155,7 +157,7 @@ class WS2812Controller:
 
     def set_base(self):
         self._mode = "komet"
-        self._color = [0, 0, 255]
+        self._color = [255, 255, 255]
         self._effect_speed = 0.1
         
     def set_blink(self, color, delay=0.5):

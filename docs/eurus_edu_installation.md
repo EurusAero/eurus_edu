@@ -20,6 +20,7 @@ git clone https://github.com/EurusAero/eurus_edu
 cd ~/ros2_ws/src/eurus_edu
 chmod +x ./scripts/*
 sudo ./scripts/ros_install.sh
+source ~/ros2_ws/src/install/setup.bash
 ```
 
 ## Устновка зависимостей
