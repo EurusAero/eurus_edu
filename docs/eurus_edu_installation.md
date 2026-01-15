@@ -34,19 +34,15 @@ git submodule update --init --remote
 python3 generate-bindings.py > bindings.i
 sudo python3 setup.py install
 
-sudo apt install python3-pip ffmpeg libsm6 libxext6 cmake ros-humble-mavros -y
-pip3 install ~/ros2_ws/src/eurus_edu/libs/python/EurusEdu/ packaging==25.0
+sudo apt install $(cat ~/ros2_ws/src/eurus_edu/depends/packages.txt)
+pip3 install -r ~/ros2_ws/src/eurus_edu/depends/pip_packages.txt
+
+pip3 install ~/ros2_ws/src/eurus_edu/libs/python/EurusEdu/
 
 wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh
 chmod +x install_geographiclib_datasets.sh
 sudo ./install_geographiclib_datasets.sh
-```
-
-## Установка ultralytics (нейронка)
-
-```bash
-pip3 install --upgrade setuptools==79.0.1 pip==25.3 wheel==0.45.1
-pip3 install torchvision==0.17 ultralytics==8.4.2 onnx==1.16.1 onnxslim==0.1.82 rknn-toolkit2==2.3.2 rknn-toolkit-lite2==2.3.2
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
 sudo reboot
 ```
@@ -56,7 +52,7 @@ sudo reboot
 ```bash
 cd ~/ros2_ws
 colcon build
-echo "source ~/ros2_ws/src/install/setup.bash" >> ~/.bashrc
+echo "source ~/ros2_ws/install/setup.bash" >> ~/.bashrc
 ```
 
 ## Установка udev-правил
@@ -65,8 +61,6 @@ echo "source ~/ros2_ws/src/install/setup.bash" >> ~/.bashrc
 sudo cp ~/ros2_ws/src/eurus_edu/udev/*.rules /etc/udev/rules.d/
 sudo udevadm trigger
 ```
-
-После этого обязательно перезагрузить апельсинку
 
 ## Включение интерфейса SPI
 
@@ -78,6 +72,12 @@ sudo nano /boot/orangepiEnv.txt
 
 ```
 overlays=spi4-m0-cs1-spidev
+```
+
+После этого обязательно перезагрузить апельсинку
+
+```bash
+sudo reboot
 ```
 
 ## Запуск сервисов
