@@ -5,7 +5,7 @@ drone = EurusControl("192.168.31.164", 65432)
 
 drone.connect()
 time.sleep(1)
-print("Базовый режим - свечение синим")
+print("Базовый режим - режим кометы с белым цветом")
 drone.led_control("base")
 time.sleep(5)
 print("Статическое свечение")

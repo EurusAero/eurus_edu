@@ -20,7 +20,6 @@ git clone https://github.com/EurusAero/eurus_edu
 cd ~/ros2_ws/src/eurus_edu
 chmod +x ./scripts/*
 sudo ./scripts/ros_install.sh
-source ~/ros2_ws/src/install/setup.bash
 ```
 
 ## Устновка зависимостей
@@ -33,7 +32,7 @@ git clone --recursive https://github.com/orangepi-xunlong/wiringOP-Python -b nex
 cd wiringOP-Python
 git submodule update --init --remote
 python3 generate-bindings.py > bindings.i
-sudo python3 setup.py installsudo re
+sudo python3 setup.py install
 
 sudo apt install python3-pip ffmpeg libsm6 libxext6 cmake ros-humble-mavros -y
 pip3 install ~/ros2_ws/src/eurus_edu/libs/python/EurusEdu/ packaging==25.0
@@ -50,6 +49,14 @@ pip3 install --upgrade setuptools==79.0.1 pip==25.3 wheel==0.45.1
 pip3 install torchvision==0.17 ultralytics==8.4.2 onnx==1.16.1 onnxslim==0.1.82 rknn-toolkit2==2.3.2 rknn-toolkit-lite2==2.3.2
 
 sudo reboot
+```
+
+## Сборка проекта
+
+```bash
+cd ~/ros2_ws
+colcon build
+echo "source ~/ros2_ws/src/install/setup.bash" >> ~/.bashrc
 ```
 
 ## Установка udev-правил
@@ -93,7 +100,7 @@ network:
       dhcp4: true
       optional: true
       access-points:
-        "EURUS_EDU_CLOVER":
+        "EURUS_EDU_00":
           auth:
             key-management: psk
             password: "euruswifi"
