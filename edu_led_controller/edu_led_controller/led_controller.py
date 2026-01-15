@@ -151,11 +151,13 @@ class WS2812Controller:
     def set_static(self, color):
         self._mode = "static"
         self._color = color
+        
 
     def set_base(self):
-        self._mode = "base"
+        self._mode = "komet"
         self._color = [0, 0, 255]
-
+        self._effect_speed = 0.1
+        
     def set_blink(self, color, delay=0.5):
         self._mode = "blink"
         self._color = color

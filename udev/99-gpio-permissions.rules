@@ -1,0 +1,2 @@
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", ACTION=="add", PROGRAM="/bin/sh -c 'chmod 222 /sys/class/gpio/export /sys/class/gpio/unexport'"
+SUBSYSTEM=="gpio", KERNEL=="gpio*", PROGRAM="/bin/sh -c 'chmod 666 /sys/class/gpio/%k/value /sys/class/gpio/%k/direction /sys/class/gpio/%k/edge'"

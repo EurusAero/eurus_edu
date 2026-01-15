@@ -70,6 +70,7 @@ log_ok "Инструменты разработки установлены"
 log_stage "Добавление среды ROS2 в .bashrc"
 if ! grep -q "source /opt/ros/humble/setup.bash" ~/.bashrc; then
     echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+    source /opt/ros/humble/setup.bash
     log_ok "Добавлено в .bashrc"
 else
     log_ok "Источник ROS2 уже присутствует в .bashrc"

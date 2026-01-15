@@ -3,7 +3,6 @@ import threading
 import json
 import time
 import logging
-import sys
 from .utils import SocketsUtils
 from .const import *
 

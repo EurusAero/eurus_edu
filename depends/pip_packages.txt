@@ -1,4 +1,13 @@
-pyserial
-transforms3d
-numpy
-opencv-python
+pip==25.3
+packaging==25.0
+numpy==1.26.4
+opencv-python==4.11.0.86
+setuptools==79.0.1
+wheel==0.45.1
+transforms3d==0.4.2
+torchvision==0.17
+ultralytics==8.4.2
+onnx==1.16.1
+onnxslim==0.1.82
+rknn-toolkit2==2.3.2
+rknn-toolkit-lite2==2.3.2

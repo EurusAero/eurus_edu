@@ -1,7 +1,6 @@
 import json
 import socket
 import os
-import time
 from .const import *
 
 class MessagesUtils:
