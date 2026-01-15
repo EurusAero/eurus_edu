@@ -82,8 +82,10 @@ sudo reboot
 
 ## Запуск сервисов
 
-sudo cp ~/ros2*ws/src/eurus_edu/services/\*.service /etc/systemd/system
-sudo systemctl enable start*\*.service
+sudo cp ~/ros2\*ws/src/eurus_edu/services/\*.service /etc/systemd/system
+
+Активируем все сервисы:
+sudo systemctl enable edu\_....service
 
 ## WIFI hotspot
 
