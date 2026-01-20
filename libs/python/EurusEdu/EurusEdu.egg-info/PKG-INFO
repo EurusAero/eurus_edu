@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: EurusEdu
+Version: 0.0.3
+Summary: Eurus-Edu
+Home-page: https://github.com/EurusAero/Eurus-Edu
+Author: EURUS
+Author-email: info@eurus-aero.ru
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Dynamic: author
+Dynamic: author-email
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-python
+Dynamic: summary

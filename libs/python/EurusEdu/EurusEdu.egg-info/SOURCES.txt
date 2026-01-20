@@ -1,0 +1,11 @@
+README.md
+setup.py
+EurusEdu/__init__.py
+EurusEdu/camera_sdk.py
+EurusEdu/const.py
+EurusEdu/eurus_sdk.py
+EurusEdu/utils.py
+EurusEdu.egg-info/PKG-INFO
+EurusEdu.egg-info/SOURCES.txt
+EurusEdu.egg-info/dependency_links.txt
+EurusEdu.egg-info/top_level.txt

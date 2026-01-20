@@ -1,0 +1,526 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <title>Обучение модели YOLOv11 · HonKit</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="HonKit 6.1.4">
+        
+        
+        
+    
+    <link rel="stylesheet" href="gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="gitbook/@honkit/honkit-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/@honkit/honkit-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="api.html" />
+    
+    
+    <link rel="prev" href="orangepi_wifi.html" />
+    
+
+    </head>
+    <body>
+        
+<div class="book honkit-cloak">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    Eurus-Edu
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.2" data-path="safety.html">
+            
+                <a href="safety.html">
+            
+                    
+                    Безопасность
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.3" >
+            
+                <span>
+            
+                    
+                    Сборка
+            
+                </span>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.4" >
+            
+                <span>
+            
+                    
+                    Настройка
+            
+                </span>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5" data-path="orangepi_info.html">
+            
+                <a href="orangepi_info.html">
+            
+                    
+                    Работа с Orange Pi 5
+            
+                </a>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.5.1" data-path="orangepi_image.html">
+            
+                <a href="orangepi_image.html">
+            
+                    
+                    Образ для Orange Pi 5
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.5.2" data-path="orangepi_wifi.html">
+            
+                <a href="orangepi_wifi.html">
+            
+                    
+                    Подключение по Wi-Fi
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+        <li class="chapter active" data-level="1.6" data-path="neural_network_train.html">
+            
+                <a href="neural_network_train.html">
+            
+                    
+                    Обучение модели YOLOv11
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.7" data-path="api.html">
+            
+                <a href="api.html">
+            
+                    
+                    Работа с API
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.8" >
+            
+                <span>
+            
+                    
+                    Программирование
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.8.1" >
+            
+                <span>
+            
+                    
+                    Светодиодная лента
+            
+                </span>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.8.2" >
+            
+                <span>
+            
+                    
+                    Ладерная пушка
+            
+                </span>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.8.3" >
+            
+                <span>
+            
+                    
+                    Получение телеметрии
+            
+                </span>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="1.8.4" >
+            
+                <span>
+            
+                    
+                    Примеры программ
+            
+                </span>
+            
+
+            
+        </li>
+    
+
+            </ul>
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://github.com/honkit/honkit" target="blank" class="gitbook-link">
+            Published with HonKit
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href="." >Обучение модели YOLOv11</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="обучение-модели-yolov11">Обучение модели YOLOv11</h1>
+<p>Имеется два способа обучить нейронную сеть:</p>
+<ul>
+<li>На локальной машине</li>
+<li>С помощью Google Colab</li>
+</ul>
+<p>Рассмотрим оба способа обучения своей нейронной сети</p>
+<h3 id="обучение-нейронной-сети-на-локальной-машине">Обучение нейронной сети на локальной машине</h3>
+<h4 id="установка-инструментов-для-обучения">Установка инструментов для обучения</h4>
+<h4 id="linuxwindows">Linux/Windows</h4>
+<p>Требования:</p>
+<ul>
+<li>&gt;=Python3.10</li>
+</ul>
+<p><strong>Установка PyTorch и Ultralytics</strong></p>
+<p>Подробную информацию по установке можно найти в официальной <a href="https://docs.ultralytics.com/quickstart/#use-ultralytics-with-cli" target="_blank">документации Ultralytics.</a></p>
+<p><strong>Установка PyTorch:</strong></p>
+<p>Устанавливаем версию PyTorch в зависимости от системных характеристик. Версию CUDA можно проверить командой:</p>
+<pre><code class="lang-bash">nvidia-smi
+</code></pre>
+<p><img src="../assets/neural_network_train/nvidia_smi.png" alt="nvidia-smi output"></img></p>
+<p>В случае, если у вас видеокарта AMD, можно проверить ROCm с помощью команды (только для Linux):</p>
+<pre><code class="lang-bash">rocminfo
+</code></pre>
+<p>Заходим на <a href="https://pytorch.org/get-started/locally/" target="_blank">официальный сайт PyTorch</a> и выбираем подходящую версию.
+<em>В случае, если у вас нет видеокарты, выбираем CPU.</em></p>
+<p><img src="../assets/neural_network_train/pytorch_install_linux.png" alt="pytorch-version-select-linux"></img></p>
+<p><img src="../assets/neural_network_train/pytorch_install_windows.png" alt="pytorch-version-select-windows"></img>
+Выполняем команду для установки PyTorch.</p>
+<p><strong>Установка Ultralytics</strong></p>
+<p>С помощью pip устанавливаем библиотеку:</p>
+<pre><code class="lang-bash">pip install -U ultralytics
+</code></pre>
+<h4 id="запуск-обучения">Запуск обучения</h4>
+<h4 id="linuxwindows">Linux/Windows</h4>
+<p>Сперва скачиваем датасет с нашего проекта на Roboflow, заходим в наш проект → versions → Выбираем последнюю версию датасета → Download Dataset
+<img src="../assets/neural_network_train/dataset_download_1.png" alt="roboflow-dataset-download"></img></p>
+<p>После этого в Image and Annotation Format выбираем нашу модель (YOLOv11), ставим пункт Download zip to computer и нажимаем Continue.
+<img src="../assets/neural_network_train/dataset_download_2.png" alt="roboflow-dataset-download2"></img></p>
+<p>Рекомендуется создать отдельную папку под обучение нейросети.
+Распаковываем туда архив с датасетом</p>
+<p><strong>Пример для Linux:</strong></p>
+<pre><code class="lang-bash"><span class="hljs-built_in">mkdir</span> -p ~/yolo_train/dataset
+unzip dataset.zip ~/yolo_train/dataset
+<span class="hljs-built_in">cd</span> ~/yolo_train
+</code></pre>
+<p>В папке ~/yolo_train/dataset мы увидим содержимое датасета:</p>
+<p><img src="../assets/neural_network_train/dataset_files.png" alt="dataset_files"></img></p>
+<p>Из этого нам требуется data.yaml, его надо указать при обучении нейросети</p>
+<p>Запуск обучения:</p>
+<pre><code class="lang-bash"><span class="hljs-built_in">cd</span> ~/yolo_train
+yolo detect train model=yolo11n.pt data=./dataset/data.yaml batch=-1 epochs=150 patience=20
+</code></pre>
+<p>После завершения обучения в директории ~/yolo_train/runs/detect/ должна появиться папка train/train2/train3 и т.д., в зависимости от того, какой раз вы запускаете обучение.</p>
+<p>В папке ~/yolo_train/runs/detect/train/weights лежит файл best.pt, это и является файлом с весами для нашей модели нейронной сети.</p>
+<p>Объяснение некоторых параметров команды <code>yolo detect train</code>:</p>
+<ul>
+<li><code>model</code> - Это желаемая модель для обучения, для образовательного дрона Eurus Edu рекомендуется yolo11n.pt</li>
+<li><code>data</code> - Указывается путь к data.yaml датасета, который будет использоваться при обучении нейронной сети</li>
+<li><code>batch</code> - Количество данных для обучения в одной итерации (значение -1 значит что утилита автоматически выберет batch, для большей эффективности рекомендуется подобрать самому)</li>
+<li><code>epochs</code> - Количество полных проходов нейросети через весь набор данных</li>
+<li><code>patience</code> - Механизм ранней остановки обучения, в случае если нейросеть перестанет улучшать свои результаты с каждым эпохом (epochs), обучение нейросети остановится автоматически</li>
+</ul>
+<p><a href="https://docs.ultralytics.com/modes/train/" target="_blank">Официальная документация Ultralytics по обучению модели.</a></p>
+<h3 id="преобразование-весов-в-поддерживаемый-тип-для-rk3588">Преобразование весов в поддерживаемый тип для RK3588</h3>
+<p>После того, как вы перенесли веса (best.pt) на Orange pi 5 (или любой другой микрокомпьютер с процессором Rockchip 3588), необходимо преобразовать стандартный best.pt в поддерживаемый микрокомпьютером файл.</p>
+<p>Для этого можно использовать команду <code>yolo export</code>, пример ее использования:</p>
+<pre><code class="lang-bash"> yolo <span class="hljs-built_in">export</span> model=best.pt format=rknn name=rk3588
+</code></pre>
+<p>После этого будет создана папка best_rknn_model, эту папку мы и будем использовать как модель при использовании ее в коде.</p>
+<p><a href="https://docs.ultralytics.com/integrations/rockchip-rknn/" target="_blank">Официальная документация Ultralytics по преобразованию модели.</a></p>
+<p><strong>Возможные ошибки</strong>
+<code>CUDA out of memory</code> - слишком большое количество batch, не хватает видеопамяти</p>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="orangepi_wifi.html" class="navigation navigation-prev " aria-label="Previous page: Подключение по Wi-Fi">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+                <a href="api.html" class="navigation navigation-next " aria-label="Next page: Работа с API">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Обучение модели YOLOv11","level":"1.6","depth":1,"next":{"title":"Работа с API","level":"1.7","depth":1,"path":"api.md","ref":"api.md","articles":[]},"previous":{"title":"Подключение по Wi-Fi","level":"1.5.2","depth":2,"path":"orangepi_wifi.md","ref":"orangepi_wifi.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"neural_network_train.md","mtime":"2026-01-19T13:10:51.647Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-20T13:34:42.916Z"},"basePath":".","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <noscript>
+        <style>
+            .honkit-cloak {
+                display: block !important;
+            }
+        </style>
+    </noscript>
+    <script>
+        // Restore sidebar state as critical path for prevent layout shift
+        function __init__getSidebarState(defaultValue){
+            var baseKey = "";
+            var key = baseKey + ":sidebar";
+            try {
+                var value = localStorage[key];
+                if (value === undefined) {
+                    return defaultValue;
+                }
+                var parsed = JSON.parse(value);
+                return parsed == null ? defaultValue : parsed;
+            } catch (e) {
+                return defaultValue;
+            }
+        }
+        function __init__restoreLastSidebarState() {
+            var isMobile = window.matchMedia("(max-width: 600px)").matches;
+            if (isMobile) {
+                // Init last state if not mobile
+                return;
+            }
+            var sidebarState = __init__getSidebarState(true);
+            var book = document.querySelector(".book");
+            // Show sidebar if it enabled
+            if (sidebarState && book) {
+                book.classList.add("without-animation", "with-summary");
+            }
+        }
+
+        try {
+            __init__restoreLastSidebarState();
+        } finally {
+            var book = document.querySelector(".book");
+            book.classList.remove("honkit-cloak");
+        }
+    </script>
+    <script src="gitbook/gitbook.js"></script>
+    <script src="gitbook/theme.js"></script>
+    
+        
+        <script src="gitbook/gitbook-plugin-livereload/plugin.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="gitbook/@honkit/honkit-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+
