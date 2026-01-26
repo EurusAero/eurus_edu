@@ -3,7 +3,7 @@
 <html lang="" >
     <head>
         <meta charset="UTF-8">
-        <title>Получение телеметрии · HonKit</title>
+        <title>Примеры программ · HonKit</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="HonKit 6.1.4">
@@ -56,10 +56,8 @@
     <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
 
     
-    <link rel="next" href="sample_programs.html" />
     
-    
-    <link rel="prev" href="laser.html" />
+    <link rel="prev" href="get_telemetry.html" />
     
 
     </head>
@@ -251,7 +249,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.7.4" data-path="get_telemetry.html">
+        <li class="chapter " data-level="1.7.4" data-path="get_telemetry.html">
             
                 <a href="get_telemetry.html">
             
@@ -264,7 +262,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.7.5" data-path="sample_programs.html">
+        <li class="chapter active" data-level="1.7.5" data-path="sample_programs.html">
             
                 <a href="sample_programs.html">
             
@@ -312,7 +310,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >Получение телеметрии</a>
+        <a href="." >Примеры программ</a>
     </h1>
 </div>
 
@@ -327,67 +325,7 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="получение-телеметрии">Получение телеметрии</h1>
-<p><strong>Подключение:</strong></p>
-<pre><code class="lang-python">request_telemetry()
-</code></pre>
-<p><strong>Возвращаемые значения:</strong></p>
-<ul>
-<li>none - не удалось получить телеметрию</li>
-<li>Telemetry data - телеметрия получена</li>
-</ul>
-<p>​
-<strong>Структура telemetry_data:</strong></p>
-<p>state</p>
-<ul>
-<li>telemetry_data["state"]["connected"] = self.state_msg.connected</li>
-<li>telemetry_data["state"]["armed"] = self.state_msg.armed</li>
-<li>telemetry_data["state"]["mode"] = self.state_msg.mode</li>
-<li>telemetry_data["state"]["system_status"] = self.state_msg.system_status</li>
-</ul>
-<p>battery (данные о заряде)</p>
-<ul>
-<li>telemetry_data["battery"]["voltage"] = self.battery_msg.voltage</li>
-<li>telemetry_data["battery"]["cell_voltage"] = list(self.battery_msg.cell_voltage)</li>
-<li>telemetry_data["battery"]["current"] = self.battery_msg.current</li>
-<li>telemetry_data["battery"]["percentage"] = int(self.battery_msg.percentage * 100)</li>
-</ul>
-<p>local_position</p>
-<ul>
-<li>telemetry_data["local_position"]["x"] = pose.x</li>
-<li>telemetry_data["local_position"]["y"] = pose.y</li>
-<li>telemetry_data["local_position"]["z"] = pose.z</li>
-<li>telemetry_data["local_position"]["roll"] = degrees(orientation_angles[0])</li>
-<li>telemetry_data["local_position"]["pitch"] = degrees(orientation_angles[1])</li>
-<li>telemetry_data["local_position"]["yaw"] = degrees(orientation_angles[2])</li>
-</ul>
-<p>setpoint_local</p>
-<ul>
-<li>telemetry_data["setpoint_local"]["x"] = setpoint_pose.x</li>
-<li>telemetry_data["setpoint_local"]["y"] = setpoint_pose.y</li>
-<li>telemetry_data["setpoint_local"]["z"] = setpoint_pose.z</li>
-<li>telemetry_data["setpoint_local"]["yaw"] = degrees(setpoint_orientation_angles[2])</li>
-</ul>
-<p>velocity</p>
-<ul>
-<li>telemetry_data["velocity"]["vx"] = velocity.x</li>
-<li>telemetry_data["velocity"]["vy"] = velocity.y</li>
-<li>telemetry_data["velocity"]["vz"] = velocity.z</li>
-</ul>
-<p>point_reached</p>
-<ul>
-<li>telemetry_data["point_reached"] = point_reached (bool)</li>
-</ul>
-<p><strong>Пример получения телеметрии на Python:</strong></p>
-<pre><code class="lang-python​">telemetry = drone.request_telemetry() # Запрашиваем телеметрию
-​
-​
-if telemetry is not None:
-​
-    print("Высота:", telemetry["local_position"]["z"]) # Теущая высота
-​
-    print("Заряд батареи:", telemetry["battery"]["percentage"], "%") # Уровень заряда батареи
-</code></pre>
+                                <h1 id="примеры-программ">Примеры программ</h1>
 
                                 
                                 </section>
@@ -415,14 +353,10 @@ if telemetry is not None:
 
             
                 
-                <a href="laser.html" class="navigation navigation-prev " aria-label="Previous page: Лазерная пушка">
+                <a href="get_telemetry.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Получение телеметрии">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
-                
-                <a href="sample_programs.html" class="navigation navigation-next " aria-label="Next page: Примеры программ">
-                    <i class="fa fa-angle-right"></i>
-                </a>
                 
             
         
@@ -431,7 +365,7 @@ if telemetry is not None:
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Получение телеметрии","level":"1.7.4","depth":2,"next":{"title":"Примеры программ","level":"1.7.5","depth":2,"path":"sample_programs.md","ref":"sample_programs.md","articles":[]},"previous":{"title":"Лазерная пушка","level":"1.7.3","depth":2,"path":"laser.md","ref":"laser.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"get_telemetry.md","mtime":"2026-01-20T14:08:46.758Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-26T12:20:52.085Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Примеры программ","level":"1.7.5","depth":2,"previous":{"title":"Получение телеметрии","level":"1.7.4","depth":2,"path":"get_telemetry.md","ref":"get_telemetry.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"sample_programs.md","mtime":"2026-01-26T11:02:06.490Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-26T12:20:52.085Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>
