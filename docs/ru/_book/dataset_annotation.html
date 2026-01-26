@@ -3,7 +3,7 @@
 <html lang="" >
     <head>
         <meta charset="UTF-8">
-        <title>Примеры программ · HonKit</title>
+        <title>Создание Dataset на Roboflow · HonKit</title>
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="description" content="">
         <meta name="generator" content="HonKit 6.1.4">
@@ -57,7 +57,7 @@
 
     
     
-    <link rel="prev" href="get_telemetry.html" />
+    <link rel="prev" href="neural_network_train.html" />
     
 
     </head>
@@ -210,7 +210,7 @@
             
         </li>
     
-        <li class="chapter " data-level="1.6.2" data-path="dataset_annotation.html">
+        <li class="chapter active" data-level="1.6.2" data-path="dataset_annotation.html">
             
                 <a href="dataset_annotation.html">
             
@@ -294,7 +294,7 @@
             
         </li>
     
-        <li class="chapter active" data-level="1.7.5" data-path="sample_programs.html">
+        <li class="chapter " data-level="1.7.5" data-path="sample_programs.html">
             
                 <a href="sample_programs.html">
             
@@ -342,7 +342,7 @@
     <!-- Title -->
     <h1>
         <i class="fa fa-circle-o-notch fa-spin"></i>
-        <a href="." >Примеры программ</a>
+        <a href="." >Создание Dataset на Roboflow</a>
     </h1>
 </div>
 
@@ -357,7 +357,29 @@
     
                                 <section class="normal markdown-section">
                                 
-                                <h1 id="примеры-программ">Примеры программ</h1>
+                                <h1 id="создание-dataset-на-roboflow">Создание Dataset на Roboflow</h1>
+<p><a href="https://roboflow.com/" target="_blank">Roboflow</a> — это платформа для подготовки данных компьютерного зрения, которая позволяет собирать, размечать, предобрабатывать и экспортировать датасеты для обучения нейронных сетей. Для платформы Eurus-Edu мы будем создавать датасет для обнаружения различных объектов</p>
+<h3 id="регистрация-и-создание-проекта">Регистрация и создание проекта</h3>
+<p>После регистрации создаём новый проект во вкладке Projects. Заполняем параметры:</p>
+<ul>
+<li><code>Project Name</code>: eurus-edu (или ваше название)</li>
+<li><code>Project Type</code>: Выберите Object Detection</li>
+<li><code>Annotation Group</code>: название объектов, которые будем размечать</li>
+<li><code>tool</code>: traditional</li>
+</ul>
+<p><img src="../assets/neural_network_train/dataset_annotation/create_project.png" alt="create_project"></img></p>
+<h3 id="создание-классов-для-разметки">Создание классов для разметки</h3>
+<p>В левой панели нажмите "Classes"</p>
+<p>В имени класса лучше задавать название определяемого объекта, цвет можно выбрать любой</p>
+<p><img src="../assets/neural_network_train/dataset_annotation/classes.JPG" alt="classes"></img></p>
+<h3 id="загрузка-видео-для-разметки">Загрузка видео для разметки</h3>
+<p>Видио для извлечения кадров с объектом записываем при помощи кода на Python</p>
+<p>Код для записи видео: </p>
+<p>Загружаем видео в блок Unassigned во вкладке Annotation</p>
+<p>Рекомендуемая частота кадров - по 1 кадру каждые 0.2 секунды</p>
+<p>На этом этапе удаляем неудачные кадры и только после этого переносим dataset в блок Annotating</p>
+<p>В Annotating размечаем dataset уже подготовленными классами </p>
+<p><img src="../assets/neural_network_train/dataset_annotation/dataset.png" alt="dataset"></img></p>
 
                                 
                                 </section>
@@ -385,7 +407,7 @@
 
             
                 
-                <a href="get_telemetry.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Получение телеметрии">
+                <a href="neural_network_train.html" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Обучение модели YOLOv11">
                     <i class="fa fa-angle-left"></i>
                 </a>
                 
@@ -397,7 +419,7 @@
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Примеры программ","level":"1.7.5","depth":2,"previous":{"title":"Получение телеметрии","level":"1.7.4","depth":2,"path":"get_telemetry.md","ref":"get_telemetry.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"sample_programs.md","mtime":"2026-01-26T11:02:06.490Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-26T16:08:00.115Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Создание Dataset на Roboflow","level":"1.6.2","depth":2,"next":{"title":"Программирование","level":"1.7","depth":1,"ref":"","articles":[{"title":"Работа с API","level":"1.7.1","depth":2,"path":"api.md","ref":"api.md","articles":[]},{"title":"Светодиодная лента","level":"1.7.2","depth":2,"path":"LED.md","ref":"LED.md","articles":[]},{"title":"Лазерная пушка","level":"1.7.3","depth":2,"path":"laser.md","ref":"laser.md","articles":[]},{"title":"Получение телеметрии","level":"1.7.4","depth":2,"path":"get_telemetry.md","ref":"get_telemetry.md","articles":[]},{"title":"Примеры программ","level":"1.7.5","depth":2,"path":"sample_programs.md","ref":"sample_programs.md","articles":[]}]},"previous":{"title":"Обучение модели YOLOv11","level":"1.6.1","depth":2,"path":"neural_network_train.md","ref":"neural_network_train.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"dataset_annotation.md","mtime":"2026-01-26T16:06:10.521Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-26T16:08:00.115Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>

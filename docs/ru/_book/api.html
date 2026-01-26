@@ -183,7 +183,21 @@
             
         </li>
     
-        <li class="chapter " data-level="1.6" data-path="neural_network_train.html">
+        <li class="chapter " data-level="1.6" >
+            
+                <span>
+            
+                    
+                    Работа с нейросетью
+            
+                </span>
+            
+
+            
+            <ul class="articles">
+                
+    
+        <li class="chapter " data-level="1.6.1" data-path="neural_network_train.html">
             
                 <a href="neural_network_train.html">
             
@@ -193,6 +207,24 @@
                 </a>
             
 
+            
+        </li>
+    
+        <li class="chapter " data-level="1.6.2" data-path="dataset_annotation.html">
+            
+                <a href="dataset_annotation.html">
+            
+                    
+                    Создание Dataset на Roboflow
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+            </ul>
             
         </li>
     
@@ -332,9 +364,9 @@ camera = EurusCamera(ip, camera_port)
 </code></pre>
 <p><strong>Входные параметры:</strong></p>
 <ul>
-<li><code>ip</code>: str ip</li>
+<li><code>ip</code>: ip дрона</li>
 <li><code>port</code>: int порт</li>
-<li><code>console_log</code>: bool true для логирования</li>
+<li><code>console_log</code>: bool true для вывода лога в консоль</li>
 <li><code>log_file</code>: str файл для логирования</li>
 </ul>
 <p><strong>Подключение:</strong></p>
@@ -344,40 +376,20 @@ camera.connect()
 <h2 id="методы-дрона">Методы дрона</h2>
 <h3 id="connect">connect</h3>
 <p>Подключиться к дрону / камере</p>
-<p><strong>Результат:</strong></p>
-<ul>
-<li><code>True</code> - подключение установлено</li>
-<li><code>False</code> - ошибка подключения </li>
-</ul>
 <p><strong>Пример:</strong></p>
 <pre><code class="lang-python">drone.connect()
 camera.connect()
 </code></pre>
 <h3 id="disconnect">disconnect</h3>
 <p>Отключиться от дрона / камеры</p>
-<p><strong>Результат:</strong></p>
-<ul>
-<li><code>True</code> - отключение выполнено</li>
-<li><code>False</code> - ошибка</li>
-</ul>
 <p><strong>Пример:</strong></p>
 <pre><code class="lang-python">drone.connect()
 camera.connect()
 </code></pre>
 <h3 id="arm">arm</h3>
 <p>Включить моторы дрона (ARM)</p>
-<p><strong>Результат:</strong></p>
-<ul>
-<li><code>True</code> — дрон заармлен</li>
-<li><code>False</code> — ошибка</li>
-</ul>
 <h3 id="disarm">disarm</h3>
 <p>Выключить моторы дрона (DISARM).</p>
-<p><strong>Результат:</strong></p>
-<ul>
-<li><code>True</code> — дрон дизармлен</li>
-<li><code>False</code> — ошибка</li>
-</ul>
 <h3 id="takeoff">takeoff</h3>
 <p>Взлёт  дрона на заданную высоту</p>
 <p><strong>Параметры:</strong></p>
@@ -391,9 +403,7 @@ time.sleep(<span class="hljs-number">6</span>)
 <p><em>При каждом взлёте локальные координаты дрона сбрасываются в (0, 0, 0)</em></p>
 <h3 id="land">land</h3>
 <p>Посадка дрона</p>
-<p><strong>Параметры:</strong>
-отсутствуют</p>
-<p><em>Дрон плавно снижает высоту и выполняет посадку в текущей точке</em></p>
+<p>Дрон плавно снижает высоту и выполняет посадку в текущей точке</p>
 <h3 id="movetolocalpoint">move_to_local_point</h3>
 <p>Полет к заданной точке в локальной системе координат</p>
 <p><strong>Параметры:</strong></p>
@@ -468,8 +478,8 @@ drone.set_velocity(<span class="hljs-number">0</span>, <span class="hljs-number"
 <p><em>battery</em></p>
 <ul>
 <li><code>voltage</code> - напряжение (В)</li>
-<li><code>cell_voltage</code> -</li>
-<li><code>current</code> -</li>
+<li><code>cell_voltage</code> - напряжение на одну ячейку (В)</li>
+<li><code>current</code> - ток (А)</li>
 <li><code>percentage</code> — заряд (%)</li>
 </ul>
 <p><em>local_position</em></p>
@@ -484,6 +494,7 @@ drone.set_velocity(<span class="hljs-number">0</span>, <span class="hljs-number"
 <p><em>point_reached</em></p>
 <ul>
 <li><code>True</code> - целевая точка достигнута</li>
+<li><code>False</code> - ошибка</li>
 </ul>
 <p><strong>Пример:</strong></p>
 <pre><code class="lang-python">telemetry = drone.request_telemetry()
@@ -513,22 +524,18 @@ drone.set_velocity(<span class="hljs-number">0</span>, <span class="hljs-number"
 </ul>
 <p><strong>Поддерживаемые режимы:</strong></p>
 <ul>
-<li><code>base</code> - синий цвет</li>
+<li><code>base</code> - режим "комета" белого цвета</li>
 <li><code>static</code> - статичный цвет</li>
 <li><code>rainbow</code> - радуга</li>
 <li><code>komet</code> - бегущий эффект</li>
 <li><code>blink</code> - мигание</li>
+<li><code>clear</code> - выключение</li>
 </ul>
 <p><strong>Дополнительные параметры:</strong></p>
 <ul>
 <li><code>r, g, b</code> - цвет (значения от 0 до 255)</li>
 <li><code>nLED</code> - количество светодиодов</li>
-<li><code>brightness</code> - яркость</li>
-</ul>
-<p><strong>Результат:</strong></p>
-<ul>
-<li><code>True</code> - команда принята</li>
-<li><code>False</code> - ошибка</li>
+<li><code>brightness</code> - яркость (значения от 0 до 1)</li>
 </ul>
 <p><strong>Пример:</strong></p>
 <pre><code class="lang-python">drone.led_control(
@@ -536,7 +543,7 @@ drone.set_velocity(<span class="hljs-number">0</span>, <span class="hljs-number"
     r=<span class="hljs-number">255</span>,
     g=<span class="hljs-number">0</span>,
     b=<span class="hljs-number">0</span>,
-    brightness=<span class="hljs-number">200</span>
+    brightness=<span class="hljs-number">0.8</span> 
 )
 </code></pre>
 <h2 id="методы-камеры">Методы камеры</h2>
@@ -544,6 +551,112 @@ drone.set_velocity(<span class="hljs-number">0</span>, <span class="hljs-number"
 <p>Запуск видеопотока</p>
 <h3 id="stopstream">stop_stream</h3>
 <p>Остановка видеопотока</p>
+<h3 id="read">read</h3>
+<p>Возвращает последний кадр</p>
+<p><strong>Результат:</strong></p>
+<ul>
+<li><code>True / False</code> - результат получения кадра</li>
+<li>Сам кадр при успешном получении</li>
+</ul>
+<h3 id="gettargets">get_targets</h3>
+<p>Возвращает словарь</p>
+<p>Поддерживаются три состояния мишеней:</p>
+<ul>
+<li><code>Выключенные мишени</code> - не светятся, возвращаются в массиве targets</li>
+<li><code>Синие мишени</code> - светятся синим цветом, возвращаются в массиве blue_targets</li>
+<li><code>Красные мишени</code> - светятся красным цветом,возвращаются в массиве red_targets</li>
+</ul>
+<p><strong>Описание полей ответа:</strong></p>
+<ul>
+<li><code>x</code> - координата центра мишени по оси X (в пикселях)</li>
+<li><code>y</code> - координата центра мишени по оси Y (в пикселях)</li>
+<li><code>w</code> - ширина рамки мишени (в пикселях)</li>
+<li><code>h</code> - высота рамки мишени (в пикселях)</li>
+<li><code>conf</code> - уверенность детекции (от 0.0 до 1.0)</li>
+<li><p><code>class</code> - класс обнаруженного объекта:</p>
+<p><code>target</code> - выключенная мишень</p>
+<p><code>blue target</code> - синяя мишень</p>
+<p><code>red target</code> - красная мишень</p>
+</li>
+</ul>
+<p><strong>Пример:</strong></p>
+<pre><code class="lang-python">{
+    <span class="hljs-string">"command"</span>: <span class="hljs-string">"targets_response"</span>,
+    <span class="hljs-string">"red_targets"</span>: [
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">230.0</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">277.5</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">89.5</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">96.75</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.75</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"red target"</span>
+        }
+    ],
+    <span class="hljs-string">"blue_targets"</span>: [
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">213.25</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">162.88</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">101.0</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">108.25</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.86</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"blue target"</span>
+        }
+    ],
+    <span class="hljs-string">"targets"</span>: [
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">229.25</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">278.25</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">91.5</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">98.5</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.88</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"target"</span>
+        },
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">213.88</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">162.75</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">100.75</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">107.5</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.87</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"target"</span>
+        }
+    ],
+    <span class="hljs-string">"all_targets"</span>: [
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">229.25</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">278.25</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">91.5</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">98.5</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.88</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"target"</span>
+        },
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">213.88</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">162.75</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">100.75</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">107.5</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.87</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"target"</span>
+        },
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">213.25</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">162.88</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">101.0</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">108.25</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.86</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"blue target"</span>
+        },
+        {
+            <span class="hljs-string">"x"</span>: <span class="hljs-number">230.0</span>,
+            <span class="hljs-string">"y"</span>: <span class="hljs-number">277.5</span>,
+            <span class="hljs-string">"w"</span>: <span class="hljs-number">89.5</span>,
+            <span class="hljs-string">"h"</span>: <span class="hljs-number">96.75</span>,
+            <span class="hljs-string">"conf"</span>: <span class="hljs-number">0.75</span>,
+            <span class="hljs-string">"class"</span>: <span class="hljs-string">"red target"</span>
+        }
+    ],
+    <span class="hljs-string">"received_at"</span>: <span class="hljs-number">1769432799.1361434</span>
+}
+</code></pre>
 
                                 
                                 </section>
@@ -583,7 +696,7 @@ drone.set_velocity(<span class="hljs-number">0</span>, <span class="hljs-number"
     <script>
         var gitbook = gitbook || [];
         gitbook.push(function() {
-            gitbook.page.hasChanged({"page":{"title":"Работа с API","level":"1.7.1","depth":2,"next":{"title":"Светодиодная лента","level":"1.7.2","depth":2,"path":"LED.md","ref":"LED.md","articles":[]},"previous":{"title":"Программирование","level":"1.7","depth":1,"ref":"","articles":[{"title":"Работа с API","level":"1.7.1","depth":2,"path":"api.md","ref":"api.md","articles":[]},{"title":"Светодиодная лента","level":"1.7.2","depth":2,"path":"LED.md","ref":"LED.md","articles":[]},{"title":"Лазерная пушка","level":"1.7.3","depth":2,"path":"laser.md","ref":"laser.md","articles":[]},{"title":"Получение телеметрии","level":"1.7.4","depth":2,"path":"get_telemetry.md","ref":"get_telemetry.md","articles":[]},{"title":"Примеры программ","level":"1.7.5","depth":2,"path":"sample_programs.md","ref":"sample_programs.md","articles":[]}]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"api.md","mtime":"2026-01-26T12:20:45.220Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-26T12:20:52.085Z"},"basePath":".","book":{"language":""}});
+            gitbook.page.hasChanged({"page":{"title":"Работа с API","level":"1.7.1","depth":2,"next":{"title":"Светодиодная лента","level":"1.7.2","depth":2,"path":"LED.md","ref":"LED.md","articles":[]},"previous":{"title":"Программирование","level":"1.7","depth":1,"ref":"","articles":[{"title":"Работа с API","level":"1.7.1","depth":2,"path":"api.md","ref":"api.md","articles":[]},{"title":"Светодиодная лента","level":"1.7.2","depth":2,"path":"LED.md","ref":"LED.md","articles":[]},{"title":"Лазерная пушка","level":"1.7.3","depth":2,"path":"laser.md","ref":"laser.md","articles":[]},{"title":"Получение телеметрии","level":"1.7.4","depth":2,"path":"get_telemetry.md","ref":"get_telemetry.md","articles":[]},{"title":"Примеры программ","level":"1.7.5","depth":2,"path":"sample_programs.md","ref":"sample_programs.md","articles":[]}]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["livereload"],"pluginsConfig":{"livereload":{},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"fontsettings":{"theme":"white","family":"sans","size":2},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56},"embedFonts":false},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"api.md","mtime":"2026-01-26T13:42:32.275Z","type":"markdown"},"gitbook":{"version":"6.1.4","time":"2026-01-26T16:08:00.115Z"},"basePath":".","book":{"language":""}});
         });
     </script>
 </div>
