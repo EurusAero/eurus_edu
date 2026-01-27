@@ -5,13 +5,13 @@ sudo nano /etc/init.d/network_setup
 ```bash
 #!/bin/bash
 ### BEGIN INIT INFO
-# Provides: myscript
+# Provides: network_setup
 # Required-Start: $remote_fs $syslog
 # Required-Stop: $remote_fs $syslog
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
-# Short-Description: Запускает мой одноразовый скрипт при загрузке
-# Description: Выполняет команды один раз после загрузки системы
+# Short-Description:
+# Description:
 ### END INIT INFO
 NETPLAN_FILE="/etc/netplan/orangepi-default.yaml"
 
@@ -20,8 +20,14 @@ SSID_PREFIX="EURUS_EDU"
 RAND_DIGITS=$(printf "%04d" $((RANDOM % 10000)))
 SSID_NAME="${SSID_PREFIX}_${RAND_DIGITS}"
 
-WIFI_IFACE=$(ls /sys/class/net | grep -E '^wl' | head -n 1)
-ETH_IFACE=$(ls /sys/class/net | grep -E '^e' | head -n 1)
+for i in {1..10}; do
+    WIFI_IFACE=$(ls /sys/class/net | grep -E '^wl|^wlan' | head -n 1)
+    ETH_IFACE=$(ls /sys/class/net | grep -E '^e|^en' | head -n 1)
+    if [ -n "$WIFI_IFACE" ]; then
+        break
+    fi
+    sleep 3
+done
 
 if [ -n "$WIFI_IFACE" ]; then
     cat <<EOF > "$NETPLAN_FILE"
@@ -68,7 +74,7 @@ rm -- "$0"
 ```bash
 sudo chmod +x /etc/init.d/network_setup
 sudo chown root:root /etc/init.d/network_setup
-sudo update-rc.d network_setup defaults
+sudo update-rc.d network_setup defaults 95
 ```
 
 Чтоб проверить создавшийся симлинк можно ввести:
