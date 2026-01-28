@@ -34,7 +34,7 @@ git submodule update --init --remote
 python3 generate-bindings.py > bindings.i
 sudo python3 setup.py install
 
-sudo apt install $(cat ~/ros2_ws/src/eurus_edu/depends/packages.txt)
+sudo apt install $(cat ~/ros2_ws/src/eurus_edu/depends/packages.txt) -y
 pip3 install -r ~/ros2_ws/src/eurus_edu/depends/pip_packages.txt
 
 pip3 install ~/ros2_ws/src/eurus_edu/libs/python/EurusEdu/

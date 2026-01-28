@@ -27,7 +27,9 @@ export ROS_HOSTNAME=10.42.0.1" >> ~/.bashrc
 Устанавливаем зависимости
 
 ```bash
-sudo apt install ros-noetic-image-transport ros-noetic-gazebo-plugins ros-noetic-image-proc ros-noetic-xacro ros-noetic-image-geometry ros-noetic-ros-pytest ros-noetic-led-msgs ros-noetic-tf2-web-republisher ros-noetic-tf2-geometry-msgs ros-noetic-image-publisher ros-noetic-web-video-server ros-noetic-rosbridge-server ros-noetic-cv-camera nginx -y
+sudo apt install ros-noetic-image-transport ros-noetic-gazebo-plugins ros-noetic-image-proc ros-noetic-xacro ros-noetic-image-geometry ros-noetic-ros-pytest ros-noetic-led-msgs ros-noetic-tf2-web-republisher ros-noetic-tf2-geometry-msgs ros-noetic-image-publisher ros-noetic-web-video-server ros-noetic-rosbridge-server ros-noetic-cv-camera nginx python3-pip -y
+
+pip install butterfly
 ```
 
 ```bash
@@ -187,10 +189,6 @@ server {
 #       }
 #}
 
-```
-
-```bash
-pip install butterfly
 ```
 
 butterfly.service:
