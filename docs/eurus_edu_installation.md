@@ -82,7 +82,7 @@ sudo reboot
 
 ## Запуск сервисов
 
-sudo cp ~/ros2\*ws/src/eurus_edu/services/\*.service /etc/systemd/system
+sudo cp ~/ros2_ws/src/eurus_edu/services/\*.service /etc/systemd/system
 
 Активируем все сервисы:
 sudo systemctl enable edu\_....service
@@ -90,29 +90,17 @@ sudo systemctl enable edu\_....service
 ## WIFI hotspot
 
 ```bash
-sudo nano /etc/netplan/orangepi-default.yaml
-```
-
-```
-network:
-  version: 2
-  renderer: NetworkManager
-  wifis:
-    wlx90de80a49f46:
-      dhcp4: true
-      optional: true
-      access-points:
-        "EURUS_EDU_00":
-          auth:
-            key-management: psk
-            password: "euruswifi"
-          mode: ap
-          band: 5GHz
-          networkmanager:
-            passthrough:
-              wifi-security.proto: "rsn" # WPA2 only
+sudo cp ~/ros2_ws/src/eurus_edu/scripts/network_setup /etc/init.d/network_setup
 ```
 
 ```bash
-sudo netplan apply
+sudo chmod +x /etc/init.d/network_setup
+sudo chown root:root /etc/init.d/network_setup
+sudo update-rc.d network_setup defaults 95
+```
+
+Чтоб проверить создавшийся симлинк можно ввести:
+
+```bash
+ls -l /etc/rc*.d/*network*
 ```
