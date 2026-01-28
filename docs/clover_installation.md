@@ -1,6 +1,6 @@
 ## Установка ROS1 Noetic
 
-Устанавливаем ubuntu focal (20.04, server, linux5) для [Orange Pi 5](https://drive.google.com/drive/folders/1i5zQOg1GIA4_VNGikFl2nPM0Y2MBw2M0)
+Устанавливаем ubuntu focal (20.04, server, 5 kernel) для [Orange Pi 5](https://drive.google.com/drive/folders/1i5zQOg1GIA4_VNGikFl2nPM0Y2MBw2M0)
 Установить ROS Noetic как в [документации](https://wiki.ros.org/noetic/Installation/Ubuntu), качаем ros-noetic-ros-base
 Создаем catkin workspace согласно [документации](https://wiki.ros.org/catkin/Tutorials/create_a_workspace)
 
