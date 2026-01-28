@@ -101,19 +101,5 @@ yolo detect train model=yolo11n.pt data=./dataset/data.yaml batch=-1 epochs=150 
 
 [Официальная документация Ultralytics по обучению модели.](https://docs.ultralytics.com/modes/train/)
 
-### Преобразование весов в поддерживаемый тип для RK3588
-
-После того, как вы перенесли веса (best.pt) на Orange pi 5 (или любой другой микрокомпьютер с процессором Rockchip 3588), необходимо преобразовать стандартный best.pt в поддерживаемый микрокомпьютером файл.
-
-Для этого можно использовать команду `yolo export`, пример ее использования:
-
-```bash
- yolo export model=best.pt format=rknn name=rk3588
-```
-
-После этого будет создана папка best_rknn_model, эту папку мы и будем использовать как модель при использовании ее в коде.
-
-[Официальная документация Ultralytics по преобразованию модели.](https://docs.ultralytics.com/integrations/rockchip-rknn/)
-
 **Возможные ошибки**
 `CUDA out of memory` - слишком большое количество batch, не хватает видеопамяти
