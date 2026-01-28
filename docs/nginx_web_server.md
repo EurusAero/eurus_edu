@@ -60,6 +60,10 @@ server {
                 try_files $uri $uri/ =404;
         }
 
+        location /clover_blocks {
+                alias /home/orangepi/catkin_ws/src/clover/clover_blocks/www;
+        }
+
         # pass PHP scripts to FastCGI server
         #
         #location ~ \.php$ {
@@ -98,6 +102,7 @@ server {
 #               try_files $uri $uri/ =404;
 #       }
 #}
+
 ```
 
 ```bash
