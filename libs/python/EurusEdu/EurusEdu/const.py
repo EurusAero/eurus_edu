@@ -17,7 +17,8 @@ MOVE_TO_LOCAL_POINT = {
     "x": (float, int),
     "y": (float, int),
     "z": (float, int),
-    "yaw": (float, int, type(None))
+    "yaw": (float, int, type(None)),
+    "speed": (float, int)
      }
 
 MOVE_IN_BODY_FRAME = {
@@ -25,7 +26,8 @@ MOVE_IN_BODY_FRAME = {
     "x": (float, int),
     "y": (float, int),
     "z": (float, int),
-    "yaw": (float, int, type(None))
+    "yaw": (float, int, type(None)),
+    "speed": (float, int)
 }
 
 TAKEOFF_MSG = {

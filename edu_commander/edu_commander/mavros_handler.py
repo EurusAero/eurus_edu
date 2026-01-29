@@ -8,7 +8,7 @@ from math import dist, radians, cos, sin
 
 from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
-from mavros_msgs.msg import PositionTarget
+from mavros_msgs.msg import PositionTarget, State
 from geometry_msgs.msg import PoseStamped
 from edu_msgs.msg import Command
 from EurusEdu.const import *
@@ -58,34 +58,48 @@ class MavrosHandler(Node):
             self.local_pos_updater,
             mavros_qos_profile
         )
+        self.create_subscription(
+            State,
+            "/mavros/state",
+            self.state_updater,
+            mavros_qos_profile
+        )
+
         
         self.status_pub = self.create_publisher(Command, 'edu/command', 10)
         
+        self.setpoint_pose = PoseStamped()
+        self.start_position = PoseStamped()
         self.target_pose = PoseStamped()
-        self.target_pose = self.local_pose
+        self.setpoint_pose = self.local_pose
         self.target_raw = PositionTarget()
+        self.state_msg = State()
         
         
         self.timer = self.create_timer(0.05, self.cmd_loop)
 
-        self.first_arm = True
+        # self.first_arm = True
+        self.armed = False
         self.only_arm = True
         self.current_task_thread = None
-        self.current_control_method = "LOCAL_POSITION" # LOCAL_POSITION, RAW_VELOCITY 
+        self.current_control_method = "LOCAL_POSITION" # LOCAL_POSITION, RAW_VELOCITY
+        self.setpoint_speed = 1.0
         self.get_logger().info("MavrosHandler готов к работе.")
 
     def cmd_loop(self):
         if self.current_control_method == "LOCAL_POSITION":
-            self.target_pose.header.stamp = self.get_clock().now().to_msg()
-            self.target_pose.header.frame_id = "map"
+            self.setpoint_pose.header.stamp = self.get_clock().now().to_msg()
+            self.setpoint_pose.header.frame_id = "map"
                     
             if self.only_arm:
-                self.target_pose.pose.position.x = self.local_pose.pose.position.x
-                self.target_pose.pose.position.y = self.local_pose.pose.position.y
-                self.target_pose.pose.position.z = self.local_pose.pose.position.z - 2
-                self.target_pose.pose.orientation = self.local_pose.pose.orientation
+                self.setpoint_pose.pose.position.x = self.local_pose.pose.position.x
+                self.setpoint_pose.pose.position.y = self.local_pose.pose.position.y
+                self.setpoint_pose.pose.position.z = self.local_pose.pose.position.z - 2
+                self.setpoint_pose.pose.orientation = self.local_pose.pose.orientation
+            else:
+                self.calculate_next_target_position()
             
-            self.local_pos_pub.publish(self.target_pose)
+            self.local_pos_pub.publish(self.setpoint_pose)
         elif self.current_control_method == "RAW_VELOCITY":
             self.target_raw.header.stamp = self.get_clock().now().to_msg()
             self.target_raw.header.frame_id = "map"
@@ -119,57 +133,35 @@ class MavrosHandler(Node):
     def local_pos_updater(self, msg: PoseStamped):
         self.local_pose = msg
 
+    def state_updater(self, msg: State):
+        self.state_msg = msg
+
+    def get_distance(self, start, target):
+        local = [float(start.x), float(start.y), float(start.z)]
+        target = [float(target.x), float(target.y), float(target.z)]
+        
+        return dist(local, target)
+    
     def point_reached(self, deadzone=0.2):
         local = [float(self.local_pose.pose.position.x), float(self.local_pose.pose.position.y), float(self.local_pose.pose.position.z)]
         target = [float(self.target_pose.pose.position.x), float(self.target_pose.pose.position.y), float(self.target_pose.pose.position.z)]
         
         return dist(local, target) < deadzone
 
-    def calculate_takeoff_position(self, altitude):
-        self.target_pose.pose.position.x = self.local_pose.pose.position.x
-        self.target_pose.pose.position.y = self.local_pose.pose.position.y
-        self.target_pose.pose.position.z = altitude
+    def calculate_next_target_position(self):
+        if not self.state_msg.armed:
+            self.start_position.header.stamp = self.get_clock().now().to_msg()
         
-        self.current_control_method = "LOCAL_POSITION"
+        stamp = self.start_position.header.stamp
+        time = self.get_distance(self.start_position.pose.position, self.target_pose.pose.position) / self.setpoint_speed
+        passed = min(((self.get_clock().now().to_msg().sec - stamp.sec) / time), 1)
         
-        return self.target_pose
-    
-    def calculate_next_target_position(self, command_coords: list, yaw=None, body_frame=False):
-        if body_frame:
-            fwd_dist = command_coords[0]
-            right_dist = command_coords[1]
-            
-            if yaw is not None:
-                calc_yaw_rad = radians(yaw)
-            else:
-                q = self.local_pose.pose.orientation
-                _, _, calc_yaw_rad = quat2euler([q.w, q.x, q.y, q.z])
-
-            delta_north = fwd_dist * cos(calc_yaw_rad) - right_dist * sin(calc_yaw_rad)
-            delta_east  = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
-
-            self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_north
-            self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_east
-            self.target_pose.pose.position.z = command_coords[2]
-            
-        else:
-            
-            self.target_pose.pose.position.x = self.home_position.pose.position.x + command_coords[0]
-            self.target_pose.pose.position.y = self.home_position.pose.position.y + command_coords[1]
-            self.target_pose.pose.position.z = command_coords[2]
-
-        if yaw is None:
-            pass
-        else:
-            qw, qx, qy, qz = euler2quat(0, 0, radians(yaw))
-            self.target_pose.pose.orientation.x = qx
-            self.target_pose.pose.orientation.y = qy
-            self.target_pose.pose.orientation.z = qz
-            self.target_pose.pose.orientation.w = qw
-            
-        self.current_control_method = "LOCAL_POSITION"
+        self.setpoint_pose.pose.position.x = self.start_position.pose.position.x + (self.target_pose.pose.position.x - self.start_position.pose.position.x) * passed
+        self.setpoint_pose.pose.position.y = self.start_position.pose.position.y + (self.target_pose.pose.position.y - self.start_position.pose.position.y) * passed
+        self.setpoint_pose.pose.position.z = self.start_position.pose.position.z + (self.target_pose.pose.position.z - self.start_position.pose.position.z) * passed
+        self.setpoint_pose.pose.orientation = self.target_pose.pose.orientation
         
-        return self.target_pose
+        return self.setpoint_pose
     
     def calculate_next_target_velocity(self, vx, vy, vz, yaw_rate=None):
         self.target_raw.velocity.x = vx
@@ -294,10 +286,19 @@ class MavrosHandler(Node):
     def do_takeoff(self, altitude):
         self.get_logger().info(f"Takeoff to {altitude}m")
         
-        self.calculate_takeoff_position(float(altitude))
-    
+        self.start_position = self.local_pose
+        self.target_pose = self.local_pose
+        
+        self.target_pose.pose.position.x = self.local_pose.pose.position.x
+        self.target_pose.pose.position.y = self.local_pose.pose.position.y
+        self.target_pose.pose.position.z = altitude
+        
+        self.current_control_method = "LOCAL_POSITION"
+        
+        # self.calculate_takeoff_position(float(altitude))
         self.do_set_mode("OFFBOARD")
-        self.do_arm()
+        self.armed = self.do_arm()
+        
         return True, "Takeoff initiated"
 
     def do_land(self):
@@ -326,13 +327,29 @@ class MavrosHandler(Node):
         
     def do_move_to_local_point(self, data):
         try:
-            x = data.get("x", self.target_pose.pose.position.x)
-            y = data.get("y", self.target_pose.pose.position.y)
-            z = data.get("z", self.target_pose.pose.position.z)
-            yaw = data.get("yaw", None)
-
-            self.calculate_next_target_position((x, y, z), yaw)
+            self.start_position = self.local_pose
+            self.target_pose = self.local_pose
             
+            x = data.get("x", self.setpoint_pose.pose.position.x)
+            y = data.get("y", self.setpoint_pose.pose.position.y)
+            z = data.get("z", self.setpoint_pose.pose.position.z)
+            yaw = data.get("yaw", None)
+            self.setpoint_speed = data.get("speed", 1.0)
+
+            self.target_pose.pose.position.x = self.home_position.pose.position.x + x
+            self.target_pose.pose.position.y = self.home_position.pose.position.y + y
+            self.target_pose.pose.position.z = z
+            
+            if yaw is not None:
+                qw, qx, qy, qz = euler2quat(0, 0, radians(yaw))
+                self.target_pose.pose.orientation.x = qx
+                self.target_pose.pose.orientation.y = qy
+                self.target_pose.pose.orientation.z = qz
+                self.target_pose.pose.orientation.w = qw
+            
+            # self.calculate_next_target_position((x, y, z), yaw)
+            self.current_control_method = "LOCAL_POSITION"
+
             self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
             
             return True, f"Moving to x={x}, y={y}, z={z}"
@@ -342,19 +359,39 @@ class MavrosHandler(Node):
     
     def do_move_in_body_frame(self, data):
         try:
-            x = data.get("x", self.target_pose.pose.position.x)
-            y = data.get("y", self.target_pose.pose.position.y)
-            z = data.get("z", self.target_pose.pose.position.z)
-            yaw = data.get("yaw", None)
-
-            self.calculate_next_target_position((x, y, z), yaw, body_frame=True)
+            self.start_position = self.local_pose
+            self.target_pose = self.local_pose
             
-            self.get_logger().info(f"moving to local point: x={x}, y={y}, z={z}, yaw={yaw}")
+            fwd_dist = data.get("x", 0)
+            right_dist = data.get("y", 0)
+            yaw = data.get("yaw", None)
+            self.setpoint_speed = data.get("speed", 1.0)
+            
+            if yaw is not None:
+                calc_yaw_rad = radians(yaw)
+                qw, qx, qy, qz = euler2quat(0, 0, radians(yaw))
+                self.target_pose.pose.orientation.x = qx
+                self.target_pose.pose.orientation.y = qy
+                self.target_pose.pose.orientation.z = qz
+                self.target_pose.pose.orientation.w = qw
+            else:
+                q = self.local_pose.pose.orientation
+                _, _, calc_yaw_rad = quat2euler([q.w, q.x, q.y, q.z])
+                
+            delta_north = fwd_dist * cos(calc_yaw_rad) - right_dist * sin(calc_yaw_rad)
+            delta_east  = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
+
+            self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_north
+            self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_east
+            self.target_pose.pose.position.z = data.get("z", self.target_pose.pose.position.z)
+
+            # self.calculate_next_target_position((x, y, z), yaw, body_frame=True)
+            self.current_control_method = "LOCAL_POSITION"
+            self.get_logger().info(f"moving to local point: x={self.target_pose.pose.position.x}, y={self.target_pose.pose.position.y}, z={self.target_pose.pose.position.z}, yaw={yaw}")
             
             # self.do_set_mode("OFFBOARD")
 
-            return True, f"Moving to x={x}, y={y}, z={z}"
-
+            return True, f"Moving to x={self.target_pose.pose.position.x}, y={self.target_pose.pose.position.y}, z={self.target_pose.pose.position.z}"
         except ValueError as e:
             return False, f"Invalid coordinates: {e}"
 

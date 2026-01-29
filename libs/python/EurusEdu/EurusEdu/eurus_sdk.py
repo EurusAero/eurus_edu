@@ -262,16 +262,18 @@ class EurusControl:
     def land(self):
         self._send_movement_command({"command": "land"})
 
-    def move_to_local_point(self, x, y, z, yaw=None):
+    def move_to_local_point(self, x, y, z, yaw=None, speed=1):
         self._send_movement_command({
             "command": "move_to_local_point", "x": float(x), "y": float(y), "z": float(z),
-            "yaw": float(yaw) if yaw is not None else None
+            "yaw": float(yaw) if yaw is not None else None,
+            "speed": float(speed)
         })
     
-    def move_in_body_frame(self, x, y, z, yaw=None):
+    def move_in_body_frame(self, x, y, z, yaw=None, speed=1):
         self._send_movement_command({
             "command": "move_in_body_frame", "x": float(x), "y": float(y), "z": float(z),
-            "yaw": float(yaw) if yaw is not None else None
+            "yaw": float(yaw) if yaw is not None else None,
+            "speed": float(speed)
         })
     
     def set_velocity(self, vx, vy, vz, yaw_rate=None):
@@ -328,11 +330,6 @@ class EurusControl:
         self._send_raw(payload)
 
     def laser_shot(self):
-        """
-        Отправляет команду выстрела.
-        Не блокирует другие команды управления (можно вызывать параллельно с полетом).
-        Блокирует только текущий поток на ~0.5 сек до получения ответа о выстреле.
-        """
         if not self.is_connected:
             return False
 

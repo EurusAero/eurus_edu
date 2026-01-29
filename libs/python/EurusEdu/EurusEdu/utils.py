@@ -88,9 +88,6 @@ class SocketsUtils:
     
     
 class GpioController:
-    """
-    Простой класс для управления GPIO через sysfs (файловую систему).
-    """
     BASE_PATH = "/sys/class/gpio"
 
     def __init__(self, pin_number):
