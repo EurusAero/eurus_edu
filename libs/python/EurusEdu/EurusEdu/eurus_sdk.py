@@ -256,8 +256,8 @@ class EurusControl:
     def disarm(self):
         self._send_movement_command({"command": "disarm"})
 
-    def takeoff(self, altitude):
-        self._send_movement_command({"command": "takeoff", "altitude": float(altitude)})
+    def takeoff(self, altitude, speed=1):
+        self._send_movement_command({"command": "takeoff", "altitude": float(altitude), "speed": float(speed)})
 
     def land(self):
         self._send_movement_command({"command": "land"})

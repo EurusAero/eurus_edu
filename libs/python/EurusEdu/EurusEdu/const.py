@@ -32,7 +32,8 @@ MOVE_IN_BODY_FRAME = {
 
 TAKEOFF_MSG = {
     "command": str,
-    "altitude": (float, int)
+    "altitude": (float, int),
+    "speed": (float, int)
     }
 
 SET_MODE_MSG = {
