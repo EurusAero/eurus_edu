@@ -72,7 +72,6 @@ def main():
             if ret:
                 # 2. Запрашиваем таргеты
                 targets = cam.get_targets(blocking=False)
-                print(targets)
                 
                 # 3. Рисуем прямоугольники на кадре
                 if targets:

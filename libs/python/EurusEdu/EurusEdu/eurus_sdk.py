@@ -262,14 +262,14 @@ class EurusControl:
     def land(self):
         self._send_movement_command({"command": "land"})
 
-    def move_to_local_point(self, x, y, z, yaw=None, speed=1):
+    def move_to_local_point(self, x, y, z, speed=1, yaw=None):
         self._send_movement_command({
             "command": "move_to_local_point", "x": float(x), "y": float(y), "z": float(z),
             "yaw": float(yaw) if yaw is not None else None,
             "speed": float(speed)
         })
     
-    def move_in_body_frame(self, x, y, z, yaw=None, speed=1):
+    def move_in_body_frame(self, x, y, z, speed=1, yaw=None):
         self._send_movement_command({
             "command": "move_in_body_frame", "x": float(x), "y": float(y), "z": float(z),
             "yaw": float(yaw) if yaw is not None else None,
