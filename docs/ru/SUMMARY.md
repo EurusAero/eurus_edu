@@ -2,14 +2,16 @@
 
 * [Eurus-Edu](README.md)
 * [Безопасность](safety.md)
-* Сборка
-* Настройка
+* [Сборка](assembly.md)
 * [Работа с Orange Pi 5](orangepi_info.md)
     * [Образ для Orange Pi 5](orangepi_image.md)
+    * [Образ клевера](clover.md)
     * [Подключение по Wi-Fi](orangepi_wifi.md)
 * Работа с нейросетью
-    * [Обучение модели YOLOv11](neural_network_train.md)
     * [Создание Dataset на Roboflow](dataset_annotation.md)
+    * [Обучение модели YOLOv11](neural_network_train.md)
+    * [Программирование с использованием нейронной сети YOLOv11](neural_network_programming.md)
+    * [Преобразование весов в поддерживаемый тип для RK3588](neural_network_export.md)
 * Программирование
     * [Работа с API](api.md)
     * [Светодиодная лента](LED.md)

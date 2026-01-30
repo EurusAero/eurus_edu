@@ -57,7 +57,7 @@
 -   ```Annotation Group```: название объектов, которые будем размечать
 -   ```tool```: traditional
 
-![create_project](../assets/neural_network_train/dataset_annotation/create_project.png)
+![create_project](assets/neural_network_train/dataset_annotation/create_project.png)
 
 
 ### Создание классов для разметки
@@ -75,7 +75,7 @@
 -   ```blue_target``` - синяя мишень
 
 
-![classes](../assets/neural_network_train/dataset_annotation/classes.png)
+![classes](assets/neural_network_train/dataset_annotation/classes.png)
 
 
 ### Загрузка видео для разметки
@@ -89,14 +89,14 @@
 
 Рекомендуемая частота кадров - по 1 кадру каждые 0.2 секунды
 
-![loading_video](../assets/neural_network_train/dataset_annotation/loading_video.png)
+![loading_video](assets/neural_network_train/dataset_annotation/loading_video.png)
 
 
 ### Сбор кадров
 
 На этом этапе удаляем неудачные кадры (сильно размытые или те, на которых объект не попал в кадр) и только после этого начинаем разметку dataset вручную (Label Myself) 
 
-![label_myself](../assets/neural_network_train/dataset_annotation/label_myself.png)
+![label_myself](assets/neural_network_train/dataset_annotation/label_myself.png)
 
 
 ### Разметка dataset
@@ -109,15 +109,15 @@
 
 ```blue_target``` - только синие мишени
 
-![dataset](../assets/neural_network_train/dataset_annotation/dataset.png)
+![dataset](assets/neural_network_train/dataset_annotation/dataset.png)
 
 *После разметки кадра обозначены 2 объекта target и по одному объекту blue_target и red_target*
 
-![daraset2](../assets/neural_network_train/dataset_annotation/dataset2.png)
+![daraset2](assets/neural_network_train/dataset_annotation/dataset2.png)
 
 *На этом кадре не видно какого цвета вторая мишень, поэтому обозначаем её одним классом target*
 
 
 После разметки всех кадров нажимаем на галочку и добавляем кадры в общий датасет. Метод сохранения выбираем ```Split images Between Train/Valid/Test```
 
-![add_to_dataset](../assets/neural_network_train/dataset_annotation/add_to_dataset.png)
+![add_to_dataset](assets/neural_network_train/dataset_annotation/add_to_dataset.png)
