@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from rclpy.time import Time
 import json
 import threading
 import time
@@ -76,7 +77,7 @@ class MavrosHandler(Node):
         self.state_msg = State()
         
         
-        self.timer = self.create_timer(0.05, self.cmd_loop)
+        self.timer = self.create_timer(0.033, self.cmd_loop)
 
         # self.first_arm = True
         self.only_arm = True
@@ -154,8 +155,12 @@ class MavrosHandler(Node):
         stamp = self.start_position.header.stamp
         time = self.get_distance(self.start_position, self.target_pose) / self.setpoint_speed
 
+        now_time = self.get_clock().now()
+        start_time = Time.from_msg(stamp) 
+        elapsed_seconds = (now_time - start_time).nanoseconds / 1e9
+
         if time > 0:
-            passed = min(((self.get_clock().now().to_msg().sec - stamp.sec) / time), 1)
+            passed = min((elapsed_seconds / time), 1)
             
             self.setpoint_pose.pose.position.x = self.start_position.pose.position.x + (self.target_pose.pose.position.x - self.start_position.pose.position.x) * passed
             self.setpoint_pose.pose.position.y = self.start_position.pose.position.y + (self.target_pose.pose.position.y - self.start_position.pose.position.y) * passed

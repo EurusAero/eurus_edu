@@ -7,7 +7,8 @@ def run_square_mission():
     PORT = 65432
     ALTITUDE = 1              
     SIDE_LENGTH = 0.5            
-    LAPS = 1                     
+    LAPS = 1       
+    SPEED = 0.2              
     
     # Настройки LED
     # Количество светодиодов
@@ -33,10 +34,10 @@ def run_square_mission():
         drone.arm()
         
         print(f"Взлет на высоту {ALTITUDE}м...")
-        drone.takeoff(ALTITUDE)
+        drone.takeoff(ALTITUDE, speed=SPEED)
         
         # Пауза, чтобы дрон стабилизировался перед полетом
-        time.sleep(7)
+        time.sleep(10)
 
         # 2. ПОЛЕТ ПО КВАДРАТУ
         print("Включаем эффект 'komet' (синий) для полета...")
@@ -46,17 +47,19 @@ def run_square_mission():
             print(f"\n--- Круг №{lap} ---")
             
             # Точка 1
-            drone.move_to_local_point(x=SIDE_LENGTH, y=0, z=ALTITUDE)
-            time.sleep(5)
+            drone.move_to_local_point(x=SIDE_LENGTH, y=SIDE_LENGTH, z=ALTITUDE, speed=SPEED)
+            time.sleep(8)
             # Точка 2
-            drone.move_to_local_point(x=SIDE_LENGTH, y=SIDE_LENGTH, z=ALTITUDE)
-            time.sleep(5)
+            drone.move_to_local_point(x=SIDE_LENGTH, y=-SIDE_LENGTH, z=ALTITUDE, speed=SPEED)
+            time.sleep(8)
             # Точка 3
-            drone.move_to_local_point(x=0, y=SIDE_LENGTH, z=ALTITUDE)
-            time.sleep(5)
+            drone.move_to_local_point(x=-SIDE_LENGTH, y=-SIDE_LENGTH, z=ALTITUDE, speed=SPEED)
+            time.sleep(8)
             # Точка 4 (Возврат)
-            drone.move_to_local_point(x=0, y=0, z=ALTITUDE)
-            time.sleep(5)
+            drone.move_to_local_point(x=-SIDE_LENGTH, y=SIDE_LENGTH, z=ALTITUDE, speed=SPEED)
+            time.sleep(8)
+            drone.move_to_local_point(x=0, y=0, z=ALTITUDE, speed=SPEED)
+            time.sleep(8)
 
         print("\nПолетная программа завершена.")
 
