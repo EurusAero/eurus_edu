@@ -20,9 +20,27 @@ class ArucoDetector(Node):
             depth=1
         )
         
+        config_path = "/home/orangepi/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
+        
+        dictionary = "4X4_50"
+        camera_topic = "/edu/camera_frame"
+        frequency = 30
+        
+        if os.path.exists(config_path):
+            config = configparser.ConfigParser()
+            config.read(config_path)
+            
+            dictionary = config["aruco"].get("dict", dictionary)
+            
+            frequency = config["settings"].getint("frequency", frequency)
+            camera_topic = config["settings"].get("camera_topic", camera_topic)
+            
+            if dictionary not in self.aruco_dicts:
+                dictionary = "4X4_50"
+        
         self.create_subscription(
             CompressedImage,
-            '/edu/camera_frame',
+            camera_topic,
             self.camera_sub,
             camera_qos_profile
             )
@@ -51,21 +69,6 @@ class ArucoDetector(Node):
         }
         
         self.last_frame = None
-        
-        config_path = "/home/orangepi/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
-        
-        dictionary = "4X4_50"
-        
-        if os.path.exists(config_path):
-            config = configparser.ConfigParser()
-            config.read(config_path)
-            
-            dictionary = config["aruco"].get("dict")
-            
-            frequency = config["settings"].getint("frequency")
-            
-            if dictionary not in self.aruco_dicts:
-                dictionary = "4X4_50"
             
         aruco_dict = cv2.aruco.getPredefinedDictionary(self.aruco_dicts[dictionary])
         parameters = cv2.aruco.DetectorParameters()
