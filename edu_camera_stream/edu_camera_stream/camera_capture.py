@@ -21,7 +21,8 @@ class MJPEGCameraPublisher(Node):
         self.pub = self.create_publisher(CompressedImage, '/edu/camera_frame', qos_profile)
         
         config = configparser.ConfigParser()
-        config_path = "/home/orangepi/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini" 
+        home_dir = os.getenv("HOME")
+        config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini" 
         
         self.camera_is_open = False
         self.camera_lost_timestamp = 0

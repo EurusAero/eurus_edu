@@ -261,7 +261,7 @@ class EurusControl:
 
     def land(self):
         self._send_movement_command({"command": "land"})
-
+    
     def move_to_local_point(self, x, y, z, speed=1, yaw=None):
         self._send_movement_command({
             "command": "move_to_local_point", "x": float(x), "y": float(y), "z": float(z),
@@ -353,3 +353,11 @@ class EurusControl:
         else:
             self.logger.error("Laser shot timeout (no confirmation from server).")
             return False
+    
+    def aruco_map_navigation(self, state=False):
+        if not self.is_connected:
+            return False
+        
+        payload = {"command": "aruco_map_navigation", "state": state}
+        
+        

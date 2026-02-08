@@ -8,6 +8,7 @@ import time
 import configparser
 import os
 
+from std_msgs.msg import Bool
 from sensor_msgs.msg import CompressedImage
 
 class ArucoDetector(Node):
@@ -20,11 +21,19 @@ class ArucoDetector(Node):
             depth=1
         )
         
-        config_path = "/home/orangepi/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
+        map_qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.Reliable,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=5
+        )
+        
+        home_dir = os.getenv("HOME")
+        config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
         
         dictionary = "4X4_50"
         camera_topic = "/edu/camera_frame"
         frequency = 30
+        self.aruco_map_path = ""
         
         if os.path.exists(config_path):
             config = configparser.ConfigParser()
@@ -34,9 +43,13 @@ class ArucoDetector(Node):
             
             frequency = config["settings"].getint("frequency", frequency)
             camera_topic = config["settings"].get("camera_topic", camera_topic)
+            self.aruco_map_path = config["aruco"].get("map_path", self.aruco_map_path)
             
             if dictionary not in self.aruco_dicts:
                 dictionary = "4X4_50"
+        
+        if not os.path.exists(self.aruco_map_path):
+            self.aruco_map_path = ""
         
         self.create_subscription(
             CompressedImage,
@@ -45,9 +58,17 @@ class ArucoDetector(Node):
             camera_qos_profile
             )
         
+        self.create_subscription(
+            Bool,
+            "/edu/aruco_map_nav",
+            self.map_navigation_sub,
+            map_qos_profile
+        )
+        
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos_profile)
 
         self.debug_msg = CompressedImage()
+        self.navigation_state = Bool()
 
         self.aruco_dicts = {
             "4X4_50": cv2.aruco.DICT_4X4_50,
@@ -81,6 +102,9 @@ class ArucoDetector(Node):
         np_arr = np.frombuffer(msg.data, np.uint8)
         self.last_frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     
+    def map_navigation_sub(self, msg):
+        self.navigation_state = msg.value
+    
     def aruco_handler(self):
         if self.last_frame is None:
             return None
@@ -92,6 +116,9 @@ class ArucoDetector(Node):
         image = self.last_frame.copy()
         
         corners, ids = self.detect_aruco(image)
+        
+        if self.aruco_map_path:
+            self.detect_board()
         
         if ids is not None:
             image = self.draw_aruco(image, corners, ids)
@@ -108,6 +135,11 @@ class ArucoDetector(Node):
         
         return corners, ids
 
+    def detect_board(self):
+        pass
+    
+    def parse_map_file(self):
+        pass
     
     def draw_aruco(self, image, aruco_corners, aruco_ids):
         cv2.aruco.drawDetectedMarkers(image, aruco_corners, aruco_ids)
