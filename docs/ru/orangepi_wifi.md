@@ -5,6 +5,10 @@
 -  Имя сети (SSID): ``` EURUS_EDU_xxxx``` (вместо "х" случайные цифры)
 -  Пароль: ```euruswiwi```
 
+
+![wifi](assets/neural_network_train/wifi.png)
+
+
 Подключитесь к этой сети с любого устройства. Это откроет доступ ко всем функциям:
 
 -  Управление через QGroundControl
