@@ -32,7 +32,8 @@ class YoloDetectorNode(Node):
         self.pub = self.create_publisher(String, '/edu/targets', 10)
         
         config = configparser.ConfigParser()
-        config_path = "/home/orangepi/ros2_ws/src/eurus_edu/edu_target_detection/eurus.ini" 
+        home_dir = os.getenv("HOME")
+        config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_target_detection/eurus.ini" 
         
         self.conf_threshold = 0.5
         

@@ -17,7 +17,8 @@ from std_msgs.msg import String
 from edu_msgs.msg import Command
 
 config = configparser.ConfigParser()
-config_path = '/home/orangepi/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
+home_dir = os.getenv("HOME")
+config_path = f'{home_dir}/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
 
 if os.path.exists(config_path):
     config.read(config_path)

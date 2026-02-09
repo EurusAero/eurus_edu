@@ -17,7 +17,8 @@ from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 
 config = configparser.ConfigParser()
-config_path = '/home/orangepi/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini'
+home_dir = os.getenv("HOME")
+config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini"
 
 HOST = '0.0.0.0'
 PORT = 8001
