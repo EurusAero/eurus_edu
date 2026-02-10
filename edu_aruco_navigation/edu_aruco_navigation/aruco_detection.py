@@ -260,7 +260,7 @@ class ArucoDetector(Node):
             self.vpe_pose.pose.orientation.w = qw
             
             self.vpe_cov.header = self.vpe_pose.header
-            self.vpe_cov.pose = self.vpe_pose.pose
+            self.vpe_cov.pose.pose = self.vpe_pose.pose
             
             covariance = [0.0] * 35
             
