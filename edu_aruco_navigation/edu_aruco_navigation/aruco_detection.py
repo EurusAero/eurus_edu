@@ -12,7 +12,7 @@ from transforms3d.euler import euler2quat, quat2euler
 
 from std_msgs.msg import Bool
 from sensor_msgs.msg import CompressedImage
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 
 class ArucoDetector(Node):
     def __init__(self):
@@ -65,7 +65,9 @@ class ArucoDetector(Node):
         
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
         self.vpe_publisher = self.create_publisher(PoseStamped, "/mavros/vision_pose/pose", reliable_qos)
+        self.vpe_cov_publisher = self.create_publisher(PoseWithCovarianceStamped, "/mavros/vision_pose/pose_cov", reliable_qos)
 
+        self.vpe_cov = PoseWithCovarianceStamped()
         self.vpe_pose = PoseStamped()
         self.debug_msg = CompressedImage()
         self.navigation_state = Bool()
@@ -257,7 +259,22 @@ class ArucoDetector(Node):
             self.vpe_pose.pose.orientation.z = qz
             self.vpe_pose.pose.orientation.w = qw
             
+            self.vpe_cov.header = self.vpe_pose.header
+            self.vpe_cov.pose = self.vpe_pose.pose
+            
+            covariance = [0.0] * 35
+            
+            covariance[0] = 0.01  # X
+            covariance[7] = 0.01  # Y
+            covariance[14] = 0.02 # Z 
+            covariance[21] = 0.1  # Roll
+            covariance[28] = 0.1  # Pitch
+            covariance[35] = 0.01 # Yaw
+            
+            self.vpe_cov.pose.covariance = covariance
+            
             self.vpe_publisher.publish(self.vpe_pose)
+            self.vpe_cov_publisher.publish(self.vpe_cov)
             
             return rvec, tvec
             
