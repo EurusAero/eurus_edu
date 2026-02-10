@@ -7,6 +7,8 @@ import numpy as np
 import configparser
 import os
 import math
+from transforms3d.euler import euler2quat, quat2euler
+
 
 from std_msgs.msg import Bool
 from sensor_msgs.msg import CompressedImage
@@ -62,7 +64,9 @@ class ArucoDetector(Node):
         self.create_subscription(Bool, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
         
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
+        self.vpe_publisher = self.create_publisher(PoseStamped, "/mavros/vision_pose/pose", reliable_qos)
 
+        self.vpe_pose = PoseStamped()
         self.debug_msg = CompressedImage()
         self.navigation_state = Bool()
         self.last_frame = None
@@ -239,6 +243,21 @@ class ArucoDetector(Node):
             
             # Нормализация угла в диапазон [-pi, pi]
             drone_yaw = (drone_yaw + math.pi) % (2 * math.pi) - math.pi
+            
+            self.vpe_pose.header.stamp = self.get_clock().now().to_msg()
+            self.vpe_pose.header.frame_id = "map"
+            
+            self.vpe_pose.pose.position.x = drone_x
+            self.vpe_pose.pose.position.y = drone_y
+            self.vpe_pose.pose.position.z = raw_z
+            
+            qw, qx, qy, qz = euler2quat(0, 0, drone_yaw)
+            self.vpe_pose.pose.orientation.x = qx
+            self.vpe_pose.pose.orientation.y = qy
+            self.vpe_pose.pose.orientation.z = qz
+            self.vpe_pose.pose.orientation.w = qw
+            
+            self.vpe_publisher.publish(self.vpe_pose)
             
             return rvec, tvec
             
