@@ -262,7 +262,7 @@ class ArucoDetector(Node):
             self.vpe_cov.header = self.vpe_pose.header
             self.vpe_cov.pose.pose = self.vpe_pose.pose
             
-            covariance = [0.0] * 35
+            covariance = [0.0] * 36
             
             covariance[0] = 0.01  # X
             covariance[7] = 0.01  # Y
