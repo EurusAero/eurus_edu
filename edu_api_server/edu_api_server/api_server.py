@@ -231,6 +231,11 @@ class EduApiNode(Node):
                 msg.data = request_msg.get("state")
                 self.aruco_map_pub.publish(msg)
                 
+                return {
+                    "command": "aruco_map_navigation",
+                    "status": "success",
+                    "message": "State changed"
+                }
             except Exception as e:
                 pass
         elif cmd_name in DRONE_COMMANDS:
