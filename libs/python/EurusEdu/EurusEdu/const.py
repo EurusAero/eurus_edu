@@ -83,6 +83,11 @@ GET_TARGET_MSG = COMMAND_MSG_SAMPLE
 
 LASERTAG_SHOT_MSG = COMMAND_MSG_SAMPLE
 
+ARUCO_MAP_NAV_MSG = {
+    "command": str,
+    "state": bool
+}
+
 MESSAGES = {
     "move_to_local_point": MOVE_TO_LOCAL_POINT,
     "move_in_body_frame": MOVE_IN_BODY_FRAME,
@@ -101,7 +106,8 @@ MESSAGES = {
     "get_target": GET_TARGET_MSG,
     "set_velocity": SET_VELOCITY_MSG,
     "led_control": LED_CONTROL_MSG,
-    "laser_shot": LASERTAG_SHOT_MSG
+    "laser_shot": LASERTAG_SHOT_MSG,
+    "aruco_map_navigation": ARUCO_MAP_NAV_MSG
     }
 
 PENDING_STATUS = "pending"

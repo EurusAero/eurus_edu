@@ -356,8 +356,11 @@ class EurusControl:
     
     def aruco_map_navigation(self, state=False):
         if not self.is_connected:
+            self.logger("Нет соединения для отправки команды.")
             return False
         
         payload = {"command": "aruco_map_navigation", "state": state}
+        
+        self._send_raw(payload)
         
         
