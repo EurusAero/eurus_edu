@@ -57,7 +57,7 @@ def generate_frames():
         
         delta_time = time.time() - start_time
         
-        time.sleep(max(frame_time - delta_time), 0)
+        time.sleep(max(frame_time - delta_time, 0))
 
 @app.route('/')
 def index():

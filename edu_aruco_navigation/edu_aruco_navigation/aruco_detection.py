@@ -218,8 +218,6 @@ class ArucoDetector(Node):
             drone_x = t_inv[0][0]
             drone_y = t_inv[1][0]
             drone_z = t_inv[2][0]
-
-            print(drone_x, drone_y, drone_z)
             
             return rvec, tvec
             
