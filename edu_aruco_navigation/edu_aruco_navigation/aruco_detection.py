@@ -62,10 +62,9 @@ class ArucoDetector(Node):
         self.create_subscription(Bool, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
         
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
-        self.pose_pub = self.create_publisher(PoseStamped, "/edu/drone_pose", reliable_qos)
 
         self.debug_msg = CompressedImage()
-        self.navigation_state = False
+        self.navigation_state = Bool()
         self.last_frame = None
         self.board = None 
         
@@ -156,7 +155,7 @@ class ArucoDetector(Node):
         self.last_frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     
     def map_navigation_sub(self, msg):
-        self.navigation_state = msg.data
+        self.navigation_state = msg
 
     def aruco_handler(self):
         if self.last_frame is None:
@@ -198,7 +197,7 @@ class ArucoDetector(Node):
         obj_points, img_points = self.board.matchImagePoints(corners, ids)
         if obj_points is None or len(obj_points) == 0:
             return None, None
-
+        
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
         
         if retval:
