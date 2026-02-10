@@ -6,9 +6,11 @@ import cv2
 import numpy as np
 import configparser
 import os
+import math
 
 from std_msgs.msg import Bool
 from sensor_msgs.msg import CompressedImage
+from geometry_msgs.msg import PoseStamped
 
 class ArucoDetector(Node):
     def __init__(self):
@@ -25,41 +27,55 @@ class ArucoDetector(Node):
             "5X5_1000": cv2.aruco.DICT_5X5_1000
         }
 
+        # QoS
         camera_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=1)
         reliable_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=10)
         
+        # Чтение конфига
         home_dir = os.getenv("HOME")
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
         
+        # Дефолтные настройки
         self.dictionary_name = "4X4_50"
         camera_topic = "/edu/camera_frame"
         frequency = 30
         self.aruco_map_path = ""
         self.camera_config_path = ""
+        
+        self.map_origin = "BR"
+        self.camera_yaw_offset_deg = 0
 
         if os.path.exists(ini_path):
             config = configparser.ConfigParser()
             config.read(ini_path)
             
             self.dictionary_name = config["aruco"].get("dict", self.dictionary_name)
+            self.aruco_map_path = config["aruco"].get("map_path", "")
+            self.map_origin = config["aruco"].get("map_origin", "BR")
+            
             frequency = config["settings"].getint("frequency", frequency)
             camera_topic = config["settings"].get("camera_topic", camera_topic)
-            self.aruco_map_path = config["aruco"].get("map_path", "")
             self.camera_config_path = config["settings"].get("camera_config_path", "")
+            self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
 
         self.create_subscription(CompressedImage, camera_topic, self.camera_sub, camera_qos)
-        # self.create_subscription(Bool, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
+        self.create_subscription(Bool, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
         
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
+        self.pose_pub = self.create_publisher(PoseStamped, "/edu/drone_pose", reliable_qos)
 
         self.debug_msg = CompressedImage()
-        self.navigation_state = True
+        self.navigation_state = False
         self.last_frame = None
         self.board = None 
+        
+        self.map_width_m = 0.0
+        self.map_height_m = 0.0
         
         self.camera_matrix = None
         self.dist_coeffs = None
 
+        # Инициализация Aruco
         if self.dictionary_name not in self.aruco_dicts:
              self.dictionary_name = "4X4_50"
              
@@ -80,9 +96,7 @@ class ArucoDetector(Node):
 
     def parse_map_file(self):
         """
-        Парсит .txt файл.
-        Line 1: markers_x markers_y marker_length marker_separation
-        Line 2: id1 id2 id3 ...
+        Парсит .txt файл и рассчитывает физические размеры доски.
         """
         try:
             self.get_logger().info(f"Loading map from {self.aruco_map_path}")
@@ -90,14 +104,10 @@ class ArucoDetector(Node):
                 lines = f.readlines()
                 
             if len(lines) < 2:
-                self.get_logger().error("Map file too short. Needs 2 lines.")
+                self.get_logger().error("Map file too short.")
                 return
 
             params = lines[0].strip().split()
-            if len(params) != 4:
-                self.get_logger().error("Line 1 must have 4 values: x y len sep")
-                return
-                
             markers_x = int(params[0])
             markers_y = int(params[1])
             marker_len = float(params[2])
@@ -106,10 +116,11 @@ class ArucoDetector(Node):
             ids_str = lines[1].strip().split()
             ids_list = [int(x) for x in ids_str]
             ids_np = np.array(ids_list, dtype=np.int32)
-
-            expected_count = markers_x * markers_y
-            if len(ids_list) != expected_count:
-                self.get_logger().warn(f"Warning: Expected {expected_count} IDs, found {len(ids_list)}")
+            
+            # Сохраняем размеры карты для расчетов Origin
+            # Ширина = кол-во маркеров * длину + промежутки
+            self.map_width_m = markers_x * marker_len + (markers_x - 1) * marker_sep
+            self.map_height_m = markers_y * marker_len + (markers_y - 1) * marker_sep
 
             self.board = cv2.aruco.GridBoard(
                 (markers_x, markers_y), 
@@ -118,16 +129,13 @@ class ArucoDetector(Node):
                 self.aruco_dict_obj, 
                 ids_np
             )
-            self.get_logger().info(f"GridBoard loaded: {markers_x}x{markers_y}")
+            self.get_logger().info(f"GridBoard loaded: {markers_x}x{markers_y}. Origin set to: {self.map_origin}")
 
         except Exception as e:
             self.get_logger().error(f"Failed to parse map txt: {e}")
             self.board = None
 
     def load_camera_config(self):
-        """
-        Загружает матрицу камеры и дисторсию из JSON.
-        """
         try:
             if not os.path.exists(self.camera_config_path):
                 self.get_logger().error(f"Camera config file not found: {self.camera_config_path}")
@@ -138,7 +146,7 @@ class ArucoDetector(Node):
             
             self.camera_matrix = np.array(data["camera_matrix"], dtype=np.float64)
             self.dist_coeffs = np.array(data["dist_coeffs"], dtype=np.float64)
-            self.get_logger().info("Camera parameters loaded successfully.")
+            self.get_logger().info(f"Camera parameters loaded. Mount offset: {self.camera_yaw_offset_deg} deg")
             
         except Exception as e:
             self.get_logger().error(f"Failed to load camera config: {e}")
@@ -149,7 +157,7 @@ class ArucoDetector(Node):
     
     def map_navigation_sub(self, msg):
         self.navigation_state = msg.data
-    
+
     def aruco_handler(self):
         if self.last_frame is None:
             return
@@ -157,17 +165,17 @@ class ArucoDetector(Node):
         image = self.last_frame.copy()
         corners, ids = self.detect_aruco(image)
         
-        # Если включена навигация, есть карта и камера откалибрована
-        if (self.navigation_state and 
+        # Проверка флага навигации
+        nav_enabled = self.navigation_state.data if hasattr(self.navigation_state, 'data') else False
+
+        if (nav_enabled and 
             self.board is not None and 
             self.camera_matrix is not None and 
             ids is not None):
             
-            rvec, tvec = self.calculate_drone_pose(corners, ids, image)
+            rvec, tvec = self.calculate_drone_pose(corners, ids)
             
-            # Если поза найдена, можно рисовать ось координат
             if rvec is not None and tvec is not None:
-                # Отрисовка оси координат на маркере (длина оси 0.1м)
                 cv2.drawFrameAxes(image, self.camera_matrix, self.dist_coeffs, rvec, tvec, 0.1)
 
         if ids is not None:
@@ -186,38 +194,52 @@ class ArucoDetector(Node):
         corners, ids, _ = self.aruco_detector.detectMarkers(gray)
         return corners, ids
 
-    def calculate_drone_pose(self, corners, ids, image):
-        """
-        Считает положение дрона относительно карты.
-        Возвращает rvec, tvec (векторы доски относительно камеры) для визуализации.
-        Публикует PoseStamped (позиция камеры относительно доски).
-        """
-        
-        # 1. Сопоставляем найденные углы с углами на доске
-        # obj_points: 3D координаты углов на доске
-        # img_points: 2D координаты углов на изображении
+    def calculate_drone_pose(self, corners, ids):
         obj_points, img_points = self.board.matchImagePoints(corners, ids)
-
-        if len(obj_points) == 0:
+        if obj_points is None or len(obj_points) == 0:
             return None, None
 
-        # 2. Solve PnP: находим положение доски относительно камеры
-        # rvec, tvec описывают трансформацию ОТ мира (доски) К камере
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
         
         if retval:
-            # 3. Инвертируем трансформацию, чтобы получить положение Камеры (Дрона) в координатах Доски
-            # T_board_cam = [R|t]
-            # T_cam_board = [R^T | -R^T * t]
-            
-            R, _ = cv2.Rodrigues(rvec) # Преобразуем вектор вращения в матрицу 3x3
+            R, _ = cv2.Rodrigues(rvec)
             R_inv = R.T
             t_inv = -np.dot(R_inv, tvec)
             
-            # Позиция дрона (x, y, z) в метрах относительно начала координат доски
-            drone_x = t_inv[0][0]
-            drone_y = t_inv[1][0]
-            drone_z = t_inv[2][0]
+            # Координаты в системе координат доски (Default: TL - Top Left)
+            # Ось X - вправо, Y - вниз (по изображению доски), Z - вверх (от доски)
+            raw_x = t_inv[0][0]
+            raw_y = t_inv[1][0]
+            raw_z = t_inv[2][0]
+
+            # 4. Расчет Yaw камеры
+            # Yaw = atan2(R[1,0], R[0,0]) - вращение вокруг Z
+            yaw_cam = math.atan2(R_inv[1, 0], R_inv[0, 0])
+
+            # 5. Обработка смещения начала координат (Map Origin)
+            # raw_x, raw_y считаются от Top-Left (TL)
+            drone_x, drone_y = raw_x, raw_y
+
+            if self.map_origin == "TR": # Top-Right (Правый Верхний)
+                drone_x = self.map_width_m - raw_x
+                drone_y = raw_y
+            elif self.map_origin == "BL": # Bottom-Left (Левый Нижний)
+                drone_x = raw_x
+                drone_y = self.map_height_m - raw_y
+            elif self.map_origin == "BR": # Bottom-Right (Правый Нижний)
+                drone_x = self.map_width_m - raw_x
+                drone_y = self.map_height_m - raw_y
+            # Если TL, оставляем как есть
+
+            # 6. Обработка направления камеры (Camera Yaw Offset)
+            # Переводим градусы из конфига в радианы
+            offset_rad = math.radians(self.camera_yaw_offset_deg)
+            
+            # Итоговый Yaw дрона = Yaw камеры + Смещение установки
+            drone_yaw = yaw_cam + offset_rad
+            
+            # Нормализация угла в диапазон [-pi, pi]
+            drone_yaw = (drone_yaw + math.pi) % (2 * math.pi) - math.pi
             
             return rvec, tvec
             
