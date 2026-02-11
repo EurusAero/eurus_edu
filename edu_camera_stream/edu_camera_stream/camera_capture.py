@@ -42,6 +42,7 @@ class MJPEGCameraPublisher(Node):
                 self.fps = config["camera"].getint("fps", self.fps)
                 dev_str = config["camera"].get("device", str(self.device))
                 self.device = int(dev_str) if dev_str.isdigit() else dev_str
+                self.get_logger().info(f"Config loaded")
         
         self.setup_camera()
         

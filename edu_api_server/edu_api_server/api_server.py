@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from edu_msgs.msg import Command
 
 config = configparser.ConfigParser()
@@ -57,6 +57,8 @@ class EduApiNode(Node):
         
         # Публикация команд для LED ленты (JSON String)
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
+        
+        self.aruco_map_pub = self.create_publisher(Bool, "edu/aruco_map_nav", qos_profile)
         
         # Публикация и подписка для Лазертага
         self.lasertag_pub = self.create_publisher(String, 'edu/lasertag', qos_profile)
@@ -223,7 +225,19 @@ class EduApiNode(Node):
                 "command": "point_reached",
                 "point_reached": self.latest_telemetry.get("point_reached", False)
             }
-            
+        elif cmd_name == "aruco_map_navigation":
+            try:
+                msg = Bool()
+                msg.data = request_msg.get("state")
+                self.aruco_map_pub.publish(msg)
+                
+                return {
+                    "command": "aruco_map_navigation",
+                    "status": "success",
+                    "message": "State changed"
+                }
+            except Exception as e:
+                pass
         elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
