@@ -10,7 +10,7 @@ import math
 from transforms3d.euler import euler2quat, quat2euler
 
 
-from std_msgs.msg import Bool
+from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 
@@ -61,8 +61,9 @@ class ArucoDetector(Node):
             self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
 
         self.create_subscription(CompressedImage, camera_topic, self.camera_sub, camera_qos)
-        self.create_subscription(Bool, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
+        self.create_subscription(String, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
         
+        self.aruco_nav_pub = self.create_publisher(String, "/edu/aruco_map_nav", reliable_qos)
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
         self.vpe_publisher = self.create_publisher(PoseStamped, "/mavros/vision_pose/pose", reliable_qos)
         self.vpe_cov_publisher = self.create_publisher(PoseWithCovarianceStamped, "/mavros/vision_pose/pose_cov", reliable_qos)
@@ -70,7 +71,8 @@ class ArucoDetector(Node):
         self.vpe_cov = PoseWithCovarianceStamped()
         self.vpe_pose = PoseStamped()
         self.debug_msg = CompressedImage()
-        self.navigation_state = Bool()
+        self.navigation_state = False
+        self.map_in_vision = False
         self.last_frame = None
         self.board = None 
         
@@ -161,7 +163,9 @@ class ArucoDetector(Node):
         self.last_frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     
     def map_navigation_sub(self, msg):
-        self.navigation_state = msg
+        json_msg = json.loads(msg.data)
+        self.navigation_state = json_msg.get("aruco_nav_status")
+        self.map_in_vision = json_msg.get("map_in_vision")
 
     def aruco_handler(self):
         if self.last_frame is None:
@@ -170,11 +174,7 @@ class ArucoDetector(Node):
         image = self.last_frame.copy()
         corners, ids = self.detect_aruco(image)
         
-        # Проверка флага навигации
-        nav_enabled = self.navigation_state.data if hasattr(self.navigation_state, 'data') else False
-
-        if (nav_enabled and 
-            self.board is not None and 
+        if (self.board is not None and 
             self.camera_matrix is not None and 
             ids is not None):
             
@@ -202,81 +202,109 @@ class ArucoDetector(Node):
     def calculate_drone_pose(self, corners, ids):
         obj_points, img_points = self.board.matchImagePoints(corners, ids)
         if obj_points is None or len(obj_points) == 0:
+            if self.map_in_vision:
+                self.map_in_vision = False
+                payload = {
+                        "aruco_nav_status": self.navigation_state,
+                        "map_in_vision": self.map_in_vision
+                }
+                msg = String()
+                msg.data = json.dumps(payload)
+                self.aruco_nav_pub.publish(msg)
+                
             return None, None
         
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
         
         if retval:
-            R, _ = cv2.Rodrigues(rvec)
-            R_inv = R.T
-            t_inv = -np.dot(R_inv, tvec)
-            
-            # Координаты в системе координат доски (Default: TL - Top Left)
-            # Ось X - вправо, Y - вниз (по изображению доски), Z - вверх (от доски)
-            raw_x = t_inv[0][0]
-            raw_y = t_inv[1][0]
-            raw_z = t_inv[2][0]
+            if self.navigation_state:
+                R, _ = cv2.Rodrigues(rvec)
+                R_inv = R.T
+                t_inv = -np.dot(R_inv, tvec)
+                
+                # Координаты в системе координат доски
+                # Ось X - вправо, Y - вниз (по изображению доски), Z - вверх (от доски)
+                raw_x = t_inv[0][0]
+                raw_y = t_inv[1][0]
+                raw_z = t_inv[2][0]
 
-            # 4. Расчет Yaw камеры
-            # Yaw = atan2(R[1,0], R[0,0]) - вращение вокруг Z
-            yaw_cam = math.atan2(R_inv[1, 0], R_inv[0, 0])
+                # вращение вокруг Z
+                yaw_cam = math.atan2(R_inv[1, 0], R_inv[0, 0])
 
-            # 5. Обработка смещения начала координат (Map Origin)
-            # raw_x, raw_y считаются от Top-Left (TL)
-            drone_x, drone_y = raw_x, raw_y
+                # Обработка смещения начала координат (Map Origin)
+                drone_x, drone_y = raw_x, raw_y
 
-            if self.map_origin == "TR": # Top-Right (Правый Верхний)
-                drone_x = self.map_width_m - raw_x
-                drone_y = raw_y
-            elif self.map_origin == "BL": # Bottom-Left (Левый Нижний)
-                drone_x = raw_x
-                drone_y = self.map_height_m - raw_y
-            elif self.map_origin == "BR": # Bottom-Right (Правый Нижний)
-                drone_x = self.map_width_m - raw_x
-                drone_y = self.map_height_m - raw_y
-            # Если TL, оставляем как есть
+                if self.map_origin == "TR": # Top-Right (Правый Верхний)
+                    drone_x = self.map_width_m - raw_x
+                    drone_y = raw_y
+                elif self.map_origin == "BL": # Bottom-Left (Левый Нижний)
+                    drone_x = raw_x
+                    drone_y = self.map_height_m - raw_y
+                elif self.map_origin == "BR": # Bottom-Right (Правый Нижний)
+                    drone_x = self.map_width_m - raw_x
+                    drone_y = self.map_height_m - raw_y
+                # Если TL, оставляем как есть
 
-            # 6. Обработка направления камеры (Camera Yaw Offset)
-            # Переводим градусы из конфига в радианы
-            offset_rad = math.radians(self.camera_yaw_offset_deg)
+                # Переводим градусы из конфига в радианы
+                offset_rad = math.radians(self.camera_yaw_offset_deg)
+                
+                # Итоговый Yaw дрона = Yaw камеры + Смещение установки
+                drone_yaw = yaw_cam + offset_rad
+                
+                # Нормализация угла в диапазон [-pi, pi]
+                drone_yaw = (drone_yaw + math.pi) % (2 * math.pi) - math.pi
+                
+                self.vpe_pose.header.stamp = self.get_clock().now().to_msg()
+                self.vpe_pose.header.frame_id = "map"
+                
+                self.vpe_pose.pose.position.x = drone_x
+                self.vpe_pose.pose.position.y = drone_y
+                self.vpe_pose.pose.position.z = raw_z
+                
+                qw, qx, qy, qz = euler2quat(0, 0, drone_yaw)
+                self.vpe_pose.pose.orientation.x = qx
+                self.vpe_pose.pose.orientation.y = qy
+                self.vpe_pose.pose.orientation.z = qz
+                self.vpe_pose.pose.orientation.w = qw
+                
+                self.vpe_cov.header = self.vpe_pose.header
+                self.vpe_cov.pose.pose = self.vpe_pose.pose
+                
+                covariance = [0.0] * 36
+                
+                covariance[0] = 0.01  # X
+                covariance[7] = 0.01  # Y
+                covariance[14] = 0.1 # Z 
+                covariance[21] = 0.1  # Roll
+                covariance[28] = 0.1  # Pitch
+                covariance[35] = 0.01 # Yaw
+                
+                self.vpe_cov.pose.covariance = covariance
+                
+                # self.vpe_publisher.publish(self.vpe_pose)
+                self.vpe_cov_publisher.publish(self.vpe_cov)
             
-            # Итоговый Yaw дрона = Yaw камеры + Смещение установки
-            drone_yaw = yaw_cam + offset_rad
-            
-            # Нормализация угла в диапазон [-pi, pi]
-            drone_yaw = (drone_yaw + math.pi) % (2 * math.pi) - math.pi
-            
-            self.vpe_pose.header.stamp = self.get_clock().now().to_msg()
-            self.vpe_pose.header.frame_id = "map"
-            
-            self.vpe_pose.pose.position.x = drone_x
-            self.vpe_pose.pose.position.y = drone_y
-            self.vpe_pose.pose.position.z = raw_z
-            
-            qw, qx, qy, qz = euler2quat(0, 0, drone_yaw)
-            self.vpe_pose.pose.orientation.x = qx
-            self.vpe_pose.pose.orientation.y = qy
-            self.vpe_pose.pose.orientation.z = qz
-            self.vpe_pose.pose.orientation.w = qw
-            
-            self.vpe_cov.header = self.vpe_pose.header
-            self.vpe_cov.pose.pose = self.vpe_pose.pose
-            
-            covariance = [0.0] * 36
-            
-            covariance[0] = 0.01  # X
-            covariance[7] = 0.01  # Y
-            covariance[14] = 0.02 # Z 
-            covariance[21] = 0.1  # Roll
-            covariance[28] = 0.1  # Pitch
-            covariance[35] = 0.01 # Yaw
-            
-            self.vpe_cov.pose.covariance = covariance
-            
-            self.vpe_publisher.publish(self.vpe_pose)
-            self.vpe_cov_publisher.publish(self.vpe_cov)
-            
+            if not self.map_in_vision:
+                self.map_in_vision = True
+                payload = {
+                    "aruco_nav_status": self.navigation_state,
+                    "map_in_vision": self.map_in_vision
+                }
+                msg = String()
+                msg.data = json.dumps(payload)
+                self.aruco_nav_pub.publish(msg)
+                
             return rvec, tvec
+        
+        if self.map_in_vision:
+            self.map_in_vision = False
+            payload = {
+                    "aruco_nav_status": self.navigation_state,
+                    "map_in_vision": self.map_in_vision
+            }
+            msg = String()
+            msg.data = json.dumps(payload)
+            self.aruco_nav_pub.publish(msg)
             
         return None, None
 

@@ -58,7 +58,7 @@ class EduApiNode(Node):
         # Публикация команд для LED ленты (JSON String)
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
         
-        self.aruco_map_pub = self.create_publisher(Bool, "edu/aruco_map_nav", qos_profile)
+        self.aruco_map_pub = self.create_publisher(String, "edu/aruco_map_nav", qos_profile)
         
         # Публикация и подписка для Лазертага
         self.lasertag_pub = self.create_publisher(String, 'edu/lasertag', qos_profile)
@@ -102,7 +102,7 @@ class EduApiNode(Node):
         with self.session_lock:
             if self.active_session == session:
                 self.active_session = None
-
+    
     def telemetry_callback(self, msg):
         """Обновляем кэш телеметрии из топика."""
         try:
@@ -227,14 +227,22 @@ class EduApiNode(Node):
             }
         elif cmd_name == "aruco_map_navigation":
             try:
-                msg = Bool()
-                msg.data = request_msg.get("state")
+                payload = {
+                    "aruco_nav_status": request_msg.get("state"),
+                    "map_in_vision": False
+                }
+                
+                msg = String()
+                msg.data = json.dumps(payload)
                 self.aruco_map_pub.publish(msg)
                 
+                self.set_active_session(session)
+                
                 return {
-                    "command": "aruco_map_navigation",
-                    "status": "success",
-                    "message": "State changed"
+                    "command": "action_status",
+                    "action": cmd_name,
+                    "status": PENDING_STATUS,
+                    "message": "Request accepted"
                 }
             except Exception as e:
                 pass
@@ -285,6 +293,15 @@ class EduApiNode(Node):
         
         self.cmd_pub.publish(msg)
         self.is_busy = False
+    
+    def force_aruco_map_disable(self):
+        msg = String()
+        payload = {
+                    "aruco_nav_status": False,
+                    "map_in_vision": False
+                }
+        msg.data = json.dumps(payload)
+        self.aruco_map_pub.publish(msg)
 
 
 class ClientSession:
@@ -323,6 +340,7 @@ class ClientSession:
             logger.error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
         finally:
             self.ros_node.force_land()
+            self.ros_node.force_aruco_map_disable()
             self.ros_node.remove_active_session(self)
             self.conn.close()
             logger.info(f"Сессия завершена для {self.addr}")
