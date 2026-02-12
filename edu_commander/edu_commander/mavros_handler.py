@@ -5,11 +5,13 @@ from rclpy.time import Time
 import json
 import threading
 import time
+import configparser
+import os
 from math import dist, radians, cos, sin
 
 from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
-from mavros_msgs.msg import PositionTarget, State
+from mavros_msgs.msg import PositionTarget, State, String
 from geometry_msgs.msg import PoseStamped
 from edu_msgs.msg import Command
 from EurusEdu.const import *
@@ -47,13 +49,13 @@ class MavrosHandler(Node):
         depth=10
         )
         
-        self.cmd_sub = self.create_subscription(
+        self.create_subscription(
             Command,
             'edu/command',
             self.command_callback,
             10
         )
-        self.local_pos_sub = self.create_subscription(
+        self.create_subscription(
             PoseStamped,
             "/mavros/local_position/pose",
             self.local_pos_updater,
@@ -65,10 +67,44 @@ class MavrosHandler(Node):
             self.state_updater,
             mavros_qos_profile
         )
+        
+        self.create_subscription(
+            String,
+            "/edu/aruco_map_nav",
+            self.aruco_nav_updater,
+            mavros_qos_profile
+        )
 
         
         self.status_pub = self.create_publisher(Command, 'edu/command', 10)
         
+        # Чтение конфига аруко маркеров
+        home_dir = os.getenv("HOME")
+        ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
+        
+        self.aruco_map_path = ""
+        self.map_height_m = 0
+        self.map_width_m = 0
+        
+        if os.path.exists(ini_path):
+            config = configparser.ConfigParser()
+            config.read(ini_path)
+            
+            self.aruco_map_path = config["aruco"].get("map_path", "")
+        
+        if self.aruco_map_path and os.path.exists(self.aruco_map_path):
+            with open(self.aruco_map_path, "r") as f:
+                markers_info = f.readline()
+            
+            params = markers_info.strip().split()
+            markers_x = int(params[0])
+            markers_y = int(params[1])
+            marker_len = float(params[2])
+            marker_sep = float(params[3])
+            
+            self.map_width_m = markers_x * marker_len + (markers_x - 1) * marker_sep
+            self.map_height_m = markers_y * marker_len + (markers_y - 1) * marker_sep
+            
         self.setpoint_pose = PoseStamped()
         self.start_position = PoseStamped()
         self.target_pose = PoseStamped()
@@ -135,6 +171,9 @@ class MavrosHandler(Node):
 
     def state_updater(self, msg: State):
         self.state_msg = msg
+    
+    def aruco_nav_updater(self, msg: String):
+        self.aruco_nav_status = json.loads(msg.data)
 
     def get_distance(self, start, end):
         start = [float(start.pose.position.x), float(start.pose.position.y), float(start.pose.position.z)]
@@ -149,9 +188,15 @@ class MavrosHandler(Node):
         return dist(local, target) < deadzone
 
     def calculate_next_target_position(self):
+        hold_pos = False
         if not self.state_msg.armed:
             self.start_position.header.stamp = self.get_clock().now().to_msg()
-
+        
+        if self.aruco_nav_updater["aruco_nav_status"] and not self.aruco_mav_status["map_in_vision"] and (time.time() - self.aruco_nav_status["timestamp"]) > 0.5:
+            self.start_position.header.stamp = self.get_clock().now().to_msg()
+            self.start_position.pose = self.setpoint_pose.pose
+            hold_pos = True
+            
         stamp = self.start_position.header.stamp
         time = self.get_distance(self.start_position, self.target_pose) / self.setpoint_speed
 
@@ -159,7 +204,7 @@ class MavrosHandler(Node):
         start_time = Time.from_msg(stamp) 
         elapsed_seconds = (now_time - start_time).nanoseconds / 1e9
 
-        if time > 0:
+        if time > 0 and not hold_pos:
             passed = min((elapsed_seconds / time), 1)
             
             self.setpoint_pose.pose.position.x = self.start_position.pose.position.x + (self.target_pose.pose.position.x - self.start_position.pose.position.x) * passed
@@ -342,6 +387,11 @@ class MavrosHandler(Node):
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
             
+            if self.aruco_nav_status["aruco_nav_status"] and self.aruco_nav_status["map_in_vision"] and self.aruco_nav_status["fly_in_borders"]:
+                x = x if x <= self.map_width_m else self.map_width_m
+                y = y if y <= self.map_height_m else self.map_height_m
+                
+            
             self.target_pose.pose.position.x = self.home_position.pose.position.x + x
             self.target_pose.pose.position.y = self.home_position.pose.position.y + y
             self.target_pose.pose.position.z = z
@@ -365,7 +415,6 @@ class MavrosHandler(Node):
     
     def do_move_in_body_frame(self, data):
         try:
-            
             self.start_position.header = self.local_pose.header
             self.start_position.pose = self.local_pose.pose
             
@@ -386,10 +435,17 @@ class MavrosHandler(Node):
                 _, _, calc_yaw_rad = quat2euler([q.w, q.x, q.y, q.z])
                 
             delta_north = fwd_dist * cos(calc_yaw_rad) - right_dist * sin(calc_yaw_rad)
-            delta_east  = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
+            delta_east = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
 
-            self.target_pose.pose.position.x = self.local_pose.pose.position.x + delta_north
-            self.target_pose.pose.position.y = self.local_pose.pose.position.y + delta_east
+            x = self.local_pose.pose.position.x + delta_north
+            y = self.local_pose.pose.position.y + delta_east
+            
+            if self.aruco_nav_status["aruco_nav_status"] and self.aruco_nav_status["map_in_vision"] and self.aruco_nav_status["fly_in_borders"]:
+                x = x if x <= self.map_width_m else self.map_width_m
+                y = y if y <= self.map_height_m else self.map_height_m
+            
+            self.target_pose.pose.position.x = x
+            self.target_pose.pose.position.y = y
             self.target_pose.pose.position.z = data.get("z", self.target_pose.pose.position.z)
 
             # self.calculate_next_target_position((x, y, z), yaw, body_frame=True)

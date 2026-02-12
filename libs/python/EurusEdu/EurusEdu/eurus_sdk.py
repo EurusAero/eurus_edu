@@ -354,12 +354,12 @@ class EurusControl:
             self.logger.error("Laser shot timeout (no confirmation from server).")
             return False
     
-    def aruco_map_navigation(self, state=False):
+    def aruco_map_navigation(self, state=False, fly_in_borders=False):
         if not self.is_connected:
             self.logger("Нет соединения для отправки команды.")
             return False
         
-        payload = {"command": "aruco_map_navigation", "state": state}
+        payload = {"command": "aruco_map_navigation", "state": state, "fly_in_borders": fly_in_borders}
         
         self._send_raw(payload)
         

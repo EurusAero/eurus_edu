@@ -228,20 +228,20 @@ class EduApiNode(Node):
         elif cmd_name == "aruco_map_navigation":
             try:
                 payload = {
+                    "timestamp": time.time(),
                     "aruco_nav_status": request_msg.get("state"),
-                    "map_in_vision": False
+                    "map_in_vision": False,
+                    "fly_in_borders": request_msg.get("fly_in_borders")
                 }
                 
                 msg = String()
                 msg.data = json.dumps(payload)
                 self.aruco_map_pub.publish(msg)
-                
-                self.set_active_session(session)
-                
+                                
                 return {
                     "command": "action_status",
                     "action": cmd_name,
-                    "status": PENDING_STATUS,
+                    "status": COMPLETED_STATUS,
                     "message": "Request accepted"
                 }
             except Exception as e:
@@ -297,8 +297,10 @@ class EduApiNode(Node):
     def force_aruco_map_disable(self):
         msg = String()
         payload = {
+                    "timestamp": time.time(),
                     "aruco_nav_status": False,
-                    "map_in_vision": False
+                    "map_in_vision": False,
+                    "fly_in_borders": False
                 }
         msg.data = json.dumps(payload)
         self.aruco_map_pub.publish(msg)

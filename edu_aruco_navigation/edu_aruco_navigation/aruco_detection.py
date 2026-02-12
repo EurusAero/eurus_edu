@@ -7,6 +7,7 @@ import numpy as np
 import configparser
 import os
 import math
+import time
 from transforms3d.euler import euler2quat, quat2euler
 
 
@@ -73,6 +74,13 @@ class ArucoDetector(Node):
         self.debug_msg = CompressedImage()
         self.navigation_state = False
         self.map_in_vision = False
+        self.fly_in_borders = False
+        self.payload = {
+            "timestamp": time.time(),
+            "aruco_nav_status": self.navigation_state,
+            "map_in_vision": self.map_in_vision,
+            "fly_in_borders": self.fly_in_borders,
+        }
         self.last_frame = None
         self.board = None 
         
@@ -129,6 +137,9 @@ class ArucoDetector(Node):
             self.map_width_m = markers_x * marker_len + (markers_x - 1) * marker_sep
             self.map_height_m = markers_y * marker_len + (markers_y - 1) * marker_sep
 
+            self.payload["map_width"] = self.map_width_m
+            self.payload["map_height"] = self.map_height_m
+
             self.board = cv2.aruco.GridBoard(
                 (markers_x, markers_y), 
                 marker_len, 
@@ -164,8 +175,14 @@ class ArucoDetector(Node):
     
     def map_navigation_sub(self, msg):
         json_msg = json.loads(msg.data)
+        timestamp = json_msg.get("timestamp")
         self.navigation_state = json_msg.get("aruco_nav_status")
         self.map_in_vision = json_msg.get("map_in_vision")
+        self.fly_in_borders = json_msg.get("fly_in_borders")
+        self.payload["timestamp"] = timestamp
+        self.payload["aruco_nav_status"] = self.navigation_state
+        self.payload["map_in_vision"] = self.map_in_vision
+        self.payload["fly_in_borders"] = self.fly_in_borders
 
     def aruco_handler(self):
         if self.last_frame is None:
@@ -201,15 +218,14 @@ class ArucoDetector(Node):
 
     def calculate_drone_pose(self, corners, ids):
         obj_points, img_points = self.board.matchImagePoints(corners, ids)
+        msg = String()
+
         if obj_points is None or len(obj_points) == 0:
             if self.map_in_vision:
                 self.map_in_vision = False
-                payload = {
-                        "aruco_nav_status": self.navigation_state,
-                        "map_in_vision": self.map_in_vision
-                }
-                msg = String()
-                msg.data = json.dumps(payload)
+                self.payload["timestamp"] = time.time()
+                self.payload["map_in_vision"] = self.map_in_vision
+                msg.data = json.dumps(self.payload)
                 self.aruco_nav_pub.publish(msg)
                 
             return None, None
@@ -286,24 +302,18 @@ class ArucoDetector(Node):
             
             if not self.map_in_vision:
                 self.map_in_vision = True
-                payload = {
-                    "aruco_nav_status": self.navigation_state,
-                    "map_in_vision": self.map_in_vision
-                }
-                msg = String()
-                msg.data = json.dumps(payload)
+                self.payload["timestamp"] = time.time()
+                self.payload["map_in_vision"] = self.map_in_vision
+                msg.data = json.dumps(self.payload)
                 self.aruco_nav_pub.publish(msg)
                 
             return rvec, tvec
         
         if self.map_in_vision:
             self.map_in_vision = False
-            payload = {
-                    "aruco_nav_status": self.navigation_state,
-                    "map_in_vision": self.map_in_vision
-            }
-            msg = String()
-            msg.data = json.dumps(payload)
+            self.payload["timestamp"] = time.time()
+            self.payload["map_in_vision"] = self.map_in_vision
+            msg.data = json.dumps(self.payload)
             self.aruco_nav_pub.publish(msg)
             
         return None, None

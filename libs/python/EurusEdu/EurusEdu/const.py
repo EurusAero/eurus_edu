@@ -85,7 +85,8 @@ LASERTAG_SHOT_MSG = COMMAND_MSG_SAMPLE
 
 ARUCO_MAP_NAV_MSG = {
     "command": str,
-    "state": bool
+    "state": bool,
+    "fly_in_borders": bool
 }
 
 MESSAGES = {
