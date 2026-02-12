@@ -192,7 +192,7 @@ class MavrosHandler(Node):
         if not self.state_msg.armed:
             self.start_position.header.stamp = self.get_clock().now().to_msg()
         
-        if self.aruco_nav_updater["aruco_nav_status"] and not self.aruco_mav_status["map_in_vision"] and (time.time() - self.aruco_nav_status["timestamp"]) > 0.5:
+        if self.aruco_nav_status["aruco_nav_status"] and not self.aruco_nav_status["map_in_vision"] and (time.time() - self.aruco_nav_status["timestamp"]) > 0.5:
             self.start_position.header.stamp = self.get_clock().now().to_msg()
             self.start_position.pose = self.setpoint_pose.pose
             hold_pos = True
