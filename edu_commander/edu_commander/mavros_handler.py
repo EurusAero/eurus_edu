@@ -11,8 +11,9 @@ from math import dist, radians, cos, sin
 
 from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
-from mavros_msgs.msg import PositionTarget, State, String
+from mavros_msgs.msg import PositionTarget, State
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 from edu_msgs.msg import Command
 from EurusEdu.const import *
 
