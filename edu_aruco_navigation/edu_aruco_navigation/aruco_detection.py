@@ -129,7 +129,7 @@ class ArucoDetector(Node):
             marker_sep = float(params[3])
             ids_list = []
             
-            for line in range(markers_y):
+            for line in range(1, markers_y + 1):
                 ids_str = lines[line].strip().split()
                 ids_list += [int(x) for x in ids_str]
                 
