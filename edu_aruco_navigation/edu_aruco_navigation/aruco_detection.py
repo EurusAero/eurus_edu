@@ -127,9 +127,12 @@ class ArucoDetector(Node):
             markers_y = int(params[1])
             marker_len = float(params[2])
             marker_sep = float(params[3])
-
-            ids_str = lines[1].strip().split()
-            ids_list = [int(x) for x in ids_str]
+            ids_list = []
+            
+            for line in range(markers_y):
+                ids_str = lines[line].strip().split()
+                ids_list += [int(x) for x in ids_str]
+                
             ids_np = np.array(ids_list, dtype=np.int32)
             
             # Сохраняем размеры карты для расчетов Origin

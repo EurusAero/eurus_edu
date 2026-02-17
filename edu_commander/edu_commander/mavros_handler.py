@@ -128,8 +128,9 @@ class MavrosHandler(Node):
 
     def cmd_loop(self):
         is_map_visible = self.aruco_nav_status.get("map_in_vision", False)
+        aruco_active = self.aruco_nav_status.get("aruco_nav_status", False)
 
-        if is_map_visible and not self.prev_map_in_vision:
+        if aruco_active and is_map_visible and not self.prev_map_in_vision:
             self.get_logger().warn("Аруко карта обнаружена, синхронизирую координаты")
             self.frame_alignment_counter = self.ALIGNMENT_DURATION
         
@@ -144,6 +145,7 @@ class MavrosHandler(Node):
                 self.setpoint_pose.pose.position.z = self.local_pose.pose.position.z - 2
             
             elif self.frame_alignment_counter > 0:
+                self.sync_target_to_local()
                 self.frame_alignment_counter -= 1
             
             else:    
@@ -163,9 +165,36 @@ class MavrosHandler(Node):
         Приравнивает целевую точку (Target и Setpoint) к текущей позиции дрона.
         Используется для сброса "хвостов" управления при смене координат.
         """
-        self.setpoint_pose.pose = self.local_pose.pose
-        self.target_pose.pose = self.local_pose.pose
-        self.start_position.pose = self.local_pose.pose
+        # Копируем позицию
+        self.setpoint_pose.pose.position.x = self.local_pose.pose.position.x
+        self.setpoint_pose.pose.position.y = self.local_pose.pose.position.y
+        self.setpoint_pose.pose.position.z = self.local_pose.pose.position.z
+        
+        # Копируем ориентацию
+        self.setpoint_pose.pose.orientation.x = self.local_pose.pose.orientation.x
+        self.setpoint_pose.pose.orientation.y = self.local_pose.pose.orientation.y
+        self.setpoint_pose.pose.orientation.z = self.local_pose.pose.orientation.z
+        self.setpoint_pose.pose.orientation.w = self.local_pose.pose.orientation.w
+
+        # То же самое для target_pose
+        self.target_pose.pose.position.x = self.local_pose.pose.position.x
+        self.target_pose.pose.position.y = self.local_pose.pose.position.y
+        self.target_pose.pose.position.z = self.local_pose.pose.position.z
+        
+        self.target_pose.pose.orientation.x = self.local_pose.pose.orientation.x
+        self.target_pose.pose.orientation.y = self.local_pose.pose.orientation.y
+        self.target_pose.pose.orientation.z = self.local_pose.pose.orientation.z
+        self.target_pose.pose.orientation.w = self.local_pose.pose.orientation.w
+
+        # И для start_position
+        self.start_position.pose.position.x = self.local_pose.pose.position.x
+        self.start_position.pose.position.y = self.local_pose.pose.position.y
+        self.start_position.pose.position.z = self.local_pose.pose.position.z
+        
+        self.start_position.pose.orientation.x = self.local_pose.pose.orientation.x
+        self.start_position.pose.orientation.y = self.local_pose.pose.orientation.y
+        self.start_position.pose.orientation.z = self.local_pose.pose.orientation.z
+        self.start_position.pose.orientation.w = self.local_pose.pose.orientation.w
         
         self.start_position.header.stamp = self.get_clock().now().to_msg()
 
@@ -213,10 +242,12 @@ class MavrosHandler(Node):
         aruco_active = self.aruco_nav_status.get("aruco_nav_status", False)
         map_visible = self.aruco_nav_status.get("map_in_vision", False)
         last_seen_ts = self.aruco_nav_status.get("timestamp", 0)
-
+    
         if aruco_active and not map_visible and (time.time() - last_seen_ts) > 0.5:
             self.start_position.header.stamp = self.get_clock().now().to_msg()
-            self.start_position.pose = self.setpoint_pose.pose
+            self.start_position.pose.position.x = self.setpoint_pose.pose.position.x
+            self.start_position.pose.position.y = self.setpoint_pose.pose.position.y
+            self.start_position.pose.position.z = self.setpoint_pose.pose.position.z
             hold_pos = True
             
         stamp = self.start_position.header.stamp
@@ -402,9 +433,7 @@ class MavrosHandler(Node):
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
             
-            if self.aruco_nav_status.get("aruco_nav_status") and \
-               self.aruco_nav_status.get("map_in_vision") and \
-               self.aruco_nav_status.get("fly_in_borders"):
+            if self.aruco_nav_status.get("aruco_nav_status") and self.aruco_nav_status.get("map_in_vision") and self.aruco_nav_status.get("fly_in_borders"):
                 x = min(x, self.map_width_m)
                 y = min(y, self.map_height_m)
             
