@@ -56,7 +56,7 @@ class ArucoDetector(Node):
             self.aruco_map_path = config["aruco"].get("map_path", "")
             self.map_origin = config["aruco"].get("map_origin", "BR")
 
-            frequency = config["settings"].getint("frequency", frequency)
+            frequency = config["detector"].getint("frequency", frequency)
             camera_topic = config["settings"].get("camera_topic", camera_topic)
             self.camera_config_path = config["settings"].get("camera_config_path", "")
             self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
@@ -67,7 +67,7 @@ class ArucoDetector(Node):
         self.aruco_nav_pub = self.create_publisher(String, "/edu/aruco_map_nav", reliable_qos)
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
         self.vpe_publisher = self.create_publisher(PoseStamped, "/mavros/vision_pose/pose", reliable_qos)
-        self.vpe_cov_publisher = self.create_publisher(PoseWithCovarianceStamped, "/mavros/vision_pose/pose_cov", reliable_qos)
+        self.vpe_cov_publisher = self.create_publisher(PoseWithCovarianceStamped, "/edu/vision_pose_cov", reliable_qos)
 
         self.vpe_cov = PoseWithCovarianceStamped()
         self.vpe_pose = PoseStamped()
@@ -234,7 +234,7 @@ class ArucoDetector(Node):
 
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
 
-        if retval:
+        if retval and self.navigation_state:
             R, _ = cv2.Rodrigues(rvec)
             R_inv = R.T
             t_inv = -np.dot(R_inv, tvec)
@@ -301,6 +301,8 @@ class ArucoDetector(Node):
                 msg.data = json.dumps(self.payload)
                 self.aruco_nav_pub.publish(msg)
 
+            return rvec, tvec
+        elif retval:
             return rvec, tvec
 
 def main(args=None):

@@ -20,8 +20,8 @@ sudo bash ./install_geographiclib_datasets.sh
 cd ~/catkin_ws/src
 git clone https://github.com/EurusAero/clover.git clover
 git clone https://github.com/EurusAero/ros_led.git ros_led
-echo "source ~/catkin_ws/devel/setup.bash
-export ROS_HOSTNAME=10.42.0.1" >> ~/.bashrc
+echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+echo "export ROS_HOSTNAME=10.42.0.1" >> ~/.bashrc
 ```
 
 Устанавливаем зависимости
