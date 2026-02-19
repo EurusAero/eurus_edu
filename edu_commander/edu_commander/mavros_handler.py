@@ -266,8 +266,8 @@ class MavrosHandler(Node):
             self.setpoint_pose.pose.position.y = self.start_position.pose.position.y + (self.target_pose.pose.position.y - self.start_position.pose.position.y) * passed
             self.setpoint_pose.pose.position.z = self.start_position.pose.position.z + (self.target_pose.pose.position.z - self.start_position.pose.position.z) * passed
         
-        elif not hold_pos:
-             self.setpoint_pose.pose = self.target_pose.pose
+        # elif not hold_pos:
+        #      self.setpoint_pose.pose = self.target_pose.pose
 
         return self.setpoint_pose
     
