@@ -38,19 +38,20 @@
 
 1. Соединяем 4 луча с центарльной декой, закрепляя их только на центральных отверстиях четрырьмя винтами M3x14 (HEX) и металлическими гайками M3.
 
-![center_plate](assets/neural_network_train/assembly/1.png)
+<img src="assets/assembly/1.png" width="800" height="500" alt="center_plate">
+
 
 2. На нижней части центральной платформы установите металлические стойки 10мм закрепляя винтами M3x8 (НЕX)
 
-![2](assets/neural_network_train/assembly/2.png)
+<img src="assets/assembly/2.png" width="800" height="500" alt="2">
 
 ## Установка моторов {#2}
 
 3. Устанавливаем моторы на соответствующие отверстия в луче при помощи винтов M3x6 (HEX), которые идут в комплекте с моторами.
 
-![3.1](assets/neural_network_train/assembly/3.1.png)
+<img src="assets/assembly/3.1.png" width="800" height="500" alt="3.1">
 
-![3](assets/neural_network_train/assembly/3.png)
+<img src="assets/assembly/3.png" width="800" height="500" alt="3">
 
 *Убедитесь, что винты не касаются мотора.*
 
@@ -58,92 +59,92 @@
 
 1.  Закрепите нейлоновые стойки 15мм на одну из половин ножки используя винт M3x6
 
-![4.1](assets/neural_network_train/assembly/4.1.png)
+<img src="assets/assembly/4.1.png" width="800" height="500" alt="4.1">
 
 2.  Установите получившуюся конструкцию на луч дрона, закрепляя винтами M3x6 со второй частью.
 
-![4.2](assets/neural_network_train/assembly/4.2.png)
+<img src="assets/assembly/4.2.png" width="800" height="500" alt="4.2">
 
 
 ## Сборка и установка полётного контроллера (FC) и регулятора оборотов (ESC) {#4}
 
 1. На центральную раму устанавливаем 4 винта M3x25, закрепляя гайками M3 (посмотрите размеры монтажных отверстий на регуляторе оборотов. Не затягивайте гайки плотно, чтобы была возможность регулировки винтов)
 
-![5.1](assets/neural_network_train/assembly/5.1.png)
+<img src="assets/assembly/5.1.png" width="800" height="500" alt="5.1">
 
 2. На гайки устанавливаем ESC, предварительно надев на него демпферные резинки. Припаиваем к нему моторы
 
-![5.2](assets/neural_network_train/assembly/5.2.png)
+<img src="assets/assembly/5.2.png" width="800" height="500" alt="5.2">
 
 3. Припаиваем моторы как показано на схеме. Закрепляем провода моторов изолентой вокруг луча.
 
-![5.3](assets/neural_network_train/assembly/5.3.png)
+<img src="assets/assembly/5.3.png" width="800" height="500" alt="5.3">
 
 4. Устанавливаем полётный контроллер, предварительно надев на него демпферные резинки. Закрепляем нейлоновыми гайками M3
 
-![5.4](assets/neural_network_train/assembly/5.4.png)
+<img src="assets/assembly/5.4.png" width="800" height="500" alt="5.4">
 
 ## Установка приёмника {#5}
 
 1. Припаять провода к приёмнику и полётному контроллеру по указанной схеме. Длина проводов - 9см. Зтем прикрепить к приёмнику антенну и усадить его в термоусадку. 
 
-![6](assets/neural_network_train/assembly/6.png)
+<img src="assets/assembly/6.png" width="800" height="500" alt="6">
 
 2. После подключения проводов, приёмник в термоусадке приклеить на двусторонний скотч как показано на схеме. Антену закрепить с помощию двух стяжек крест накрест под лучом.
 
-![7](assets/neural_network_train/assembly/7.png)
+<img src="assets/assembly/7.png" width="800" height="500" alt="7">
 
 
 ## Установка Orange Pi 5 {#6}
 
 1. На нижнюю платформу для Orange Pi установите нейлоновые стойки M3(10мм + 6мм) и закрепите винтами M3x8 (НЕX)
 
-![8.1](assets/neural_network_train/assembly/8.1.png)
+<img src="assets/assembly/8.1.png" width="800" height="500" alt="8.1">
 
 2.  Закрепите полученнйю платформу на стойки, установленные на втором этапе винтами M3x6 (НЕX)
 
-![8.2](assets/neural_network_train/assembly/8.2.png)
+<img src="assets/assembly/8.2.png" width="800" height="500" alt="8.2">
 
 3. Закрепите Orange Pi нейлоновыми стойками по 20мм
 
-![8.3](assets/neural_network_train/assembly/8.3.png)
+<img src="assets/assembly/8.3.png" width="800" height="500" alt="8.3">
 
 4. Подключите полётный контроллер к usb-порту Orange Pi
 
-![8.0](assets/neural_network_train/assembly/8.0.png)
+<img src="assets/assembly/8.0.png" width="800" height="500" alt="8.0">
 
 5. Прикрепляем нейлоновые стойки к нижней пластине, закрепляя их винтами M3x6 (НЕX)
 
-![8.4](assets/neural_network_train/assembly/8.4.png)
+<img src="assets/assembly/8.4.png" width="800" height="500" alt="8.4">
     
 6. Устанавливаем нижнюю пластину, крепим к нейлоновым стойкам на винты M3x8 (HEX)
     
-![8.5](assets/neural_network_train/assembly/8.5.png)
+<img src="assets/assembly/8.5.png" width="800" height="500" alt="8.5">
 
 
 ## Установка OpticalFlow {#7}
 
 1. На крайние стойки нижней пластины устанавливаем OpticalFlow, закрепляя нейлоновыми гайками.
 
-![9](assets/neural_network_train/assembly/9.png)
+<img src="assets/assembly/9.png" width="800" height="500" alt="9">
 
 2. Запаиваем OpticalFlow как показано на схеме
 
-![9.0](assets/neural_network_train/assembly/9.0.png)
+<img src="assets/assembly/9.0.png" width="800" height="600" alt="9.0">
 
 ## Установка понижающего преобразователя {#8}
 
 1. Закрепляем понижающий преобразователь с припаянными проводами как показанно на схеме.
 
-![10.1](assets/neural_network_train/assembly/10.1.png)
+<img src="assets/assembly/10.1.png" width="800" height="500" alt="10.1">
 
 2. Входные провода красного и синего цвета нужно припаять на основное питание с регулятора оборотов как показано на схеме
 
-![10.2](assets/neural_network_train/assembly/10.2.png)
+<img src="assets/assembly/10.2.png" width="800" height="500" alt="10.2">
 
 3. Выходные контакты с понижающего преобразователя должны быть подключены к одноплатному компьютеру как показано на схеме
 
-![10.3](assets/neural_network_train/assembly/10.3.png)
+<img src="assets/assembly/10.3.png" width="800" height="500" alt="10.3">
 
 
 <span style="color:red">*Убедитесь что контакты подключены к нужным разъёмам одноплатного компьютера!*</span>
@@ -153,24 +154,24 @@
 
 1. Установите камеру на оставшиеся стойки нижней панели, закрепите нейлоновыми гайками. Подключите камеру к одноплатному компьютеру по USB-порту.
 
-![10.0](assets/neural_network_train/assembly/10.0.png)
+<img src="assets/assembly/10.0.png" width="800" height="500" alt="10.0">
 
 ## Сборка защиты {#10}
 
 1. Установите плату защиты на ножки дрона как показано на рисунке, используя винты M3x12 и гайку M3
 
-![9.1](assets/neural_network_train/assembly/9.1.png)
+<img src="assets/assembly/9.1.png" width="800" height="500" alt="9.1">
 
 2. Установите стойки, закрепляя винтами M3x8 (НЕX)
 
-![9.2](assets/neural_network_train/assembly/9.2.png)
+<img src="assets/assembly/9.2.png" width="800" height="500" alt="9.2">
 
 3. Закрепите оставшиеся защитные пластины при помощи стоек 40мм и винтов M3x8 (НЕX)
 
-![9.3](assets/neural_network_train/assembly/9.3.png)
+<img src="assets/assembly/9.3.png" width="800" height="500" alt="9.3">
 
 ## Установка светодиодной ленты {#11}
 
 1. Установите светодиодную ленту как показано на рисунке
 
-![10](assets/neural_network_train/assembly/10.png)
+<img src="assets/assembly/10.png" width="800" height="500" alt="10">

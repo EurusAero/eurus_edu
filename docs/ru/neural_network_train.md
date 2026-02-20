@@ -29,7 +29,7 @@
 nvidia-smi
 ```
 
-![nvidia-smi output](../assets/neural_network_train/nvidia_smi.png)
+![nvidia-smi output](assets/neural_network_train/nvidia_smi.png)
 
 В случае, если у вас видеокарта AMD, можно проверить ROCm с помощью команды (только для Linux):
 
@@ -40,9 +40,9 @@ rocminfo
 Заходим на [официальный сайт PyTorch](https://pytorch.org/get-started/locally/) и выбираем подходящую версию.
 _В случае, если у вас нет видеокарты, выбираем CPU._
 
-![pytorch-version-select-linux](../assets/neural_network_train/pytorch_install_linux.png)
+![pytorch-version-select-linux](assets/neural_network_train/pytorch_install_linux.png)
 
-![pytorch-version-select-windows](../assets/neural_network_train/pytorch_install_windows.png)
+![pytorch-version-select-windows](assets/neural_network_train/pytorch_install_windows.png)
 Выполняем команду для установки PyTorch.
 
 **Установка Ultralytics**
@@ -58,10 +58,10 @@ pip install -U ultralytics
 #### Linux/Windows
 
 Сперва скачиваем датасет с нашего проекта на Roboflow, заходим в наш проект → versions → Выбираем последнюю версию датасета → Download Dataset
-![roboflow-dataset-download](../assets/neural_network_train/dataset_download_1.png)
+![roboflow-dataset-download](assets/neural_network_train/dataset_download_1.png)
 
 После этого в Image and Annotation Format выбираем нашу модель (YOLOv11), ставим пункт Download zip to computer и нажимаем Continue.
-![roboflow-dataset-download2](../assets/neural_network_train/dataset_download_2.png)
+![roboflow-dataset-download2](assets/neural_network_train/dataset_download_2.png)
 
 Рекомендуется создать отдельную папку под обучение нейросети.
 Распаковываем туда архив с датасетом
@@ -76,7 +76,7 @@ cd ~/yolo_train
 
 В папке ~/yolo_train/dataset мы увидим содержимое датасета:
 
-![dataset_files](../assets/neural_network_train/dataset_files.png)
+![dataset_files](assets/neural_network_train/dataset_files.png)
 
 Из этого нам требуется data.yaml, его надо указать при обучении нейросети
 

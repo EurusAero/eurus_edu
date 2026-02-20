@@ -6,7 +6,7 @@
 -  Пароль: ```euruswiwi```
 
 
-![wifi](assets/neural_network_train/wifi.png)
+![wifi](assets/wifi.png)
 
 
 Подключитесь к этой сети с любого устройства. Это откроет доступ ко всем функциям:
