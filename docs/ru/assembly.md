@@ -186,7 +186,9 @@
 
 1\. Клеим светодиодную ленту на обод, подключаем её к питанию +5v – 5v, земле GND – GND и сигнальному порту DIN – GPIO01-C1 как показано на схеме
 
-<img src="assets/assembly/11.1.png" width="800" height="500" alt="11">
+<img src="assets/assembly/11.1.png" width="800" height="500" alt="11.1">
+
+<img src="assets/assembly/11.2.png" width="800" height="500" alt="11.2">
 
 <span style="color:red"> Сверьтесь с [распиновкой Orange Pi](../ru/orangepi_info.md) перед подключением! <span>
 
