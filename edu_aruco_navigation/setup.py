@@ -20,7 +20,6 @@ setup(
     entry_points={
         'console_scripts': [
          'aruco_detection = edu_aruco_navigation.aruco_detection:main',
-         'vpe_publisher = edu_aruco_navigation.vpe_publisher:main'
         ],
     },
 )

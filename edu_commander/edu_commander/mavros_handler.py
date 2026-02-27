@@ -8,6 +8,7 @@ import time
 import configparser
 import os
 from math import dist, radians, cos, sin
+import csv
 
 from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
@@ -82,8 +83,11 @@ class MavrosHandler(Node):
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
         
         self.aruco_map_path = ""
-        self.map_height_m = 0
-        self.map_width_m = 0
+        self.map_height_max = float("-inf")
+        self.map_width_max = float("-inf")
+        
+        self.map_height_min = float("inf")
+        self.map_width_min = float("inf")
         
         if os.path.exists(ini_path):
             config = configparser.ConfigParser()
@@ -92,14 +96,13 @@ class MavrosHandler(Node):
         
         if self.aruco_map_path and os.path.exists(self.aruco_map_path):
             with open(self.aruco_map_path, "r") as f:
-                markers_info = f.readline()
-            params = markers_info.strip().split()
-            markers_x = int(params[0])
-            markers_y = int(params[1])
-            marker_len = float(params[2])
-            marker_sep = float(params[3])
-            self.map_width_m = markers_x * marker_len + (markers_x - 1) * marker_sep
-            self.map_height_m = markers_y * marker_len + (markers_y - 1) * marker_sep
+                markers_info = csv.DictReader(f, delimiter=";")
+                for row in markers_info:
+                    self.map_width_max = max(self.map_width_max, float(row["x"]))
+                    self.map_height_max = max(self.map_height_max, float(row["y"]))
+                    
+                    self.map_width_min = min(self.map_width_min, float(row["x"]))
+                    self.map_height_min = min(self.map_height_min, float(row["y"]))
             
         self.setpoint_pose = PoseStamped()
         self.start_position = PoseStamped()
@@ -115,6 +118,7 @@ class MavrosHandler(Node):
         }
         
         self.prev_map_in_vision = False
+        self.aruco_active_prev = False
         self.frame_alignment_counter = 0
         self.ALIGNMENT_DURATION = 20
 
@@ -134,6 +138,11 @@ class MavrosHandler(Node):
             self.get_logger().warn("Аруко карта обнаружена, синхронизирую координаты")
             self.frame_alignment_counter = self.ALIGNMENT_DURATION
         
+        if not aruco_active and self.aruco_active_prev:
+            self.frame_alignment_counter = self.ALIGNMENT_DURATION
+            self.set_home_position(save_altitude=True)
+        
+        self.aruco_active_prev = aruco_active
         self.prev_map_in_vision = is_map_visible
 
         if self.current_control_method == "LOCAL_POSITION":
@@ -159,6 +168,7 @@ class MavrosHandler(Node):
             self.target_raw.coordinate_frame = 8
             self.target_raw.type_mask = 1479
             self.raw_velocity_pub.publish(self.target_raw)
+        
 
     def sync_target_to_local(self):
         """
@@ -352,8 +362,13 @@ class MavrosHandler(Node):
             time.sleep(0.04)
         return future.result()
     
-    def set_home_position(self):
-        self.home_position.pose = self.local_pose.pose
+    def set_home_position(self, save_altitude=False):
+        if save_altitude:
+            self.home_position.pose.position.x = self.local_pose.pose.position.x
+            self.home_position.pose.position.y = self.local_pose.pose.position.y
+            self.home_position.pose.orientation = self.local_pose.pose.orientation
+        else:
+            self.home_position.pose = self.local_pose.pose
 
     def do_set_mode(self, mode="OFFBOARD"):
         req = SetMode.Request()
@@ -433,13 +448,20 @@ class MavrosHandler(Node):
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
             
-            if self.aruco_nav_status.get("aruco_nav_status") and self.aruco_nav_status.get("map_in_vision") and self.aruco_nav_status.get("fly_in_borders"):
-                x = min(x, self.map_width_m)
-                y = min(y, self.map_height_m)
-            
-            self.target_pose.pose.position.x = self.home_position.pose.position.x + x
-            self.target_pose.pose.position.y = self.home_position.pose.position.y + y
-            self.target_pose.pose.position.z = z
+            if self.aruco_nav_status.get("aruco_nav_status"):
+                if self.aruco_nav_status.get("map_in_vision"):
+                    if self.aruco_nav_status.get("fly_in_borders"):
+                        x = max(self.map_width_min, min(x, self.map_width_max))
+                        y = max(self.map_height_min, min(y, self.map_height_max))
+                    self.target_pose.pose.position.x = x
+                    self.target_pose.pose.position.y = y
+                    self.target_pose.pose.position.z = z
+                else:
+                    return False, "No aruco in vision"
+            else:
+                self.target_pose.pose.position.x = self.home_position.pose.position.x + x
+                self.target_pose.pose.position.y = self.home_position.pose.position.y + y
+                self.target_pose.pose.position.z = z
                         
             if yaw is not None:
                 qw, qx, qy, qz = euler2quat(0, 0, radians(yaw))
@@ -481,16 +503,19 @@ class MavrosHandler(Node):
 
             x = self.local_pose.pose.position.x + delta_north
             y = self.local_pose.pose.position.y + delta_east
+            z = data.get("z", self.target_pose.pose.position.z)
             
-            if self.aruco_nav_status.get("aruco_nav_status") and \
-               self.aruco_nav_status.get("map_in_vision") and \
-               self.aruco_nav_status.get("fly_in_borders"):
-                x = min(x, self.map_width_m)
-                y = min(y, self.map_height_m)
+            if self.aruco_nav_status.get("aruco_nav_status"):
+                if self.aruco_nav_status.get("map_in_vision"):
+                    if self.aruco_nav_status.get("fly_in_borders"):
+                        x = max(self.map_width_min, min(x, self.map_width_max))
+                        y = max(self.map_height_min, min(y, self.map_height_max))
+                else:
+                    return False, "No aruco in vision"
             
             self.target_pose.pose.position.x = x
             self.target_pose.pose.position.y = y
-            self.target_pose.pose.position.z = data.get("z", self.target_pose.pose.position.z)
+            self.target_pose.pose.position.z = z
 
             self.start_position.header.stamp = self.get_clock().now().to_msg()
             self.current_control_method = "LOCAL_POSITION"

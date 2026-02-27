@@ -8,8 +8,10 @@ import configparser
 import os
 import math
 import time
-from transforms3d.euler import euler2quat, quat2euler
-
+import csv
+import threading
+import queue
+from transforms3d.euler import euler2quat
 
 from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
@@ -39,9 +41,8 @@ class ArucoDetector(Node):
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
 
         # Дефолтные настройки
-        self.dictionary_name = "4X4_50"
+        self.dictionary_name = "4X4_250"
         camera_topic = "/edu/camera_frame"
-        frequency = 30
         self.aruco_map_path = ""
         self.camera_config_path = ""
 
@@ -52,11 +53,10 @@ class ArucoDetector(Node):
             config = configparser.ConfigParser()
             config.read(ini_path)
 
-            self.dictionary_name = config["aruco"].get("dict", self.dictionary_name)
+            self.dictionary_name = config["aruco"].get("dictionary", self.dictionary_name)
             self.aruco_map_path = config["aruco"].get("map_path", "")
             self.map_origin = config["aruco"].get("map_origin", "BR")
 
-            frequency = config["detector"].getint("frequency", frequency)
             camera_topic = config["settings"].get("camera_topic", camera_topic)
             self.camera_config_path = config["settings"].get("camera_config_path", "")
             self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
@@ -67,11 +67,10 @@ class ArucoDetector(Node):
         self.aruco_nav_pub = self.create_publisher(String, "/edu/aruco_map_nav", reliable_qos)
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
         self.vpe_publisher = self.create_publisher(PoseStamped, "/mavros/vision_pose/pose", reliable_qos)
-        self.vpe_cov_publisher = self.create_publisher(PoseWithCovarianceStamped, "/edu/vision_pose_cov", reliable_qos)
+        self.vpe_cov_publisher = self.create_publisher(PoseWithCovarianceStamped, "/mavros/vision_pose/pose_cov", reliable_qos)
 
         self.vpe_cov = PoseWithCovarianceStamped()
         self.vpe_pose = PoseStamped()
-        self.debug_msg = CompressedImage()
         self.navigation_state = False
         self.map_in_vision = False
         self.fly_in_borders = False
@@ -81,18 +80,16 @@ class ArucoDetector(Node):
             "map_in_vision": self.map_in_vision,
             "fly_in_borders": self.fly_in_borders,
         }
-        self.last_frame = None
+        
         self.board = None
-
         self.map_width_m = 0.0
         self.map_height_m = 0.0
-
         self.camera_matrix = None
         self.dist_coeffs = None
 
         # Инициализация Aruco
         if self.dictionary_name not in self.aruco_dicts:
-             self.dictionary_name = "4X4_50"
+             self.dictionary_name = "4X4_250"
 
         self.aruco_dict_obj = cv2.aruco.getPredefinedDictionary(self.aruco_dicts[self.dictionary_name])
         parameters = cv2.aruco.DetectorParameters()
@@ -106,53 +103,67 @@ class ArucoDetector(Node):
         else:
             self.get_logger().warn("Camera config path not set in eurus.ini!")
 
-        timer_period = 1 / frequency
-        self.timer = self.create_timer(timer_period, self.aruco_handler)
+        self.debug_queue = queue.Queue(maxsize=2)
+        self.debug_thread = threading.Thread(target=self.debug_worker, daemon=True)
+        self.debug_thread.start()
 
     def parse_map_file(self):
-        """
-        Парсит .txt файл и рассчитывает физические размеры доски.
-        """
         try:
             self.get_logger().info(f"Loading map from {self.aruco_map_path}")
-            with open(self.aruco_map_path, 'r') as f:
-                lines = f.readlines()
-
-            if len(lines) < 2:
-                self.get_logger().error("Map file too short.")
-                return
-
-            params = lines[0].strip().split()
-            markers_x = int(params[0])
-            markers_y = int(params[1])
-            marker_len = float(params[2])
-            marker_sep = float(params[3])
+            
+            obj_points = []
             ids_list = []
+            
+            min_x, min_y = float('inf'), float('inf')
+            max_x, max_y = float('-inf'), float('-inf')
 
-            for line in range(1, markers_y + 1):
-                ids_str = lines[line].strip().split()
-                ids_list += [int(x) for x in ids_str]
+            with open(self.aruco_map_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f, delimiter=';')
+                
+                for row in reader:
+                    m_id = int(row['id'])
+                    m_len = float(row['length'])
+                    x = float(row['x'])
+                    y = float(row['y'])
+                    z = float(row['z'])
+                    
+                    half_l = m_len / 2.0
+                    
+                    c1 = [x - half_l, y + half_l, z]  # Top-Left
+                    c2 = [x + half_l, y + half_l, z]  # Top-Right
+                    c3 = [x + half_l, y - half_l, z]  # Bottom-Right
+                    c4 = [x - half_l, y - half_l, z]  # Bottom-Left
+                    
+                    obj_points.append(np.array([c1, c2, c3, c4], dtype=np.float32))
+                    ids_list.append(m_id)
+                    
+                    min_x = min(min_x, x - half_l)
+                    max_x = max(max_x, x + half_l)
+                    min_y = min(min_y, y - half_l)
+                    max_y = max(max_y, y + half_l)
+
+            if not ids_list:
+                self.get_logger().error("Map file is empty or invalid.")
+                return
 
             ids_np = np.array(ids_list, dtype=np.int32)
 
-            # Ширина = кол-во маркеров * длину + промежутки
-            self.map_width_m = markers_x * marker_len + (markers_x - 1) * marker_sep
-            self.map_height_m = markers_y * marker_len + (markers_y - 1) * marker_sep
+            self.map_width_m = max_x - min_x if max_x > min_x else 0.0
+            self.map_height_m = max_y - min_y if max_y > min_y else 0.0
 
             self.payload["map_width"] = self.map_width_m
             self.payload["map_height"] = self.map_height_m
 
-            self.board = cv2.aruco.GridBoard(
-                (markers_x, markers_y),
-                marker_len,
-                marker_sep,
+            self.board = cv2.aruco.Board(
+                np.array(obj_points, dtype=np.float32),
                 self.aruco_dict_obj,
                 ids_np
             )
-            self.get_logger().info(f"GridBoard loaded: {markers_x}x{markers_y}. Origin set to: {self.map_origin}")
+            
+            self.get_logger().info(f"Custom Board loaded: {len(ids_list)} markers. Origin set to: {self.map_origin}")
 
         except Exception as e:
-            self.get_logger().error(f"Failed to parse map txt: {e}")
+            self.get_logger().error(f"Failed to parse map csv: {e}")
             self.board = None
 
     def load_camera_config(self):
@@ -172,8 +183,12 @@ class ArucoDetector(Node):
             self.get_logger().error(f"Failed to load camera config: {e}")
 
     def camera_sub(self, msg):
+        # Обработка кадра начинается СРАЗУ по его прибытии (убираем ограничение таймера)
         np_arr = np.frombuffer(msg.data, np.uint8)
-        self.last_frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        timestamp = msg.header.stamp
+        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        
+        self.process_frame(image, timestamp)
 
     def map_navigation_sub(self, msg):
         json_msg = json.loads(msg.data)
@@ -186,39 +201,57 @@ class ArucoDetector(Node):
         self.payload["map_in_vision"] = self.map_in_vision
         self.payload["fly_in_borders"] = self.fly_in_borders
 
-    def aruco_handler(self):
-        if self.last_frame is None:
-            return
-
-        image = self.last_frame.copy()
+    def process_frame(self, image, timestamp):
         corners, ids = self.detect_aruco(image)
+        rvec, tvec = None, None
 
         if (self.board is not None and
             self.camera_matrix is not None and
             ids is not None):
+            
+            rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
-            rvec, tvec = self.calculate_drone_pose(corners, ids)
+        if self.aruco_debug_pub.get_subscription_count() > 0:
+            try:
+                self.debug_queue.put_nowait((image, corners, ids, rvec, tvec, timestamp))
+            except queue.Full:
+                pass
 
-            if rvec is not None and tvec is not None:
-                cv2.drawFrameAxes(image, self.camera_matrix, self.dist_coeffs, rvec, tvec, 0.1)
+    def debug_worker(self):
+        while rclpy.ok():
+            try:
+                item = self.debug_queue.get(timeout=1.0)
+                image, corners, ids, rvec, tvec, timestamp = item
 
-        if ids is not None:
-            cv2.aruco.drawDetectedMarkers(image, corners, ids)
+                if ids is not None:
+                    cv2.aruco.drawDetectedMarkers(image, corners, ids)
 
-        self.debug_msg.header.stamp = self.get_clock().now().to_msg()
-        self.debug_msg.header.frame_id = "aruco"
-        self.debug_msg.format = "jpeg"
-        success, encoded_image = cv2.imencode(".jpg", image)
-        if success:
-            self.debug_msg.data = encoded_image.tobytes()
-            self.aruco_debug_pub.publish(self.debug_msg)
+                if rvec is not None and tvec is not None and self.camera_matrix is not None:
+                    cv2.drawFrameAxes(image, self.camera_matrix, self.dist_coeffs, rvec, tvec, 0.1)
+
+                debug_msg = CompressedImage()
+                debug_msg.header.stamp = timestamp
+                debug_msg.header.frame_id = "aruco"
+                debug_msg.format = "jpeg"
+                
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+                success, encoded_image = cv2.imencode(".jpg", image, encode_param)
+                
+                if success:
+                    debug_msg.data = encoded_image.tobytes()
+                    self.aruco_debug_pub.publish(debug_msg)
+                    
+            except queue.Empty:
+                continue
+            except Exception as e:
+                self.get_logger().error(f"Debug worker error: {e}")
 
     def detect_aruco(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = self.aruco_detector.detectMarkers(gray)
         return corners, ids
 
-    def calculate_drone_pose(self, corners, ids):
+    def calculate_drone_pose(self, corners, ids, timestamp):
         obj_points, img_points = self.board.matchImagePoints(corners, ids)
         msg = String()
 
@@ -239,36 +272,26 @@ class ArucoDetector(Node):
             R_inv = R.T
             t_inv = -np.dot(R_inv, tvec)
 
-            # Координаты в системе координат доски (Original TL)
+            # X вправо, Y вверх
             raw_x = t_inv[0][0]
             raw_y = t_inv[1][0]
             raw_z = t_inv[2][0]
 
-            yaw_cam_rad = -math.atan2(R_inv[1, 0], R_inv[0, 0])
+            forward_x = -R_inv[0, 1]
+            forward_y = -R_inv[1, 1]
+
+            base_yaw = math.atan2(forward_y, forward_x)
 
             offset_rad = math.radians(self.camera_yaw_offset_deg)
-            drone_yaw_tl = yaw_cam_rad + offset_rad
+            final_yaw = base_yaw + offset_rad
 
-            drone_x, drone_y = raw_x, raw_y
-            final_yaw = drone_yaw_tl
-
-            if self.map_origin == "TL": # Top-Left
-                drone_x = raw_x
-                drone_y = raw_y
-                final_yaw = drone_yaw_tl + math.pi
-            elif self.map_origin == "BR": # Bottom-Right
-                drone_x = self.map_width_m - raw_x
-                drone_y = self.map_height_m - raw_y
-                final_yaw = drone_yaw_tl
-
-            # Нормализация итогового угла в диапазон [-pi, pi]
             final_yaw = (final_yaw + math.pi) % (2 * math.pi) - math.pi
 
-            self.vpe_pose.header.stamp = self.get_clock().now().to_msg()
+            self.vpe_pose.header.stamp = timestamp
             self.vpe_pose.header.frame_id = "map"
 
-            self.vpe_pose.pose.position.x = drone_y
-            self.vpe_pose.pose.position.y = drone_x
+            self.vpe_pose.pose.position.x = raw_x
+            self.vpe_pose.pose.position.y = raw_y
             self.vpe_pose.pose.position.z = raw_z
         
             qw, qx, qy, qz = euler2quat(0, 0, final_yaw)
@@ -281,14 +304,12 @@ class ArucoDetector(Node):
             self.vpe_cov.pose.pose = self.vpe_pose.pose
 
             covariance = [0.0] * 36
-
-            covariance[0] = 0.01  # X
-            covariance[7] = 0.01  # Y
+            covariance[0] = 1e-9  # X
+            covariance[7] = 1e-9  # Y
             covariance[14] = 0.1  # Z
             covariance[21] = 0.1  # Roll
             covariance[28] = 0.1  # Pitch
-            covariance[35] = 0.01 # Yaw
-
+            covariance[35] = 1e-9 # Yaw
             self.vpe_cov.pose.covariance = covariance
 
             # self.vpe_publisher.publish(self.vpe_pose)
@@ -304,7 +325,9 @@ class ArucoDetector(Node):
             return rvec, tvec
         elif retval:
             return rvec, tvec
-
+            
+        return None, None
+    
 def main(args=None):
     rclpy.init()
     node = ArucoDetector()
