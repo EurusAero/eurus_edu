@@ -107,6 +107,7 @@ class MavrosHandler(Node):
         self.setpoint_pose = PoseStamped()
         self.start_position = PoseStamped()
         self.target_pose = PoseStamped()
+        self.setpoint_raw = PositionTarget()
         self.target_raw = PositionTarget()
         self.state_msg = State()
         
@@ -163,11 +164,14 @@ class MavrosHandler(Node):
             self.local_pos_pub.publish(self.setpoint_pose)
 
         elif self.current_control_method == "RAW_VELOCITY":
-            self.target_raw.header.stamp = self.get_clock().now().to_msg()
-            self.target_raw.header.frame_id = "map"
-            self.target_raw.coordinate_frame = 8
-            self.target_raw.type_mask = 1479
-            self.raw_velocity_pub.publish(self.target_raw)
+            self.setpoint_raw.header.stamp = self.get_clock().now().to_msg()
+            self.setpoint_raw.header.frame_id = "map"
+            self.setpoint_raw.coordinate_frame = 8
+            self.setpoint_raw.type_mask = 1479
+            
+            self.calculate_next_target_velocity()
+            
+            self.raw_velocity_pub.publish(self.setpoint_raw)
         
 
     def sync_target_to_local(self):
@@ -281,16 +285,35 @@ class MavrosHandler(Node):
 
         return self.setpoint_pose
     
-    def calculate_next_target_velocity(self, vx, vy, vz, yaw_rate=None):
-        self.target_raw.velocity.x = vx
-        self.target_raw.velocity.y = vy
-        self.target_raw.velocity.z = vz
+    def calculate_next_target_velocity(self):
+        aruco_active = self.aruco_nav_status.get("aruco_nav_status", False)
+        map_visible = self.aruco_nav_status.get("map_in_vision", False)
+        last_seen_ts = self.aruco_nav_status.get("timestamp", 0)
+    
+        # if aruco_active and not map_visible and (time.time() - last_seen_ts) > 0.5:
+        if aruco_active:
+            if not map_visible and (time.time() - last_seen_ts) > 0.5:
+                self.setpoint_raw.velocity.x = 0
+                self.setpoint_raw.velocity.y = 0
+                self.setpoint_raw.velocity.z = 0
+                self.setpoint_raw.yaw_rate = 0
+            
+                return self.setpoint_raw
+            local_x = self.local_pose.position.pose.x
+            local_y = self.local_pose.position.pose.y
+            
+            vx = 0 if local_x >= self.map_width_max or local_x <= self.map_width_min else self.target_raw.velocity.x
+            vy = 0 if local_y >= self.map_height_max or local_y <= self.map_height_min else self.target_raw.velocity.y
+            self.setpoint_raw.velocity.x = vx
+            self.setpoint_raw.velocity.y = vy
+        else:
+            self.setpoint_raw.velocity.x = self.target_raw.velocity.x
+            self.setpoint_raw.velocity.y = self.target_raw.velocity.y
+            self.setpoint_raw.velocity.z = self.target_raw.velocity.z
+            self.setpoint_raw.yaw_rate = self.target_raw.yaw_rate
         
-        if yaw_rate is not None:
-            self.target_raw.yaw_rate = radians(yaw_rate)
         
-        self.current_control_method = "RAW_VELOCITY"
-        return self.target_raw
+        return self.setpoint_raw
     
     def command_callback(self, msg: Command):
         if msg.status != PENDING_STATUS:
@@ -428,11 +451,16 @@ class MavrosHandler(Node):
 
     def do_set_velocity(self, data):
         try:
-            vx = data.get("vx", self.target_raw.velocity.x)
-            vy = data.get("vy", self.target_raw.velocity.y)
-            vz = data.get("vz", self.target_raw.velocity.z)
+            vx = data.get("vx", self.setpoint_raw.velocity.x)
+            vy = data.get("vy", self.setpoint_raw.velocity.y)
+            vz = data.get("vz", self.setpoint_raw.velocity.z)
             yaw_rate = data.get("yaw_rate", None)
-            self.calculate_next_target_velocity(vx, vy, vz, yaw_rate)
+            self.target_raw.velocity.x = vx
+            self.target_raw.velocity.y = vy
+            self.target_raw.velocity.z = vz
+            if yaw_rate is not None:
+                self.target_raw.yaw_rate = yaw_rate
+            # self.calculate_next_target_velocity(vx, vy, vz, yaw_rate)
             return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}"
         except ValueError as e:
             return False, f"Invalid values: {e}"
