@@ -31,14 +31,14 @@ nvidia-smi
 
 ![nvidia-smi output](assets/neural_network_train/nvidia_smi.png)
 
-В случае, если у вас видеокарта AMD, можно проверить ROCm с помощью команды (только для Linux):
+В случае если у вас видеокарта AMD, можно проверить ROCm с помощью команды (только для Linux):
 
 ```bash
 rocminfo
 ```
 
 Заходим на [официальный сайт PyTorch](https://pytorch.org/get-started/locally/) и выбираем подходящую версию.
-_В случае, если у вас нет видеокарты, выбираем CPU._
+_В случае если у вас нет видеокарты, выбираем CPU._
 
 ![pytorch-version-select-linux](assets/neural_network_train/pytorch_install_linux.png)
 
@@ -87,7 +87,7 @@ cd ~/yolo_train
 yolo detect train model=yolo11n.pt data=./dataset/data.yaml batch=-1 epochs=150 patience=20
 ```
 
-После завершения обучения в директории ~/yolo_train/runs/detect/ должна появиться папка train/train2/train3 и т.д., в зависимости от того, какой раз вы запускаете обучение.
+После завершения обучения в директории ~/yolo_train/runs/detect/ должна появиться папка train/train2/train3 и т.д., в зависимости от того, который раз вы запускаете обучение.
 
 В папке ~/yolo_train/runs/detect/train/weights лежит файл best.pt, это и является файлом с весами для нашей модели нейронной сети.
 

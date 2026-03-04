@@ -2,11 +2,11 @@
 
 ### Взлёт и посадка
 
-``` python
+```python
 from EurusEdu import EurusControl
 import time
 
-drone = drone("10.42.0.1", 65432)
+drone = EurusControl("10.42.0.1", 65432)
 drone.connect()
 
 drone.arm()
@@ -17,16 +17,16 @@ time.sleep(6)  # Ждём стабилизации
 drone.land()
 drone.disconnect()
 ```
-*После каждого takeoff() локальные координаты сбрасываются в (0, 0, 0)*
 
+_После каждого takeoff() локальные координаты сбрасываются в (0, 0, 0)_
 
 ### Полёт к локальной точке
 
-``` python
+```python
 from EurusEdu import EurusControl
 import time
 
-drone = drone("10.42.0.1", 65432)
+drone = EurusControl("10.42.0.1", 65432)
 drone.connect()
 time.sleep(3)
 
@@ -47,14 +47,13 @@ time.sleep(5)
 drone.land()
 ```
 
-
 ### Движение относительно текущей позиции (Body Frame)
 
-``` python
+```python
 from EurusEdu import EurusControl
 import time
 
-drone = drone("10.42.0.1", 65432)
+drone = EurusControl("10.42.0.1", 65432)
 drone.connect()
 
 drone.arm()
@@ -73,10 +72,9 @@ time.sleep(5)
 drone.land()
 ```
 
-
 ### Полёт по квадрату
 
-``` python
+```python
 import time
 from EurusEdu import EurusControl
 
@@ -84,13 +82,13 @@ def run_square_mission():
     # --- НАСТРОЙКИ ---
     IP_ADDRESS = "10.42.0.1"
     PORT = 65432
-    ALTITUDE = 1              
-    SIDE_LENGTH = 0.5            
-    LAPS = 1                     
+    ALTITUDE = 1
+    SIDE_LENGTH = 0.5
+    LAPS = 1
 
     # Настройки LED
     # Количество светодиодов
-    LEDS_COUNT = 20 
+    LEDS_COUNT = 20
 
     drone = EurusControl(ip=IP_ADDRESS, port=PORT)
 
@@ -153,7 +151,7 @@ def run_square_mission():
             drone.land()
 
             # Ждем пока сядет
-            time.sleep(3) 
+            time.sleep(3)
 
             # Выключаем ленту перед разрывом соединения
             print("Выключение подсветки...")
@@ -166,10 +164,9 @@ if __name__ == "__main__":
     run_square_mission()
 ```
 
-
 ### Проверка светодиодной ленты
 
-``` python
+```python
 from EurusEdu import EurusControl
 import time
 
@@ -193,10 +190,9 @@ drone.led_control(effect="blink", r=255, g=255, b=255, nLED=16, brightness=0.1)
 time.sleep(5)
 ```
 
-
 ### Отображение видеопотока с камеры дрона с визуализацией объектов, обнаруженных нейросетью YOLO.
 
-``` python
+```python
 import cv2
 import time
 import numpy as np
@@ -212,7 +208,7 @@ def draw_targets(frame, targets_data):
     # Проверяем свежесть данных (опционально)
     data_age = time.time() - targets_data.get("received_at", time.time())
     if data_age > 0.5:
-        return 
+        return
 
     for target in targets_data["all_targets"]:
         try:
@@ -245,7 +241,7 @@ def draw_targets(frame, targets_data):
             # Добавили W (width) и H (height), округлив до целого числа int()
             label = f"{cls_name} {conf:.2f} W:{int(w)} H:{int(h)}"
 
-            cv2.putText(frame, label, (top_left_x, top_left_y - 10), 
+            cv2.putText(frame, label, (top_left_x, top_left_y - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         except KeyError:

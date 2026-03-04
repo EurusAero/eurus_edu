@@ -45,7 +45,7 @@ sudo cp ~/catkin_ws/src/clover/clover/udev/*.rules /lib/udev/rules.d
 sudo udevadm trigger
 ```
 
-## WIFI hotspot
+## WiFi Hotspot
 
 ```bash
 sudo cp ~/catkin_ws/src/clover/builder/network_setup /etc/init.d/network_setup
@@ -57,7 +57,7 @@ sudo chown root:root /etc/init.d/network_setup
 sudo update-rc.d network_setup defaults 95
 ```
 
-Чтоб проверить создавшийся симлинк можно ввести:
+Чтобы проверить создавшийся симлинк, можно ввести:
 
 ```bash
 ls -l /etc/rc*.d/*network*
@@ -86,7 +86,7 @@ sudo nano /boot/orangepiEnv.txt
 overlays=spi4-m0-cs1-spidev
 ```
 
-## Настройка веб сервера
+## Настройка веб-сервера
 
 ```bash
 sudo nano /etc/nginx/sites-enabled/default
@@ -206,7 +206,7 @@ WantedBy=multi-user.target
 
 ```
 
-node.js install:
+Node.js install:
 
 ```bash
 # Download and install nvm:
@@ -228,7 +228,7 @@ gitbook install
 gitbook build
 ```
 
-если после `gitbook build` ошибка, то делаем еще раз
+если после `gitbook build` ошибка, то выполняем еще раз
 
 ```bash
 gitbook install
