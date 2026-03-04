@@ -1,53 +1,50 @@
 # Получение телеметрии
 
-
 **Подключение:**
 
-``` python
-request_telemetry()
+```python
+drone.request_telemetry()
 ```
 
 **Возвращаемые значения:**
 
--   none - не удалось получить телеметрию
--   Telemetry data - телеметрия получена
+- none - не удалось получить телеметрию
+- Telemetry data - телеметрия получена
 
 ​
 **Структура telemetry_data:**
 
+_state_
 
-*state*
+- `connected` — есть ли соединение
+- `armed` — состояние моторов
+- `mode` — текущий режим
+- `system_status` — состояние системы
 
-- ```connected``` — есть ли соединение
-- ```armed``` — состояние моторов
-- ```mode``` — текущий режим
-- ```system_status``` — состояние системы
+_battery_
 
-*battery*
+- `voltage` - напряжение (В)
+- `cell_voltage` - напряжение на одну ячейку (В)
+- `current` - ток (А)
+- `percentage` — заряд (%)
 
-- ```voltage``` - напряжение (В)
-- ```cell_voltage``` - напряжение на одну ячейку (В)
-- ```current``` - ток (А)
-- ```percentage``` — заряд (%)
+_local_position_
 
-*local_position*
+- `x, y, z` - позиция (м)
+- `roll, pitch, yaw` - углы (градусы)
 
-- ```x, y, z``` - позиция (м)
-- ```roll, pitch, yaw``` - углы (градусы)
+_velocity_
 
-*velocity*
+- `vx, vy, vz`- скорости (м/с)
 
-- ```vx, vy, vz```- скорости (м/с)
+_point_reached_
 
-*point_reached*
-
-- ```True``` - целевая точка достигнута
-- ```False``` - ошибка
-
+- `True` - целевая точка достигнута
+- `False` - целевая точка не достигнута
 
 **Пример получения телеметрии на Python:**
 
-``` python​
+```python​
 telemetry = drone.request_telemetry() # Запрашиваем телеметрию
 ​
 ​
