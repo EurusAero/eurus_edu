@@ -2,6 +2,8 @@
 
 Для установки прошивки на плату полётного контроллера рекомендуется использовать [QGroundControl](https://docs.qgroundcontrol.com/Stable_V5.0/en/qgc-user-guide/getting_started/download_and_install.html) (важно установить Desktop-версию)
 
+Вы можете скачать прошивку для полётного контроллера и параметры на [Яндекс.Диск](https://disk.yandex.ru/d/TYp1XGe0WAdJdQ) в папке PX4/holybro_kakuteh7
+
 ### Для установки PX4:
 
 1\. Запустите QGroundControl
@@ -15,25 +17,21 @@
 
 ![firmware](assets/kakuteh_firmware/vehicle_conf.png)
 
-5\. В открывшемся окне выбираем вариант прошивки. Рекомендуется версия PX4 Pro Stable Release vX.X.X — самая стабильная версия, QGC сам подберёт правильный target под вашу плату
+5\. В открывшемся окне выбираем вариант прошивки. Нажимаем Advanced settings и в выпадающем списке Custom firmware file.
 
 ![px4](assets/kakuteh_firmware/px4.png)
 
-6\. Нажмите OK / Load → QGC скачает и начнёт прошивку.
+6\. Нажмите OK, выберите файл прошивки ([eurus_edu_kakuteh7.px4](https://disk.yandex.ru/d/jjcHS1yikT_eKg)), после этого начнётся загрузка прошивку в полётный контроллер.
 
 - Процесс занимает 1–3 минуты.
 
-- Внизу будет консоль — следите, чтобы не было ошибок типа «FMUv2 target on modern board» (если увидите — возможно, нужен апдейт бутлоадера)
+- Внизу будет консоль — следите, чтобы не было подобных ошибок: «FMUv2 target on modern board» (если увидите — возможно, нужно обновление bootloader)
 
-7\. После успешной прошивки:
-
-- Контроллер перезагрузится.
-
-- Далее идут калибровки (компас, акселерометр, радио, ESC и т.д.)
+7\. После успешной прошивки полётный контроллер перезагрузится.
 
 ![after_flashing.png](assets/kakuteh_firmware/after_flashing.png)
 
-8\. Загружаем параметры локально, перейдя во вкладку Parameters → Tools → load from file for review
+8\. Загружаем параметры локально ([eurus_edu_kakuteh7.params](https://disk.yandex.ru/d/itE5RJvaDDxU5Q)), перейдя во вкладку Parameters → Tools → load from file for review
 
 ![load_parametrs](assets/kakuteh_firmware/load_parametrs.png)
 
