@@ -33,7 +33,7 @@ class YoloDetectorNode(Node):
         
         config = configparser.ConfigParser()
         home_dir = os.getenv("HOME")
-        config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_target_detection/eurus.ini" 
+        config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_neuro_detection/eurus.ini" 
         
         self.conf_threshold = 0.5
         
