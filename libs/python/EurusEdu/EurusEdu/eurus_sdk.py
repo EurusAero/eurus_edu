@@ -285,7 +285,7 @@ class EurusControl:
             "yaw_rate": float(yaw_rate) if yaw_rate is not None else None
         })
 
-    def request_telemetry(self):
+    def get_telemetry(self):
         if not self.is_connected: return None
         
         self._telemetry_event.clear()
@@ -362,5 +362,19 @@ class EurusControl:
         payload = {"command": "aruco_map_navigation", "state": state, "fly_in_borders": fly_in_borders}
         
         self._send_raw(payload)
+    
+    def move_to_marker(self, marker_id: str, z: float, yaw: float = None, speed: float = 1.0):
+        if not self.is_connected:
+            self.logger("Нет соединения для отправки команды.")
+            return False
         
+        payload = {
+            "command": "move_to_marker",
+            "marker_id": str(marker_id),
+            "z": float(z),
+            "yaw": float(yaw) if yaw is not None else None,
+            "speed": float(speed)
+        }
+        
+        self._send_movement_command(payload)
         

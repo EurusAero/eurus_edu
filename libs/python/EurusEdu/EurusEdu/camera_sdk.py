@@ -167,7 +167,7 @@ class EurusCamera:
             else:
                 return False, None
 
-    def get_targets(self, blocking=False, timeout=2.0):
+    def get_detection(self, blocking=False, timeout=2.0):
         if not self.is_connected: return None
 
         now = time.time()

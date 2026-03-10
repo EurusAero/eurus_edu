@@ -88,7 +88,7 @@ class MavrosHandler(Node):
         
         self.map_height_min = float("inf")
         self.map_width_min = float("inf")
-        
+        self.aruco_map = {}
         if os.path.exists(ini_path):
             config = configparser.ConfigParser()
             config.read(ini_path)
@@ -98,6 +98,11 @@ class MavrosHandler(Node):
             with open(self.aruco_map_path, "r") as f:
                 markers_info = csv.DictReader(f, delimiter=";")
                 for row in markers_info:
+                    self.aruco_map[row["id"]] = {
+                        "x": float(row["x"]),
+                        "y": float(row["y"]),
+                        "z": float(row["z"])
+                    }
                     self.map_width_max = max(self.map_width_max, float(row["x"]))
                     self.map_height_max = max(self.map_height_max, float(row["y"]))
                     
@@ -290,7 +295,6 @@ class MavrosHandler(Node):
         map_visible = self.aruco_nav_status.get("map_in_vision", False)
         last_seen_ts = self.aruco_nav_status.get("timestamp", 0)
     
-        # if aruco_active and not map_visible and (time.time() - last_seen_ts) > 0.5:
         if aruco_active:
             if not map_visible and (time.time() - last_seen_ts) > 0.5:
                 self.setpoint_raw.velocity.x = 0
@@ -551,6 +555,31 @@ class MavrosHandler(Node):
             return True, f"Moving to x={self.target_pose.pose.position.x}, y={self.target_pose.pose.position.y}, z={self.target_pose.pose.position.z}"
         except ValueError as e:
             return False, f"Invalid coordinates: {e}"
+    
+    def do_move_to_marker(self, data):
+        try:
+            setpoint_data = {}
+            setpoint_data["speed"] = data.get("speed", 1.0)
+            target_marker = data.get("marker", "")
+            marker_info = self.aruco_map.get(target_marker)
+
+            if self.aruco_nav_status.get("aruco_nav_status"):
+                if self.aruco_nav_status.get("map_in_vision"):
+                    if marker_info:
+                        setpoint_data["x"] = marker_info["x"]
+                        setpoint_data["y"] = marker_info["y"]
+                        setpoint_data["z"] = marker_info["z"]
+                    else:
+                        return False, f"Marker {target_marker} not found in map"
+                    
+                    return self.do_move_to_local_point(setpoint_data)
+                else:
+                    return False, "No aruco in vision"
+            else:
+                return False, "Aruco navigation not active"
+        
+        except Exception as e:
+            return False, f"Error: {e}"
 
 def main():
     rclpy.init()

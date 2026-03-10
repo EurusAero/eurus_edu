@@ -47,7 +47,13 @@ class YoloDetectorNode(Node):
         self.get_logger().info(f"Загрузка модели YOLO из {model_path}...")
         try:
             self.model = YOLO(model_path)
-            self.get_logger().info("Модель успешно загружена.")
+            self.class_keys = {
+                name: name.replace(" ", "_")
+                for name in self.model.names.values()
+            }
+            self.get_logger().info(
+                f"Модель успешно загружена. Классы: {list(self.class_keys.keys())}"
+            )
         except Exception as e:
             self.get_logger().error(f"Ошибка загрузки модели: {e}")
 
@@ -64,23 +70,20 @@ class YoloDetectorNode(Node):
 
             results = self.model(frame, verbose=False, conf=self.conf_threshold)
 
-            response = {
-                "command": "targets_response",
-                "red_targets": [],
-                "blue_targets": [],
-                "targets": [],
-                "all_targets": []
-            }
+            # Динамически создаём список под каждый класс модели
+            response = {"command": "targets_response", "all_objects": []}
+            for key in self.class_keys.values():
+                response[key] = []
 
             result = results[0]
-                        
+
             for box in result.boxes:
-                xywh = box.xywh.cpu().numpy()[0] 
+                xywh = box.xywh.cpu().numpy()[0]
                 x, y, w, h = xywh
-                
+
                 conf = float(box.conf.cpu().numpy()[0])
                 cls_id = int(box.cls.cpu().numpy()[0])
-                
+
                 class_name = self.model.names[cls_id]
 
                 target_data = {
@@ -92,14 +95,11 @@ class YoloDetectorNode(Node):
                     "class": class_name
                 }
 
-                response["all_targets"].append(target_data)
+                response["all_objects"].append(target_data)
 
-                if class_name == "red target":
-                    response["red_targets"].append(target_data)
-                elif class_name == "blue target":
-                    response["blue_targets"].append(target_data)
-                elif class_name == "target":
-                    response["targets"].append(target_data)
+                key = self.class_keys.get(class_name)
+                if key is not None:
+                    response[key].append(target_data)
                 
             json_str = json.dumps(response)
             

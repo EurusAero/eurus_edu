@@ -89,6 +89,14 @@ ARUCO_MAP_NAV_MSG = {
     "fly_in_borders": bool
 }
 
+MOVE_TO_MARKER = {
+    "command": str,
+    "marker_id": str,
+    "z": (float, int),
+    "yaw": (float, int, type(None)),
+    "speed": (float, int)
+}
+
 MESSAGES = {
     "move_to_local_point": MOVE_TO_LOCAL_POINT,
     "move_in_body_frame": MOVE_IN_BODY_FRAME,
@@ -108,7 +116,8 @@ MESSAGES = {
     "set_velocity": SET_VELOCITY_MSG,
     "led_control": LED_CONTROL_MSG,
     "laser_shot": LASERTAG_SHOT_MSG,
-    "aruco_map_navigation": ARUCO_MAP_NAV_MSG
+    "aruco_map_navigation": ARUCO_MAP_NAV_MSG,
+    "move_to_marker": MOVE_TO_MARKER
     }
 
 PENDING_STATUS = "pending"
@@ -118,7 +127,7 @@ COMPLETED_STATUS = "success"
 
 STATUS_LIST = [PENDING_STATUS, RUNNING_STATUS, DENIED_STATUS, COMPLETED_STATUS]
 
-DRONE_COMMANDS = ["move_to_local_point", "takeoff", "land", "arm", "disarm", "set_mode", "move_in_body_frame", "set_velocity"]
+DRONE_COMMANDS = ["move_to_local_point", "takeoff", "land", "arm", "disarm", "set_mode", "move_in_body_frame", "set_velocity", "move_to_marker"]
 
 START_MARKER = '<msg>'
 END_MARKER = '</msg>'
