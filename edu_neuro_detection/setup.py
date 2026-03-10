@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'edu_target_detection'
+package_name = 'edu_neuro_detection'
 
 setup(
     name=package_name,
