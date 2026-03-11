@@ -128,6 +128,14 @@ class GpioController:
                 f.write(val_str)
         except OSError as e:
             raise Exception(f"Error writing to pin {self.pin}: {e}")
+    
+    def read(self):
+        value_path = os.path.join(self.pin_path, "value")
+        try:
+            with open(value_path, 'r') as f:
+                return f.readline()
+        except OSError as e:
+            raise Exception(f"Error writing to pin {self.pin}: {e}")
 
     def cleanup(self):
         """Освобождает пин (unexport)"""
