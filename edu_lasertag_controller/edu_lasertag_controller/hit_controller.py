@@ -69,7 +69,7 @@ class HitControllerNode(Node):
         
     def gamestart_callback(self, msg):
         try:
-            data = json.loads(msg)
+            data = json.loads(msg.data)
             
             color = data.get("command_color")
             if type(color) is str:
