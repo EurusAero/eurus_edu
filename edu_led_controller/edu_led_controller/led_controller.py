@@ -200,6 +200,7 @@ class LedNode(Node):
             effect = data.get("effect", "static")
             brightness = data.get("brightness", 1.0)
             color = data.get("color", [0, 0, 0])
+            effect_speed = data.get("speed", None)
             
             # Установка яркости
             self.led.set_brightness(brightness)
@@ -213,13 +214,20 @@ class LedNode(Node):
                 self.led.set_static(color)
                 
             elif effect == "blink":
-                self.led.set_blink(color, delay=0.5)
+                if effect_speed is None:
+                    effect_speed = 0.5
+                    
+                self.led.set_blink(color, delay=effect_speed)
                 
             elif effect == "rainbow":
-                self.led.set_rainbow(speed=0.02)
+                if effect_speed is None:
+                    effect_speed = 0.02
+                self.led.set_rainbow(speed=effect_speed)
                 
             elif effect == "komet":
-                self.led.set_komet(color, speed=0.05)
+                if effect_speed is None:
+                    effect_speed = 0.05
+                self.led.set_komet(color, speed=effect_speed)
                 
             elif effect == "clear":
                 self.led.clear()

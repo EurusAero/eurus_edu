@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            "laser_gun_controller = edu_lasertag_controller.laser_gun_controller:main"
+            "laser_gun_controller = edu_lasertag_controller.laser_gun_controller:main",
+            "hit_controller = edu_lasertag_controller.hit_controller:main"
         ],
     },
 )

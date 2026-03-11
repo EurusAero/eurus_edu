@@ -72,7 +72,8 @@ LED_CONTROL_MSG = {
     "nLED": int,
     "effect": str,
     "brightness": (int, float),
-    "color": list
+    "color": list,
+    "speed": (int, float, type(None))
 }
 
 GET_FRAME_MSG = COMMAND_MSG_SAMPLE

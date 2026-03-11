@@ -5,24 +5,42 @@ from std_msgs.msg import String
 import json
 import time
 import threading
+import configparser
+import os
 
 from EurusEdu.const import *
 from EurusEdu.utils import GpioController
 
-LASER_PIN = 92
 
 class LasertagNode(Node):
     def __init__(self):
         super().__init__('lasertag_node')
         
-        self.laser_gpio = GpioController(LASER_PIN)
+        home_dir = os.getenv("HOME")
+        ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_lasertag_controller/eurus.ini"
+        
+        laser_pin = 138
+        shots_amount = 5
+        if os.path.exists(ini_path):
+            config = configparser.ConfigParser()
+            config.read(ini_path)
+            
+            try:
+                laser_pin = int(config.get("laser_gun", "shot_pin"))
+                shots_amount = int(config.get("laser_gun", "shots_per_command"))
+            except Exception as e:
+                self.get_logger().error(f"Error reading config: {e}. Using defaults.")
+        
+        self.shooting_sleep = shots_amount * 0.1
+        
+        self.laser_gpio = GpioController(laser_pin)
         
         try:
             self.laser_gpio.export()     
             self.laser_gpio.set_mode("out")
             self.laser_gpio.write(0)
             
-            self.get_logger().info(f"GPIO initialized via Sysfs. Laser GPIO: {LASER_PIN}")
+            self.get_logger().info(f"GPIO initialized via Sysfs. Laser GPIO: {laser_pin}")
         except Exception as e:
             if "Permission denied" in str(e):
                 raise Exception("Permission denied for GPIO access..")
@@ -78,7 +96,7 @@ class LasertagNode(Node):
         try:
             self.laser_gpio.write(1)
             
-            time.sleep(0.5)
+            time.sleep(self.shooting_sleep)
             
             self.laser_gpio.write(0)
 

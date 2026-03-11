@@ -311,7 +311,7 @@ class EurusControl:
         else:
             return None
 
-    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 15, brightness: float = 1.0):
+    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 15, brightness: float = 1.0, speed: float | None = None):
         """
         Управление LED лентой без ожидания ответа (Fire-and-forget).
         """
@@ -324,7 +324,8 @@ class EurusControl:
             "effect": str(effect),
             "nLED": int(nLED),
             "brightness": float(brightness),
-            "color": [int(r), int(g), int(b)]
+            "color": [int(r), int(g), int(b)],
+            "speed": speed
         }
         
         self._send_raw(payload)
