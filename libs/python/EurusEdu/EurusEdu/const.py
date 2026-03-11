@@ -76,6 +76,12 @@ LED_CONTROL_MSG = {
     "speed": (int, float, type(None))
 }
 
+START_GAME_MSG = {
+    "command": str,
+    "game_started": bool,
+    "command_color": (str, list)
+}
+
 GET_FRAME_MSG = COMMAND_MSG_SAMPLE
 
 GET_STREAM_MSG = COMMAND_MSG_SAMPLE
@@ -118,7 +124,8 @@ MESSAGES = {
     "led_control": LED_CONTROL_MSG,
     "laser_shot": LASERTAG_SHOT_MSG,
     "aruco_map_navigation": ARUCO_MAP_NAV_MSG,
-    "move_to_marker": MOVE_TO_MARKER
+    "move_to_marker": MOVE_TO_MARKER,
+    "start_game": START_GAME_MSG
     }
 
 PENDING_STATUS = "pending"

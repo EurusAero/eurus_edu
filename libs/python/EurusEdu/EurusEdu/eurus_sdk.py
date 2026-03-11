@@ -311,7 +311,7 @@ class EurusControl:
         else:
             return None
 
-    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 15, brightness: float = 1.0, speed: float | None = None):
+    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 30, brightness: float = 1.0, speed: float | None = None):
         """
         Управление LED лентой без ожидания ответа (Fire-and-forget).
         """
@@ -378,4 +378,16 @@ class EurusControl:
         }
         
         self._send_movement_command(payload)
+    
+    def start_game(self, start_game: bool = False, command_color: str | list = "red"):
+        if not self.is_connected:
+            self.logger.error("Нет соединения для отправки команды LED.")
+            return
+
+        payload = {
+            "command": "start_game",
+            "start_game": start_game,
+            "command_color": command_color
+            }
         
+        self._send_raw(payload)

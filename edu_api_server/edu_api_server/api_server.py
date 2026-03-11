@@ -60,6 +60,8 @@ class EduApiNode(Node):
         
         self.aruco_map_pub = self.create_publisher(String, "edu/aruco_map_nav", qos_profile)
         
+        self.startgame_pub = self.create_publisher(String, "edu/game_started", qos_profile)
+        
         # Публикация и подписка для Лазертага
         self.lasertag_pub = self.create_publisher(String, 'edu/lasertag', qos_profile)
         self.lasertag_sub = self.create_subscription(
@@ -183,6 +185,16 @@ class EduApiNode(Node):
                 logger.error(f"Ошибка публикации LED команды: {e}")
             return None
 
+        elif cmd_name == "start_game":
+            try:
+                msg = String()
+                msg.data = json.dumps(request_msg)
+                self.startgame_pub.publish(msg)
+                logger.info(f"Сообщение о статусе игры отправлено в топик")
+            except Exception as e:
+                logger.error(f"Ошибка публикации статуса игры: {e}")
+            return None
+        
         elif cmd_name == "laser_shot":
             try:
                 # Нода лазертага ждет команду "shoot"
