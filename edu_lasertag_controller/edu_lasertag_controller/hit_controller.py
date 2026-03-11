@@ -29,7 +29,7 @@ class HitControllerNode(Node):
         )
         
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
-        self.hitted_pub = self.create_publisher(Bool, 'edu/hit_status', qos_profile)
+        self.hitted_pub = self.create_publisher(Bool, 'edu/is_alive', qos_profile)
         
         self.command_color = [255, 0, 0]
         self.hitted_color = [255, 255, 255]
