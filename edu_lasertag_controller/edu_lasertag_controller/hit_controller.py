@@ -6,7 +6,7 @@ import threading
 import configparser
 import os
 
-from rclpy.node import Nodes
+from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from std_msgs.msg import String
