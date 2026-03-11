@@ -78,7 +78,7 @@ LED_CONTROL_MSG = {
 
 START_GAME_MSG = {
     "command": str,
-    "game_started": bool,
+    "start_game": bool,
     "command_color": (str, list)
 }
 
