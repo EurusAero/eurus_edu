@@ -89,6 +89,7 @@ class HitControllerNode(Node):
     def hit_controller(self):
         if self.game_started:
             hitted = self.hit_gpio.read()
+            game_started_prev = True
             
             if hitted:
                 msg = {
@@ -109,9 +110,19 @@ class HitControllerNode(Node):
                     "speed": self.hitted_blinking_speed
                     }
             
-                
             self.led_msg.data = json.dumps(msg)
             self.led_pub.publish(self.led_msg)
+        else:
+            if game_started_prev:
+                msg = {
+                    "command": "led_control",
+                    "nLED": 30,
+                    "effect": "base",
+                    "brightness": 1.0,
+                    "color": [255, 255, 255],
+                    "speed": None
+                }
+                game_started_prev = False
 
 
 def main(args=None):
