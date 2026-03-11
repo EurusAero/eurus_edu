@@ -81,7 +81,7 @@ class HitControllerNode(Node):
             elif type(color) is list:
                 self.command_color = color
             
-            self.game_started = data.get("game_start", False)
+            self.game_started = data.get("start_game", False)
 
         except Exception as e:
             self.get_logger().error(f"Error in callback: {e}")
