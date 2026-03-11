@@ -123,6 +123,8 @@ class HitControllerNode(Node):
                     "speed": None
                 }
                 game_started_prev = False
+                self.led_msg.data = json.dumps(msg)
+                self.led_pub.publish(self.led_msg)
 
 
 def main(args=None):
