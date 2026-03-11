@@ -9,7 +9,7 @@ import os
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 
 from EurusEdu.const import *
 from EurusEdu.utils import GpioController
@@ -29,6 +29,7 @@ class HitControllerNode(Node):
         )
         
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
+        self.hitted_pub = self.create_publisher(Bool, 'edu/hit_status', qos_profile)
         
         self.command_color = [255, 0, 0]
         self.hitted_color = [255, 255, 255]
@@ -93,6 +94,8 @@ class HitControllerNode(Node):
             self.game_started_prev = True
             
             if hitted:
+                self.hitted_pub.publish(Bool(data=True))
+                
                 msg = {
                     "command": "led_control",
                     "nLED": 30,
@@ -102,6 +105,8 @@ class HitControllerNode(Node):
                     "speed": None
                     }
             else:
+                self.hitted_pub.publish(Bool(data=False))
+
                 msg = {
                     "command": "led_control",
                     "nLED": 30,
