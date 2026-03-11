@@ -201,7 +201,7 @@ class LedNode(Node):
             brightness = data.get("brightness", 1.0)
             color = data.get("color", [0, 0, 0])
             effect_speed = data.get("speed", None)
-            nled = data.getint("nLED", 30)
+            nled = data.get("nLED", 30)
             self.led.nLED = nled
             
             # Установка яркости
