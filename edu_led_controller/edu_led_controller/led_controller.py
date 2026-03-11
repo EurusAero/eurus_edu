@@ -201,6 +201,8 @@ class LedNode(Node):
             brightness = data.get("brightness", 1.0)
             color = data.get("color", [0, 0, 0])
             effect_speed = data.get("speed", None)
+            nled = data.getint("nLED", 30)
+            self.led.nLED = nled
             
             # Установка яркости
             self.led.set_brightness(brightness)
@@ -242,8 +244,7 @@ class LedNode(Node):
 
 
 def main(args=None):
-    # Конфигурация ленты
-    N_LEDS = 40
+    N_LEDS = 30
     CHANNEL = 4
     PORT = 1
     SPEED = 3200000 

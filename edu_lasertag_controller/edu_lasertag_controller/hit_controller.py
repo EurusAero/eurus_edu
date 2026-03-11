@@ -34,6 +34,7 @@ class HitControllerNode(Node):
         self.hitted_color = [255, 255, 255]
         self.game_started = False
         self.led_msg = String()
+        self.hitted_blinking_speed = 0.3
         
         hit_pin = 139
         if os.path.exists(ini_path):
@@ -43,6 +44,8 @@ class HitControllerNode(Node):
             try:
                 hit_pin = int(config.get("hit_controller", "hit_pin"))
                 self.hitted_color = list(map(int, config.get("hit_controller", "hitted_color").split()))
+                self.led_brightness = float(config.get("hit_controller", "led_brightness"))
+                self.hitted_blinking_speed = float(config.get("hit_controller", "hitted_blinking_speed"))
             except Exception as e:
                 self.get_logger().error(f"Error reading config: {e}. Using defaults.")
             
@@ -87,26 +90,26 @@ class HitControllerNode(Node):
         if self.game_started:
             hitted = self.hit_gpio.read()
             
-            if hitted == "0":
-                msg = {
-                    "command": "led_control",
-                    "nLED": 30,
-                    "effect": "blink",
-                    "brightness": 0.7,
-                    "color": self.hitted_color,
-                    "speed": 0.3
-                    }
-            
-            elif hitted == "1":
+            if hitted:
                 msg = {
                     "command": "led_control",
                     "nLED": 30,
                     "effect": "static",
-                    "brightness": 0.7,
+                    "brightness": self.led_brightness,
                     "color": self.command_color,
                     "speed": None
                     }
-
+            else:
+                msg = {
+                    "command": "led_control",
+                    "nLED": 30,
+                    "effect": "blink",
+                    "brightness": self.led_brightness,
+                    "color": self.hitted_color,
+                    "speed": self.hitted_blinking_speed
+                    }
+            
+                
             self.led_msg.data = json.dumps(msg)
             self.led_pub.publish(self.led_msg)
 
