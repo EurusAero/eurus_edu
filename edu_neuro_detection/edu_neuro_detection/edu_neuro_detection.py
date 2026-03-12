@@ -22,19 +22,12 @@ class YoloDetectorNode(Node):
             depth=1
         )
 
-        self.sub = self.create_subscription(
-            CompressedImage,
-            '/edu/camera_frame',
-            self.image_callback,
-            qos_profile
-        )
-
         self.pub = self.create_publisher(String, '/edu/targets', 10)
         
         config = configparser.ConfigParser()
         home_dir = os.getenv("HOME")
         config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_neuro_detection/eurus.ini" 
-        
+        camera_topic = "/edu/forward_camera"
         self.conf_threshold = 0.5
         
         if os.path.exists(config_path):
@@ -43,8 +36,17 @@ class YoloDetectorNode(Node):
             if "neuro" in config:
                 model_path = config["neuro"].get("model_path")
                 self.conf_threshold = config["neuro"].getfloat("conf_threshold", 0.5)
+                camera_topic = config["neuro"].get("camera_topic", "/edu/forward_camera")
 
         self.get_logger().info(f"Загрузка модели YOLO из {model_path}...")
+        
+        self.sub = self.create_subscription(
+            CompressedImage,
+            camera_topic,
+            self.image_callback,
+            qos_profile
+        )
+        
         try:
             self.model = YOLO(model_path)
             self.class_keys = {

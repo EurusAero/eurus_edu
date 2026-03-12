@@ -1,1 +1,0 @@
-SUBSYSTEM=="video4linux", ATTRS{idVendor}=="0abd", ATTRS{idProduct}=="8050", ENV{ID_V4L_CAPABILITIES}==":capture:", SYMLINK+="front-camera"

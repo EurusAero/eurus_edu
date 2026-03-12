@@ -1,0 +1,1 @@
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="1e45", ATTRS{idProduct}=="8022", ENV{ID_V4L_CAPABILITIES}==":capture:", SYMLINK+="hbvcam-camera"

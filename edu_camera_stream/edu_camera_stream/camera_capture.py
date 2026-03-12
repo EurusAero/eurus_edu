@@ -2,94 +2,134 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 import cv2
-import numpy as np
 import os
 import configparser
 from sensor_msgs.msg import CompressedImage 
 import time
+import threading
 
-class MJPEGCameraPublisher(Node):
-    def __init__(self):
-        super().__init__('camera_capture')
+class CameraStreamThread(threading.Thread):
+    """Класс для обработки отдельной камеры в отдельном потоке."""
+    def __init__(self, node, camera_name, config_section):
+        super().__init__()
+        self.node = node
+        self.camera_name = camera_name
+        self.is_running = True
         
+        # Чтение параметров камеры из конфига
+        self.width = config_section.getint("width", 640)
+        self.height = config_section.getint("height", 480)
+        self.fps = config_section.getint("fps", 30)
+        
+        # Определение устройства (число для /dev/video0 или строка для /dev/imx...)
+        dev_str = config_section.get("device", "0")
+        self.device = int(dev_str) if dev_str.isdigit() else dev_str
+        
+        # Настройка QoS и паблишера
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
         
-        self.pub = self.create_publisher(CompressedImage, '/edu/camera_frame', qos_profile)
+        # Топик будет иметь вид: /edu/forward_camera
+        topic_name = f'/edu/{self.camera_name}'
+        self.pub = self.node.create_publisher(CompressedImage, topic_name, qos_profile)
+        
+        self.cap = None
+        self.node.get_logger().info(f"[{self.camera_name}] Инициализация потока для устройства {self.device}")
+
+    def setup_camera(self):
+        if self.cap is not None:
+            self.cap.release()
+            
+        self.cap = cv2.VideoCapture(self.device)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+        
+        if self.cap.isOpened():
+            self.node.get_logger().info(f"[{self.camera_name}] Камера успешно открыта")
+        else:
+            self.node.get_logger().warn(f"[{self.camera_name}] Не удалось открыть камеру")
+
+    def run(self):
+        """Основной цикл потока."""
+        self.setup_camera()
+        
+        while rclpy.ok() and self.is_running:
+            # Если камера отвалилась, пытаемся переподключиться
+            if self.cap is None or not self.cap.isOpened():
+                self.setup_camera()
+                time.sleep(0.5)
+                continue
+
+            ret, frame = self.cap.read()
+            if ret:
+                msg = CompressedImage()
+                msg.header.stamp = self.node.get_clock().now().to_msg()
+                msg.header.frame_id = f"{self.camera_name}_frame"
+                msg.format = "jpeg" 
+
+                success, encoded_img = cv2.imencode('.jpg', frame)
+                if success:
+                    msg.data = encoded_img.tobytes()
+                    self.pub.publish(msg)
+            else:
+                self.node.get_logger().warn(f"[{self.camera_name}] Потерян кадр. Переподключение...")
+                self.cap.release()
+                time.sleep(0.5)
+
+    def stop(self):
+        """Остановка потока и освобождение ресурсов."""
+        self.is_running = False
+        if self.cap is not None and self.cap.isOpened():
+            self.cap.release()
+
+
+class MultiCameraPublisher(Node):
+    def __init__(self):
+        super().__init__('camera_capture')
         
         config = configparser.ConfigParser()
         home_dir = os.getenv("HOME")
         config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini" 
         
-        self.camera_is_open = False
-        self.camera_lost_timestamp = 0
-        
-        self.cap = None
-        self.width = 640
-        self.height = 480
-        self.fps = 30
-        self.device = "/dev/video0"
+        self.camera_threads = []
         
         if os.path.exists(config_path):
-            self.get_logger().info(f"Loading config from {config_path}")
+            self.get_logger().info(f"Загрузка конфига из {config_path}")
             config.read(config_path)
-            if "camera" in config:
-                self.width = config["camera"].getint("width", self.width)
-                self.height = config["camera"].getint("height", self.height)
-                self.fps = config["camera"].getint("fps", self.fps)
-                dev_str = config["camera"].get("device", str(self.device))
-                self.device = int(dev_str) if dev_str.isdigit() else dev_str
-                self.get_logger().info(f"Config loaded")
-        
-        self.setup_camera()
-        
-        self.timer = self.create_timer(1.0 / self.fps, self.timer_callback)
-        
-    def setup_camera(self):
-        self.cap = cv2.VideoCapture(self.device)
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        self.cap.set(cv2.CAP_PROP_FPS, self.fps)        
-
-    def timer_callback(self):
-        ret, frame = self.cap.read()
-        if ret:
-            if not self.camera_is_open:
-                self.camera_is_open = True
             
-            msg = CompressedImage()
-            msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = "camera_frame"
-            msg.format = "jpeg" 
-
-            # success, encoded_img = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-            success, encoded_img = cv2.imencode('.jpg', frame)
-            if success:
-                msg.data = encoded_img.tobytes()
-                self.pub.publish(msg)
+            for section in config.sections():
+                if config.has_option(section, "enable") and config.getboolean(section, "enable"):
+                    if config.has_option(section, "device"):
+                        cam_thread = CameraStreamThread(self, section, config[section])
+                        self.camera_threads.append(cam_thread)
+                        cam_thread.start()
         else:
-            if self.camera_is_open:
-                self.camera_is_open = False
-                self.camera_lost_timestamp = time.time()
+            self.get_logger().error(f"Файл конфигурации не найден: {config_path}")
 
-            if (time.time() - self.camera_lost_timestamp) > 0.5:
-                self.setup_camera()
-                self.camera_lost_timestamp = time.time()
-            
-    def __del__(self):
-        if self.cap.isOpened():
-            self.cap.release()
+    def stop_all(self):
+        self.get_logger().info("Остановка всех потоков камер...")
+        for thread in self.camera_threads:
+            thread.stop()
+            thread.join()
+        self.get_logger().info("Все камеры остановлены.")
 
 def main():
     rclpy.init()
-    node = MJPEGCameraPublisher()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    node = MultiCameraPublisher()
+    
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info("Получен сигнал прерывания (Ctrl+C)")
+    finally:
+        node.stop_all()
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

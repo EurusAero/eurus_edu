@@ -16,27 +16,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 
-config = configparser.ConfigParser()
-home_dir = os.getenv("HOME")
-config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini"
-
-HOST = '0.0.0.0'
-PORT = 8001
 BUFFER_SIZE = 4096
 LOG_LEVEL = 'INFO'
 LOG_FILE = None
-FPS = 30
-
-if os.path.exists(config_path):
-    config.read(config_path)
-    if 'server' in config:
-        HOST = config['server'].get('host', HOST)
-        PORT = config['server'].getint('port', PORT)
-    if 'camera' in config:
-        FPS = config['camera'].getint('fps', FPS)
-    if 'logging' in config:
-        LOG_LEVEL = config['logging'].get('level', 'INFO').upper()
-
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -51,26 +33,23 @@ logger = logging.getLogger("EurusCamServer")
 
 class CameraBridgeNode(Node):
     """
-    ROS 2 Node: Слушает топик с камерой и топик с результатами нейросети.
+    ROS 2 Node: Слушает топики с камерами и топик с результатами нейросети.
     """
     def __init__(self):
         super().__init__('edu_camera_server')
         
-        qos_profile = QoSProfile(
+        self.qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
-
-        # Подписка на камеру
-        self.sub = self.create_subscription(
-            CompressedImage,
-            '/edu/camera_frame',
-            self.image_callback,
-            qos_profile
-        )
         
-        # Подписка на результаты YOLO
+        # Словарь для хранения последних кадров от каждой камеры
+        self.latest_frames_b64 = {}
+        # Словарь для хранения подписок
+        self.subs = {}
+        
+        # Подписка на результаты YOLO (одна общая, либо можете переделать под каждую камеру)
         self.target_sub = self.create_subscription(
             String,
             '/edu/targets',
@@ -78,25 +57,37 @@ class CameraBridgeNode(Node):
             10
         )
         
-        self.latest_frame_b64 = None
         self.latest_targets = None
-        
-        self.last_frame_time = 0
         self.lock = threading.Lock()
         
-        logger.info("CameraBridgeNode запущен, ожидание кадров и таргетов...")
+        logger.info("MultiCameraBridgeNode запущен, ожидание конфигурации...")
 
-    def image_callback(self, msg: CompressedImage):
-        """Получаем JPEG байты, конвертируем в Base64."""
+    def add_camera(self, camera_name):
+        """Динамическое добавление подписки на камеру."""
+        topic_name = f'/edu/{camera_name}/compressed'
+        
+        with self.lock:
+            self.latest_frames_b64[camera_name] = None
+            
+        # Используем замыкание (lambda), чтобы передать имя камеры в коллбек
+        cb = lambda msg, c_name=camera_name: self.image_callback(msg, c_name)
+        
+        self.subs[camera_name] = self.create_subscription(
+            CompressedImage,
+            topic_name,
+            cb,
+            self.qos_profile
+        )
+        logger.info(f"Подписка на топик создана: {topic_name}")
+
+    def image_callback(self, msg: CompressedImage, camera_name: str):
+        """Получаем JPEG байты, конвертируем в Base64 и сохраняем для конкретной камеры."""
         try:
             b64_data = base64.b64encode(msg.data).decode('utf-8')
-            
             with self.lock:
-                self.latest_frame_b64 = b64_data
-                self.last_frame_time = time.time()
-                
+                self.latest_frames_b64[camera_name] = b64_data
         except Exception as e:
-            logger.error(f"Ошибка обработки кадра: {e}")
+            logger.error(f"Ошибка обработки кадра для {camera_name}: {e}")
 
     def target_callback(self, msg: String):
         """Получаем JSON строку от YOLO ноды."""
@@ -107,9 +98,9 @@ class CameraBridgeNode(Node):
         except json.JSONDecodeError:
             logger.error(f"Получен битый JSON в /edu/targets: {msg.data}")
 
-    def get_frame(self):
+    def get_frame(self, camera_name):
         with self.lock:
-            return self.latest_frame_b64
+            return self.latest_frames_b64.get(camera_name)
             
     def get_targets(self):
         with self.lock:
@@ -118,12 +109,14 @@ class CameraBridgeNode(Node):
 
 class CameraSession:
     """
-    Сессия для отправки видео и данных обнаружения.
+    Сессия для отправки видео и данных конкретной камеры.
     """
-    def __init__(self, conn, addr, ros_node: CameraBridgeNode):
+    def __init__(self, conn, addr, ros_node: CameraBridgeNode, camera_name: str, fps: int):
         self.conn = conn
         self.addr = addr
         self.ros_node = ros_node
+        self.camera_name = camera_name
+        self.fps = fps
         self.sock_utils = SocketsUtils()
         
         self.is_streaming = False
@@ -132,7 +125,7 @@ class CameraSession:
         self.running = True
 
     def start(self):
-        logger.info(f"Видео-сессия начата для {self.addr}")
+        logger.info(f"[{self.camera_name}] Видео-сессия начата для {self.addr}")
         buffer = b""
         
         try:
@@ -149,22 +142,21 @@ class CameraSession:
                         self._process_command(msg_str)
                         
         except (ConnectionResetError, BrokenPipeError):
-            logger.info(f"Клиент {self.addr} отключился.")
+            logger.info(f"[{self.camera_name}] Клиент {self.addr} отключился.")
         except Exception as e:
-            logger.error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
+            logger.error(f"[{self.camera_name}] Ошибка сессии {self.addr}: {e}", exc_info=True)
         finally:
             self.stop_stream()
             self.conn.close()
-            logger.info(f"Видео-сессия завершена для {self.addr}")
+            logger.info(f"[{self.camera_name}] Видео-сессия завершена для {self.addr}")
 
     def send_json(self, data):
-        """Потокобезопасная отправка."""
         with self.socket_lock:
             try:
                 self.sock_utils.send_json(self.conn, data)
                 return True
             except Exception as e:
-                logger.error(f"Ошибка отправки данных: {e}")
+                logger.error(f"[{self.camera_name}] Ошибка отправки данных: {e}")
                 self.running = False
                 return False
 
@@ -175,14 +167,11 @@ class CameraSession:
             
             if command == "get_frame":
                 self._send_single_frame()
-                
             elif command == "get_stream":
                 if not self.is_streaming:
                     self.start_stream()
-            
             elif command == "stop_stream":
                 self.stop_stream()
-                
             elif command == "get_target":
                 self._send_targets()
 
@@ -190,113 +179,130 @@ class CameraSession:
             pass
 
     def _send_single_frame(self):
-        frame = self.ros_node.get_frame()
+        frame = self.ros_node.get_frame(self.camera_name)
         if frame:
-            response = {
-                "command": "frame_response",
-                "image": frame,
-                "timestamp": time.time()
-            }
+            response = {"command": "frame_response", "image": frame, "timestamp": time.time()}
             self.send_json(response)
         else:
             self.send_json({"command": "error", "message": "No frame available"})
 
     def _send_targets(self):
         targets = self.ros_node.get_targets()
-        
         if targets:
             self.send_json(targets)
         else:
-            # Если данных от нейросети еще нет, шлем пустой ответ
-            empty_response = {
-                "command": "targets_response",
-                "red_targets": [],
-                "blue_targets": [],
-                "all_targets": []
-            }
+            empty_response = {"command": "targets_response", "all_objects": []}
             self.send_json(empty_response)
 
     def start_stream(self):
         self.is_streaming = True
         self.stream_thread = threading.Thread(target=self._stream_loop, daemon=True)
         self.stream_thread.start()
-        logger.info("Поток видео запущен.")
+        logger.info(f"[{self.camera_name}] Поток видео запущен.")
 
     def stop_stream(self):
         self.is_streaming = False
         if self.stream_thread and self.stream_thread.is_alive():
             self.stream_thread.join(timeout=1.0)
-        logger.info("Поток видео остановлен.")
+        logger.info(f"[{self.camera_name}] Поток видео остановлен.")
 
     def _stream_loop(self):
-        """Цикл отправки кадров."""
-        last_loop_time = 0
-        interval = 1.0 / FPS
+        interval = 1.0 / self.fps
         
         while self.is_streaming and self.running:
             now = time.time()
-            
-            frame = self.ros_node.get_frame()
+            frame = self.ros_node.get_frame(self.camera_name)
             if frame:
-                response = {
-                    "command": "stream_frame",
-                    "image": frame,
-                    "timestamp": now
-                }
-                
+                response = {"command": "stream_frame", "image": frame, "timestamp": now}
                 if not self.send_json(response):
                     break
                 
-            last_loop_time = time.time()
-            
-            loop_interval = last_loop_time - now
+            loop_interval = time.time() - now
             time.sleep(max(0, (interval - loop_interval)))
 
 
-def start_server():
-    rclpy.init()
-    camera_node = CameraBridgeNode()
-    
-    ros_thread = threading.Thread(target=rclpy.spin, args=(camera_node,), daemon=True)
-    ros_thread.start()
+class SocketServerThread(threading.Thread):
+    """Отдельный поток для сокет-сервера конкретной камеры."""
+    def __init__(self, ros_node: CameraBridgeNode, camera_name: str, host: str, port: int, fps: int):
+        super().__init__(daemon=True)
+        self.ros_node = ros_node
+        self.camera_name = camera_name
+        self.host = host
+        self.port = port
+        self.fps = fps
+        self.server_socket = None
+        self.active_session_thread = None
 
-    logger.info(f"Запуск CAMERA сервера на {HOST}:{PORT}...")
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    def run(self):
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        
+        try:
+            self.server_socket.bind((self.host, self.port))
+            self.server_socket.listen()
+            logger.info(f"[{self.camera_name}] Сервер слушает {self.host}:{self.port}")
+            
+            while True:
+                conn, addr = self.server_socket.accept()
+                
+                # Single Client Check per camera
+                if self.active_session_thread is not None and self.active_session_thread.is_alive():
+                    logger.warning(f"[{self.camera_name}] Соединение {addr} отклонено (сервер занят).")
+                    conn.close()
+                    continue
+                
+                session = CameraSession(conn, addr, self.ros_node, self.camera_name, self.fps)
+                self.active_session_thread = threading.Thread(target=session.start, daemon=True)
+                self.active_session_thread.start()
+                
+        except Exception as e:
+            logger.error(f"[{self.camera_name}] Ошибка сервера: {e}")
+        finally:
+            if self.server_socket:
+                self.server_socket.close()
+
+def main():
+    rclpy.init()
+    node = CameraBridgeNode()
     
-    active_thread = None
+    config = configparser.ConfigParser()
+    home_dir = os.getenv("HOME")
+    config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_camera_stream/eurus.ini"
+    
+    server_threads = []
+    
+    if os.path.exists(config_path):
+        config.read(config_path)
+        
+        # Перебираем секции конфига для поиска *_server
+        for section in config.sections():
+            if section.endswith('_server'):
+                # Узнаем имя камеры (отбрасываем '_server' из названия секции)
+                camera_name = section.replace('_server', '')
+                
+                # Проверяем, что сама камера включена
+                if config.has_section(camera_name) and config.getboolean(camera_name, "enable", fallback=False):
+                    host = config[section].get('host', '0.0.0.0')
+                    port = config[section].getint('port')
+                    fps = config[camera_name].getint('fps', 30)
+                    
+                    # 1. Добавляем подписку в ROS-ноде
+                    node.add_camera(camera_name)
+                    
+                    # 2. Создаем и запускаем сокет-сервер для этой камеры
+                    srv_thread = SocketServerThread(node, camera_name, host, port, fps)
+                    server_threads.append(srv_thread)
+                    srv_thread.start()
+    else:
+        logger.error(f"Файл конфига не найден: {config_path}")
 
     try:
-        server.bind((HOST, PORT))
-        server.listen()
-        logger.info("Готов к передаче видео. Разрешен ОДИН клиент.")
-
-        while True:
-            conn, addr = server.accept()
-
-            # Single Client Check
-            if active_thread is not None and active_thread.is_alive():
-                logger.warning(f"Соединение {addr} отклонено (сервер занят).")
-                conn.close()
-                continue
-            
-            session = CameraSession(conn, addr, camera_node)
-            
-            active_thread = threading.Thread(target=session.start)
-            active_thread.daemon = True
-            active_thread.start()
-
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        logger.info("Остановка сервера...")
-    except Exception as e:
-        logger.critical(f"Ошибка: {e}", exc_info=True)
+        logger.info("Остановка серверов...")
     finally:
-        server.close()
-        try:
-            camera_node.destroy_node()
-            rclpy.shutdown()
-        except:
-            pass
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == "__main__":
-    start_server()
+    main()
