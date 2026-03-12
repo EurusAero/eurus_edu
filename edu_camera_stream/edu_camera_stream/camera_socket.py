@@ -272,22 +272,17 @@ def main():
     if os.path.exists(config_path):
         config.read(config_path)
         
-        # Перебираем секции конфига для поиска *_server
         for section in config.sections():
             if section.endswith('_server'):
-                # Узнаем имя камеры (отбрасываем '_server' из названия секции)
                 camera_name = section.replace('_server', '')
                 
-                # Проверяем, что сама камера включена
                 if config.has_section(camera_name) and config.getboolean(camera_name, "enable", fallback=False):
                     host = config[section].get('host', '0.0.0.0')
                     port = config[section].getint('port')
                     fps = config[camera_name].getint('fps', 30)
                     
-                    # 1. Добавляем подписку в ROS-ноде
                     node.add_camera(camera_name)
                     
-                    # 2. Создаем и запускаем сокет-сервер для этой камеры
                     srv_thread = SocketServerThread(node, camera_name, host, port, fps)
                     server_threads.append(srv_thread)
                     srv_thread.start()
