@@ -44,9 +44,7 @@ class CameraBridgeNode(Node):
             depth=1
         )
         
-        # Словарь для хранения последних кадров от каждой камеры
         self.latest_frames_b64 = {}
-        # Словарь для хранения подписок
         self.subs = {}
         
         # Подписка на результаты YOLO (одна общая, либо можете переделать под каждую камеру)
@@ -64,7 +62,7 @@ class CameraBridgeNode(Node):
 
     def add_camera(self, camera_name):
         """Динамическое добавление подписки на камеру."""
-        topic_name = f'/edu/{camera_name}/compressed'
+        topic_name = f'/edu/{camera_name}'
         
         with self.lock:
             self.latest_frames_b64[camera_name] = None

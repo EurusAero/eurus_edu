@@ -20,7 +20,7 @@ setup(
     entry_points={
         'console_scripts': [ 
             "camera_capture = edu_camera_stream.camera_capture:main",
-            "camera_socket = edu_camera_stream.camera_socket:start_server"
+            "camera_socket = edu_camera_stream.camera_socket:main"
         ],
     },
 )
