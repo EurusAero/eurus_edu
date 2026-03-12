@@ -2,26 +2,48 @@ import threading
 import time
 import subprocess
 import os
-from flask import Flask, Response, render_template_string, request, redirect, url_for
+import configparser
+from flask import Flask, Response, render_template_string, redirect, url_for
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
 
-# ================= CONFIG =================
+# ================= LOAD CONFIG =================
+config = configparser.ConfigParser()
+home_dir = os.getenv("HOME")
+config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_web_server/eurus.ini" 
+config.read(config_path)
 
-SERVICES = [
-    "edu_mavros.service",
-    "edu_api_server.service"
-]
+# Глобальные переменные, которые заполнятся из конфига
+HOST = '0.0.0.0'
+PORT = 5000
+SERVICES = []
+VIDEO_TOPICS = {}
+APPLICATIONS = {}
 
-VIDEO_TOPICS = {
-    "aruco": "/edu/aruco_debug"
-}
+if config.has_section('web_server'):
+    HOST = config['web_server'].get('host', HOST)
+    PORT = config['web_server'].getint('port', PORT)
 
-APPLICATIONS = {
-    "example_app": "/home/user/example_app.py"
-}
+if config.has_section('video_topics'):
+    for key, value in config.items('video_topics'):
+        VIDEO_TOPICS[key] = value
+
+if config.has_section('applications'):
+    for key, value in config.items('applications'):
+        APPLICATIONS[key] = value
+
+if config.has_section('systemd'):
+    services_path = config['systemd'].get('services_path', '/etc/systemd/system/')
+    if os.path.exists(services_path):
+        # Сканируем директорию на наличие файлов .service
+        for file in os.listdir(services_path):
+            if file.endswith('.service'):
+                SERVICES.append(file)
+        SERVICES.sort() # Сортируем по алфавиту для красоты
+    else:
+        print(f"[WARN] Путь к systemd сервисам не найден: {services_path}")
 
 # ==========================================
 
@@ -50,7 +72,7 @@ class MultiVideoSubscriber(Node):
                 lambda msg, topic_name=name: self.listener_callback(msg, topic_name),
                 qos_profile
             )
-            self.get_logger().info(f'Подписка на топик "{topic}" создана.')
+            self.get_logger().info(f'Подписка на топик "{topic}" (имя: {name}) создана.')
 
     def listener_callback(self, msg, topic_name):
         with frame_lock:
@@ -77,6 +99,7 @@ def generate_frames(topic_name):
 # ================= SYSTEMD FUNCTIONS =================
 
 def get_service_status(service):
+    # Примечание: для пользовательских сервисов можно добавить флаг --user
     result = subprocess.run(
         ["systemctl", "is-active", service],
         capture_output=True,
@@ -101,6 +124,7 @@ def get_service_log(service):
 # ================= APPLICATION CONTROL =================
 
 def run_application(path):
+    # Запускаем скрипт без блокировки основного потока
     subprocess.Popen(["python3", path])
 
 
@@ -125,10 +149,10 @@ def services():
     service_data = [(s, get_service_status(s)) for s in SERVICES]
 
     return render_template_string("""
-    <h2>Сервисы</h2>
+    <h2>Сервисы (Найдено: {{ count }})</h2>
     <a href="/">Назад</a>
-    <table border="1" cellpadding="10">
-        <tr>
+    <table border="1" cellpadding="10" style="margin-top: 10px; border-collapse: collapse;">
+        <tr style="background-color: #f2f2f2;">
             <th>Сервис</th>
             <th>Статус</th>
             <th>Действия</th>
@@ -136,16 +160,19 @@ def services():
         {% for service, status in services %}
         <tr>
             <td>{{service}}</td>
-            <td>{{status}}</td>
+            <td style="color: {% if status == 'active' %}green{% else %}red{% endif %}; font-weight: bold;">
+                {{status}}
+            </td>
             <td>
-                <a href="/service/{{service}}/start">Включить</a>
-                <a href="/service/{{service}}/stop">Выключить</a>
-                <a href="/service/{{service}}/log">Лог</a>
+                <a href="/service/{{service}}/start">[Включить]</a>
+                <a href="/service/{{service}}/stop">[Выключить]</a>
+                <a href="/service/{{service}}/restart">[Рестарт]</a>
+                <a href="/service/{{service}}/log">[Лог]</a>
             </td>
         </tr>
         {% endfor %}
     </table>
-    """, services=service_data)
+    """, services=service_data, count=len(service_data))
 
 
 @app.route('/service/<service>/<action>')
@@ -165,7 +192,7 @@ def service_log(service):
     return render_template_string("""
     <h2>Лог {{service}}</h2>
     <a href="/services">Назад</a>
-    <pre style="background:black;color:lime;padding:10px;">
+    <pre style="background:black;color:lime;padding:10px;overflow-x:auto;">
 {{log}}
     </pre>
     """, service=service, log=log)
@@ -191,11 +218,11 @@ def video_page(topic_name):
     if topic_name not in VIDEO_TOPICS:
         return "Топик не найден"
 
-    return f"""
-    <h2>Видео: {topic_name}</h2>
+    return render_template_string("""
+    <h2>Видео: {{ topic_name }}</h2>
     <a href="/videos">Назад</a><br><br>
-    <img src="/stream/{topic_name}" width="800">
-    """
+    <img src="/stream/{{ topic_name }}" width="800" style="border: 1px solid black;">
+    """, topic_name=topic_name)
 
 
 @app.route('/stream/<topic_name>')
@@ -211,21 +238,23 @@ def apps():
     return render_template_string("""
     <h2>Приложения</h2>
     <a href="/">Назад</a>
-    <table border="1" cellpadding="10">
-        <tr>
+    <table border="1" cellpadding="10" style="margin-top: 10px; border-collapse: collapse;">
+        <tr style="background-color: #f2f2f2;">
             <th>Название</th>
+            <th>Путь</th>
             <th>Действие</th>
         </tr>
-        {% for name in apps %}
+        {% for name, path in apps.items() %}
         <tr>
             <td>{{name}}</td>
+            <td><small>{{path}}</small></td>
             <td>
-                <a href="/app/run/{{name}}">Запустить</a>
+                <a href="/app/run/{{name}}">[Запустить]</a>
             </td>
         </tr>
         {% endfor %}
     </table>
-    """, apps=APPLICATIONS.keys())
+    """, apps=APPLICATIONS)
 
 
 @app.route('/app/run/<name>')
@@ -238,7 +267,8 @@ def run_app(name):
 # ================= MAIN =================
 
 def start_flask_app():
-    app.run(host='0.0.0.0', port=5000, threaded=True, debug=False, use_reloader=False)
+    print(f"Запуск Web-сервера на {HOST}:{PORT}")
+    app.run(host=HOST, port=PORT, threaded=True, debug=False, use_reloader=False)
 
 
 def main(args=None):
