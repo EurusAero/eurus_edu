@@ -45,7 +45,7 @@ class ArucoDetector(Node):
         camera_topic = "/edu/camera_frame"
         self.aruco_map_path = ""
         self.camera_config_path = ""
-        aruco_debug = False
+        self.aruco_debug = False
         
         self.map_origin = "BR"
         self.camera_yaw_offset_deg = 0
@@ -61,7 +61,7 @@ class ArucoDetector(Node):
             camera_topic = config["settings"].get("camera_topic", camera_topic)
             self.camera_config_path = config["settings"].get("camera_config_path", "")
             self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
-            aruco_debug = config["settings"].getboolean("aruco_debug", False)
+            self.aruco_debug = config["settings"].getboolean("aruco_debug", False)
 
         self.create_subscription(CompressedImage, camera_topic, self.camera_sub, camera_qos)
         self.create_subscription(String, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
@@ -104,7 +104,7 @@ class ArucoDetector(Node):
         else:
             self.get_logger().warn("Camera config path not set in eurus.ini!")
 
-        if aruco_debug:
+        if self.aruco_debug:
             self.debug_queue = queue.Queue(maxsize=2)
             self.debug_thread = threading.Thread(target=self.debug_worker, daemon=True)
             self.debug_thread.start()
@@ -213,7 +213,7 @@ class ArucoDetector(Node):
             
             rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
-        if self.aruco_debug_pub.get_subscription_count() > 0:
+        if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
             try:
                 self.debug_queue.put_nowait((image, corners, ids, rvec, tvec, timestamp))
             except queue.Full:
