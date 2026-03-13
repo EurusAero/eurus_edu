@@ -185,12 +185,12 @@ class ArucoDetector(Node):
             self.get_logger().error(f"Failed to load camera config: {e}")
 
     def camera_sub(self, msg):
-        # Обработка кадра начинается СРАЗУ по его прибытии (убираем ограничение таймера)
-        np_arr = np.frombuffer(msg.data, np.uint8)
-        timestamp = msg.header.stamp
-        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-        
-        self.process_frame(image, timestamp)
+        if self.navigation_state or self.aruco_debug:
+            np_arr = np.frombuffer(msg.data, np.uint8)
+            timestamp = msg.header.stamp
+            image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            
+            self.process_frame(image, timestamp)
 
     def map_navigation_sub(self, msg):
         json_msg = json.loads(msg.data)
@@ -204,15 +204,15 @@ class ArucoDetector(Node):
         self.payload["fly_in_borders"] = self.fly_in_borders
 
     def process_frame(self, image, timestamp):
-        if self.navigation_state or self.aruco_debug:
-            corners, ids = self.detect_aruco(image)
-            rvec, tvec = None, None
+    
+        corners, ids = self.detect_aruco(image)
+        rvec, tvec = None, None
 
-            if (self.board is not None and
-                self.camera_matrix is not None and
-                ids is not None):
-                
-                rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
+        if (self.board is not None and
+            self.camera_matrix is not None and
+            ids is not None):
+            
+            rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
         if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
             try:
