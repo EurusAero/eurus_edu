@@ -458,14 +458,15 @@ class MavrosHandler(Node):
             vx = data.get("vx", self.setpoint_raw.velocity.x)
             vy = data.get("vy", self.setpoint_raw.velocity.y)
             vz = data.get("vz", self.setpoint_raw.velocity.z)
-            yaw_rate = data.get("yaw_rate", None)
+            yaw_rate = radians(data.get("yaw_rate", None))
             self.target_raw.velocity.x = vx
             self.target_raw.velocity.y = vy
             self.target_raw.velocity.z = vz
             if yaw_rate is not None:
                 self.target_raw.yaw_rate = yaw_rate
             # self.calculate_next_target_velocity(vx, vy, vz, yaw_rate)
-            return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}"
+            self.current_control_method = "RAW_VELOCITY"
+            return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}rad"
         except ValueError as e:
             return False, f"Invalid values: {e}"
         

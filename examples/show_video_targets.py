@@ -7,7 +7,7 @@ def draw_targets(frame, targets_data):
     """
     Функция для отрисовки всех найденных целей на кадре.
     """
-    if not targets_data or "all_targets" not in targets_data:
+    if not targets_data or "all_objects" not in targets_data:
         return
 
     # Проверяем свежесть данных (опционально)
@@ -15,7 +15,7 @@ def draw_targets(frame, targets_data):
     if data_age > 0.5:
         return 
 
-    for target in targets_data["all_targets"]:
+    for target in targets_data["all_objects"]:
         try:
             # Получаем данные из JSON
             cx = target['x'] # Центр по X
@@ -71,8 +71,8 @@ def main():
             
             if ret:
                 # 2. Запрашиваем таргеты
-                targets = cam.get_targets(blocking=False)
-                
+                targets = cam.get_detection(blocking=False)
+                print(targets)
                 # 3. Рисуем прямоугольники на кадре
                 if targets:
                     draw_targets(frame, targets)
