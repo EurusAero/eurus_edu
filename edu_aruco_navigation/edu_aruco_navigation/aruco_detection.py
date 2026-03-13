@@ -204,14 +204,15 @@ class ArucoDetector(Node):
         self.payload["fly_in_borders"] = self.fly_in_borders
 
     def process_frame(self, image, timestamp):
-        corners, ids = self.detect_aruco(image)
-        rvec, tvec = None, None
+        if self.navigation_state or self.aruco_debug:
+            corners, ids = self.detect_aruco(image)
+            rvec, tvec = None, None
 
-        if (self.board is not None and
-            self.camera_matrix is not None and
-            ids is not None):
-            
-            rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
+            if (self.board is not None and
+                self.camera_matrix is not None and
+                ids is not None):
+                
+                rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
         if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
             try:
