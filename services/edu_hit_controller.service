@@ -1,0 +1,15 @@
+[Unit]
+ Description=Запускает игру и контролирует поражение дрона лазертагом
+ After=network-online.target multi-user.target
+ Wants=network-online.target
+
+[Service]
+ User=orangepi
+ WorkingDirectory=/home/orangepi/ros2_ws/
+ ExecStart=/home/orangepi/ros2_ws/src/eurus_edu/scripts/start_edu_hit_controller.sh
+ TimeoutStopSec=2
+ Restart=always
+ RestartSec=1
+
+[Install]
+ WantedBy=multi-user.target
