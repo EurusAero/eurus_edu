@@ -128,7 +128,7 @@ class MavrosHandler(Node):
         self.frame_alignment_counter = 0
         self.ALIGNMENT_DURATION = 20
 
-        self.timer = self.create_timer(0.033, self.cmd_loop)
+        self.timer = self.create_timer(0.02, self.cmd_loop)
 
         self.only_arm = True
         self.current_task_thread = None
@@ -169,10 +169,8 @@ class MavrosHandler(Node):
             self.local_pos_pub.publish(self.setpoint_pose)
 
         elif self.current_control_method == "RAW_VELOCITY":
-            self.setpoint_raw.header.stamp = self.get_clock().now().to_msg()
             self.setpoint_raw.header.frame_id = "map"
-            self.setpoint_raw.coordinate_frame = 8
-            self.setpoint_raw.type_mask = 1479
+            self.setpoint_raw.coordinate_frame = 1
             
             self.calculate_next_target_velocity()
             
@@ -293,29 +291,67 @@ class MavrosHandler(Node):
     def calculate_next_target_velocity(self):
         aruco_active = self.aruco_nav_status.get("aruco_nav_status", False)
         map_visible = self.aruco_nav_status.get("map_in_vision", False)
+        fly_in_borders = self.aruco_nav_status.get("fly_in_borders", False)
         last_seen_ts = self.aruco_nav_status.get("timestamp", 0)
+    
+        body_vx = self.target_raw.velocity.x
+        body_vy = self.target_raw.velocity.y
+        
+        q = self.local_pose.pose.orientation
+        _, _, yaw = quat2euler([q.w, q.x, q.y, q.z])
+        
+        local_vx = body_vx * cos(yaw) - body_vy * sin(yaw)
+        local_vy = body_vx * sin(yaw) + body_vy * cos(yaw)
     
         if aruco_active:
             if not map_visible and (time.time() - last_seen_ts) > 0.5:
-                self.setpoint_raw.velocity.x = 0
-                self.setpoint_raw.velocity.y = 0
-                self.setpoint_raw.velocity.z = 0
-                self.setpoint_raw.yaw_rate = 0
+                # Если потеряли карту - останавливаемся
+                local_vx = 0.0
+                local_vy = 0.0
+                self.target_raw.velocity.z = 0.0
+                self.target_raw.yaw_rate = 0.0
             
-                return self.setpoint_raw
-            local_x = self.local_pose.position.pose.x
-            local_y = self.local_pose.position.pose.y
-            
-            vx = 0 if local_x >= self.map_width_max or local_x <= self.map_width_min else self.target_raw.velocity.x
-            vy = 0 if local_y >= self.map_height_max or local_y <= self.map_height_min else self.target_raw.velocity.y
-            self.setpoint_raw.velocity.x = vx
-            self.setpoint_raw.velocity.y = vy
-        else:
-            self.setpoint_raw.velocity.x = self.target_raw.velocity.x
-            self.setpoint_raw.velocity.y = self.target_raw.velocity.y
-            self.setpoint_raw.velocity.z = self.target_raw.velocity.z
-            self.setpoint_raw.yaw_rate = self.target_raw.yaw_rate
+            elif fly_in_borders:
+                local_x = self.local_pose.pose.position.x
+                local_y = self.local_pose.pose.position.y
+                
+                Kp = 1.5          # Коэффициент возврата (чем больше, тем жестче стена)
+                max_corr = 1.0    # Максимальная скорость возврата (м/с), чтобы дрон не дергался слишком резко
+                
+                if local_x > self.map_width_max:
+                    if local_vx > 0: 
+                        local_vx = 0.0
+                    corr_vx = -Kp * (local_x - self.map_width_max)
+                    local_vx += max(-max_corr, corr_vx) 
+                    
+                elif local_x < self.map_width_min:
+                    if local_vx < 0: 
+                        local_vx = 0.0
+                    corr_vx = Kp * (self.map_width_min - local_x)
+                    local_vx += min(max_corr, corr_vx)
+
+                if local_y > self.map_height_max:
+                    if local_vy > 0: 
+                        local_vy = 0.0
+                    corr_vy = -Kp * (local_y - self.map_height_max)
+                    local_vy += max(-max_corr, corr_vy)
+                    
+                elif local_y < self.map_height_min:
+                    if local_vy < 0: 
+                        local_vy = 0.0
+                    corr_vy = Kp * (self.map_height_min - local_y)
+                    local_vy += min(max_corr, corr_vy)
         
+        self.setpoint_raw.header.stamp = self.get_clock().now().to_msg()
+        self.setpoint_raw.type_mask = self.target_raw.type_mask
+        self.setpoint_raw.position.x = self.target_raw.position.x
+        self.setpoint_raw.position.y = self.target_raw.position.y
+        self.setpoint_raw.position.z = self.target_raw.position.z
+        
+        self.setpoint_raw.velocity.x = local_vx
+        self.setpoint_raw.velocity.y = local_vy
+        self.setpoint_raw.velocity.z = self.target_raw.velocity.z
+        self.setpoint_raw.yaw_rate = self.target_raw.yaw_rate
         
         return self.setpoint_raw
     
@@ -436,7 +472,11 @@ class MavrosHandler(Node):
         self.target_pose.pose.position.x = self.local_pose.pose.position.x
         self.target_pose.pose.position.y = self.local_pose.pose.position.y
         self.target_pose.pose.position.z = altitude
-        
+        self.setpoint_pose.pose.orientation.x = self.home_position.pose.orientation.x
+        self.setpoint_pose.pose.orientation.y = self.home_position.pose.orientation.y
+        self.setpoint_pose.pose.orientation.z = self.home_position.pose.orientation.z
+        self.setpoint_pose.pose.orientation.w = self.home_position.pose.orientation.w
+
         self.start_position.header.stamp = self.get_clock().now().to_msg()
         
         self.current_control_method = "LOCAL_POSITION"
@@ -455,16 +495,43 @@ class MavrosHandler(Node):
 
     def do_set_velocity(self, data):
         try:
-            vx = data.get("vx", self.setpoint_raw.velocity.x)
-            vy = data.get("vy", self.setpoint_raw.velocity.y)
-            vz = data.get("vz", self.setpoint_raw.velocity.z)
-            yaw_rate = radians(data.get("yaw_rate", None))
-            self.target_raw.velocity.x = vx
-            self.target_raw.velocity.y = vy
-            self.target_raw.velocity.z = vz
+            vx = data.get("vx", self.target_raw.velocity.x)
+            vy = data.get("vy", self.target_raw.velocity.y)
+            vz = data.get("vz", self.target_raw.velocity.z)
+            yaw_rate = data.get("yaw_rate", None)
+            self.target_raw.type_mask = 1984
+            
+            
+            if vx or vy:
+                self.target_raw.type_mask += 1
+                self.target_raw.position.x = 0.0
+                self.target_raw.velocity.x = vx
+                
+                self.target_raw.type_mask += 2
+                self.target_raw.position.y = 0.0
+                self.target_raw.velocity.y = vy
+            else:
+                self.target_raw.type_mask += 8
+                self.target_raw.position.x = self.local_pose.pose.position.x
+                self.target_raw.velocity.x = 0.0
+                
+                self.target_raw.type_mask += 16
+                self.target_raw.position.y = self.local_pose.pose.position.y
+                self.target_raw.velocity.y = 0.0
+                
+            if vz:
+                self.target_raw.type_mask += 4
+                self.target_raw.position.z = 0.0
+                self.target_raw.velocity.z = vz
+            else:
+                self.target_raw.type_mask += 32
+                self.target_raw.position.z = self.local_pose.pose.position.z
+                self.target_raw.velocity.z = 0.0
+            
             if yaw_rate is not None:
-                self.target_raw.yaw_rate = yaw_rate
-            # self.calculate_next_target_velocity(vx, vy, vz, yaw_rate)
+                self.target_raw.yaw_rate = radians(yaw_rate)
+                self.target_raw.yaw = 0.0
+                
             self.current_control_method = "RAW_VELOCITY"
             return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}rad"
         except ValueError as e:
