@@ -53,9 +53,6 @@ EOF
             password: "euruswifi"
           mode: ap
           band: 5GHz
-          networkmanager:
-            passthrough:
-              wifi-security.proto: "rsn"
 EOF
 
     chmod 600 "$NETPLAN_FILE"
