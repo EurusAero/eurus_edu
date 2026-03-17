@@ -81,6 +81,7 @@ class MavrosHandler(Node):
         
         home_dir = os.getenv("HOME")
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
+        handler_ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_commander/eurus.ini"
         
         self.aruco_map_path = ""
         self.map_height_max = float("-inf")
@@ -108,7 +109,17 @@ class MavrosHandler(Node):
                     
                     self.map_width_min = min(self.map_width_min, float(row["x"]))
                     self.map_height_min = min(self.map_height_min, float(row["y"]))
-            
+        
+        self.Kp = 1.5
+        self.max_corr = 1.0
+        self.aruco_border_indent = 0.3
+        if os.path.exists(handler_ini_path):
+            config = configparser.ConfigParser()
+            config.read(handler_ini_path)
+            self.Kp = config.getfloat("velocity", "aruco_borders_kp")
+            self.max_corr = config.getfloat("velocity", "aruco_borders_correlation_speed")
+            self.aruco_border_indent = config.getfloat("velocity", "aruco_border_indent")
+        
         self.setpoint_pose = PoseStamped()
         self.start_position = PoseStamped()
         self.target_pose = PoseStamped()
@@ -125,6 +136,7 @@ class MavrosHandler(Node):
         
         self.prev_map_in_vision = False
         self.aruco_active_prev = False
+        self.hold_zero_velocity = False
         self.frame_alignment_counter = 0
         self.ALIGNMENT_DURATION = 20
 
@@ -304,43 +316,50 @@ class MavrosHandler(Node):
         local_vy = body_vx * sin(yaw) + body_vy * cos(yaw)
     
         if aruco_active:
-            if not map_visible and (time.time() - last_seen_ts) > 0.5:
-                # Если потеряли карту - останавливаемся
+            if not map_visible and (time.time() - last_seen_ts) > 0.5 and not self.hold_zero_velocity:
                 local_vx = 0.0
                 local_vy = 0.0
-                self.target_raw.velocity.z = 0.0
-                self.target_raw.yaw_rate = 0.0
-            
-            elif fly_in_borders:
+                self.set_zero_velocity()
+                self.hold_zero_velocity = True
+                                        
+            elif fly_in_borders and not self.hold_zero_velocity:
                 local_x = self.local_pose.pose.position.x
                 local_y = self.local_pose.pose.position.y
                 
-                Kp = 1.5          # Коэффициент возврата (чем больше, тем жестче стена)
-                max_corr = 1.0    # Максимальная скорость возврата (м/с), чтобы дрон не дергался слишком резко
+                if local_vx > 0 and local_x > self.map_width_max - self.aruco_border_indent: 
+                    local_vx = 0.0
                 
                 if local_x > self.map_width_max:
-                    if local_vx > 0: 
-                        local_vx = 0.0
-                    corr_vx = -Kp * (local_x - self.map_width_max)
-                    local_vx += max(-max_corr, corr_vx) 
+                    corr_vx = -self.Kp * (local_x - self.map_width_max)
+                    local_vx += max(-self.max_corr, corr_vx) 
+                    self.set_zero_velocity(pos_x=self.map_width_max)
                     
+                if local_vx < 0 and local_x < self.map_width_min + self.aruco_border_indent: 
+                    local_vx = 0.0    
+                
                 elif local_x < self.map_width_min:
-                    if local_vx < 0: 
-                        local_vx = 0.0
-                    corr_vx = Kp * (self.map_width_min - local_x)
-                    local_vx += min(max_corr, corr_vx)
+                    corr_vx = self.Kp * (self.map_width_min - local_x)
+                    local_vx += min(self.max_corr, corr_vx)
+                    self.set_zero_velocity(pos_x=self.map_width_min)
 
+                if local_vy > 0 and local_y > self.map_height_max - self.aruco_border_indent: 
+                    local_vy = 0.0
+                
                 if local_y > self.map_height_max:
-                    if local_vy > 0: 
-                        local_vy = 0.0
-                    corr_vy = -Kp * (local_y - self.map_height_max)
-                    local_vy += max(-max_corr, corr_vy)
+                    corr_vy = -self.Kp * (local_y - self.map_height_max)
+                    local_vy += max(-self.max_corr, corr_vy)
+                    self.set_zero_velocity(pos_y=self.map_height_max)
                     
+                if local_vy < 0 and local_y < self.map_height_min + self.aruco_border_indent: 
+                    local_vy = 0.0     
+                
                 elif local_y < self.map_height_min:
-                    if local_vy < 0: 
-                        local_vy = 0.0
-                    corr_vy = Kp * (self.map_height_min - local_y)
-                    local_vy += min(max_corr, corr_vy)
+                    corr_vy = self.Kp * (self.map_height_min - local_y)
+                    local_vy += min(self.max_corr, corr_vy)
+                    self.set_zero_velocity(pos_y=self.map_height_min)
+
+                if map_visible and self.hold_zero_velocity:
+                    self.hold_zero_velocity = False
         
         self.setpoint_raw.header.stamp = self.get_clock().now().to_msg()
         self.setpoint_raw.type_mask = self.target_raw.type_mask
@@ -354,6 +373,26 @@ class MavrosHandler(Node):
         self.setpoint_raw.yaw_rate = self.target_raw.yaw_rate
         
         return self.setpoint_raw
+    
+    def set_zero_velocity(self, pos_x=None, pos_y=None):
+        self.target_raw.type_mask = 2040
+        self.target_raw.velocity.x = 0.0
+        self.target_raw.velocity.y = 0.0
+        self.target_raw.yaw_rate = 0.0
+        
+        if pos_x is None:
+            self.target_raw.position.x = self.local_pose.pose.position.x
+        else:
+            self.target_raw.position.x = pos_x
+        
+        if pos_y is None:
+            self.target_raw.position.y = self.local_pose.pose.position.y
+        else:
+            self.target_raw.position.y = pos_y
+            
+        if self.target_raw.velocity.z != 0:
+            self.target_raw.velocity.z = 0.0
+            self.target_raw.position.z = self.local_pose.pose.position.z
     
     def command_callback(self, msg: Command):
         if msg.status != PENDING_STATUS:
@@ -407,6 +446,8 @@ class MavrosHandler(Node):
                 success, error_msg = self.do_move_in_body_frame(data)
             elif cmd_name == "set_velocity":
                 success, error_msg = self.do_set_velocity(data)
+            elif cmd_name == "move_to_marker":
+                success, error_msg = self.do_move_to_marker(data)
             else:
                 success = False
                 error_msg = f"Unknown command: {cmd_name}"
@@ -441,7 +482,8 @@ class MavrosHandler(Node):
             return True, "Mode sent"
         return False, f"Mode sent failed: {res.result}"
 
-    def do_arm(self):        
+    def do_arm(self):
+        self.current_control_method = "LOCAL_POSITION"
         self.do_set_mode("OFFBOARD")
         time.sleep(0.5)
         self.set_home_position()
@@ -461,7 +503,7 @@ class MavrosHandler(Node):
         return False, f"Disarming failed"
 
     def do_takeoff(self, data):
-        altitude = data.get("altitude", 2.0)
+        altitude = data.get("altitude", 1.0)
         self.setpoint_speed = data.get("speed", 1)
         
         self.get_logger().info(f"Takeoff to {altitude}m")
@@ -479,6 +521,7 @@ class MavrosHandler(Node):
 
         self.start_position.header.stamp = self.get_clock().now().to_msg()
         
+        self.frame_alignment_counter = 0
         self.current_control_method = "LOCAL_POSITION"
         
         self.do_set_mode("OFFBOARD")
@@ -532,6 +575,7 @@ class MavrosHandler(Node):
                 self.target_raw.yaw_rate = radians(yaw_rate)
                 self.target_raw.yaw = 0.0
                 
+            self.hold_zero_velocity = False
             self.current_control_method = "RAW_VELOCITY"
             return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}rad"
         except ValueError as e:
@@ -628,7 +672,7 @@ class MavrosHandler(Node):
         try:
             setpoint_data = {}
             setpoint_data["speed"] = data.get("speed", 1.0)
-            target_marker = data.get("marker", "")
+            target_marker = data.get("marker_id", "")
             marker_info = self.aruco_map.get(target_marker)
 
             if self.aruco_nav_status.get("aruco_nav_status"):
@@ -636,7 +680,7 @@ class MavrosHandler(Node):
                     if marker_info:
                         setpoint_data["x"] = marker_info["x"]
                         setpoint_data["y"] = marker_info["y"]
-                        setpoint_data["z"] = marker_info["z"]
+                        setpoint_data["z"] = data.get("z", 0.5)
                     else:
                         return False, f"Marker {target_marker} not found in map"
                     

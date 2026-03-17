@@ -355,7 +355,7 @@ class EurusControl:
             self.logger.error("Laser shot timeout (no confirmation from server).")
             return False
     
-    def aruco_map_navigation(self, state=False, fly_in_borders=False):
+    def aruco_map_navigation(self, state=False, fly_in_borders=True):
         if not self.is_connected:
             self.logger("Нет соединения для отправки команды.")
             return False
@@ -364,7 +364,7 @@ class EurusControl:
         
         self._send_raw(payload)
     
-    def move_to_marker(self, marker_id: str, z: float, yaw: float = None, speed: float = 1.0):
+    def move_to_marker(self, marker_id: str, z: float, speed: float = 1.0, yaw: float = None):
         if not self.is_connected:
             self.logger("Нет соединения для отправки команды.")
             return False
