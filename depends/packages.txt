@@ -1,1 +1,1 @@
-python3-pip git swig python3-dev ffmpeg libsm6 libxext6 cmake ros-humble-mavros
+python3-pip git swig python3-dev ffmpeg libsm6 libxext6 cmake ros-humble-mavros ros-humble-mavros-extras
