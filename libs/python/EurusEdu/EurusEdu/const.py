@@ -178,5 +178,6 @@ TELEMETRY_DATA = {
         "vz": 0.0,
     },
     
-    "point_reached": False
+    "point_reached": False,
+    "lasertag_hitted": False
 }

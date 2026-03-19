@@ -686,7 +686,7 @@ class MavrosHandler(Node):
                     
                     return self.do_move_to_local_point(setpoint_data)
                 else:
-                    return False, "No aruco in vision"
+                    return False, "No aruco map in vision"
             else:
                 return False, "Aruco navigation not active"
         

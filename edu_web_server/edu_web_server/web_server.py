@@ -8,14 +8,13 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
+from std_srvs.srv import Trigger
 
-# ================= LOAD CONFIG =================
 config = configparser.ConfigParser()
 home_dir = os.getenv("HOME")
 config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_web_server/eurus.ini" 
 config.read(config_path)
 
-# Глобальные переменные, которые заполнятся из конфига
 HOST = '0.0.0.0'
 PORT = 5000
 SERVICES = []
@@ -37,23 +36,18 @@ if config.has_section('applications'):
 if config.has_section('systemd'):
     services_path = config['systemd'].get('services_path', '/etc/systemd/system/')
     if os.path.exists(services_path):
-        # Сканируем директорию на наличие файлов .service
         for file in os.listdir(services_path):
             if file.endswith('.service'):
                 SERVICES.append(file)
-        SERVICES.sort() # Сортируем по алфавиту для красоты
+        SERVICES.sort()
     else:
         print(f"[WARN] Путь к systemd сервисам не найден: {services_path}")
-
-# ==========================================
 
 app = Flask(__name__)
 
 current_frames = {}
 frame_lock = threading.Lock()
 
-
-# ================= ROS VIDEO NODE =================
 
 class MultiVideoSubscriber(Node):
     def __init__(self):
@@ -96,10 +90,7 @@ def generate_frames(topic_name):
         time.sleep(max(frame_time - delta_time, 0))
 
 
-# ================= SYSTEMD FUNCTIONS =================
-
 def get_service_status(service):
-    # Примечание: для пользовательских сервисов можно добавить флаг --user
     result = subprocess.run(
         ["systemctl", "is-active", service],
         capture_output=True,
@@ -121,14 +112,9 @@ def get_service_log(service):
     return result.stdout
 
 
-# ================= APPLICATION CONTROL =================
-
 def run_application(path):
-    # Запускаем скрипт без блокировки основного потока
     subprocess.Popen(["python3", path])
 
-
-# ================= ROUTES =================
 
 @app.route('/')
 def index():
@@ -138,11 +124,52 @@ def index():
         <li><a href="/services">Сервисы</a></li>
         <li><a href="/videos">Видео топики</a></li>
         <li><a href="/apps">Приложения</a></li>
+        <li><a href="/map_snapshot">Снапшот ArUco карты</a></li> <!-- ДОБАВЛЕНА ССЫЛКА -->
     </ul>
     """)
 
 
-# ---------- SERVICES ----------
+@app.route('/map_snapshot')
+def map_snapshot():
+    try:
+        node_name = f'web_aruco_snapshot_client_{int(time.time() * 1000)}'
+        
+        temp_node = rclpy.create_node(node_name, enable_rosout=False)
+        client = temp_node.create_client(Trigger, '/edu/get_aruco_board_snapshot')
+
+        if not client.wait_for_service(timeout_sec=3.0):
+            temp_node.destroy_node()
+            return """
+            <h2>Ошибка</h2>
+            <p>Сервис /edu/get_aruco_board_snapshot недоступен. Убедитесь, что узел aruco_detection запущен.</p>
+            <a href="/">Назад</a>
+            """
+
+        req = Trigger.Request()
+        future = client.call_async(req)
+        
+        rclpy.spin_until_future_complete(temp_node, future)
+        response = future.result()
+        
+        temp_node.destroy_node()
+
+        if response is not None and response.success:
+            base64_img = response.message
+            
+            return render_template_string("""
+            <h2>Снапшот ArUco карты</h2>
+            <a href="/">Назад</a><br><br>
+            <div style="margin-top: 20px;">
+                <img src="data:image/jpeg;base64,{{ img_data }}" style="max-width: 90%; max-height: 80vh; border: 2px solid black; box-shadow: 5px 5px 15px rgba(0,0,0,0.3);">
+            </div>
+            """, img_data=base64_img)
+        else:
+            error_msg = response.message if response else "Неизвестная ошибка"
+            return f"<h2>Ошибка генерации карты</h2><p>{error_msg}</p><a href='/'>Назад</a>"
+
+    except Exception as e:
+        return f"<h2>Внутренняя ошибка сервера</h2><p>{str(e)}</p><a href='/'>Назад</a>"
+
 
 @app.route('/services')
 def services():
@@ -198,8 +225,6 @@ def service_log(service):
     """, service=service, log=log)
 
 
-# ---------- VIDEO ----------
-
 @app.route('/videos')
 def videos():
     return render_template_string("""
@@ -230,8 +255,6 @@ def stream(topic_name):
     return Response(generate_frames(topic_name),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
-# ---------- APPLICATIONS ----------
 
 @app.route('/apps')
 def apps():
@@ -264,7 +287,6 @@ def run_app(name):
     return redirect(url_for('apps'))
 
 
-# ================= MAIN =================
 
 def start_flask_app():
     print(f"Запуск Web-сервера на {HOST}:{PORT}")

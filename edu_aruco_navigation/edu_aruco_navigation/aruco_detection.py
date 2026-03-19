@@ -12,7 +12,9 @@ import csv
 import threading
 import queue
 from transforms3d.euler import euler2quat
+import base64
 
+from std_srvs.srv import Trigger
 from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
@@ -65,6 +67,8 @@ class ArucoDetector(Node):
 
         self.create_subscription(CompressedImage, camera_topic, self.camera_sub, camera_qos)
         self.create_subscription(String, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
+        
+        self.create_service(Trigger, "/edu/get_aruco_board_snapshot", self.aruco_board_snapshot_callback)
 
         self.aruco_nav_pub = self.create_publisher(String, "/edu/aruco_map_nav", reliable_qos)
         self.aruco_debug_pub = self.create_publisher(CompressedImage, "/edu/aruco_debug", camera_qos)
@@ -191,6 +195,92 @@ class ArucoDetector(Node):
             image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
             self.process_frame(image, timestamp)
+
+    def aruco_board_snapshot_callback(self, request, response):
+        if self.board is None or self.map_width_m <= 0:
+            self.get_logger().error("Board is not initialized or map size is 0.")
+            response.success = False
+            response.message = "Board not initialized"
+            return response
+
+        try:
+            pixels_per_meter = 1000 
+            margin_px = 50
+
+            min_x, min_y = float('inf'), float('inf')
+            max_x, max_y = float('-inf'), float('-inf')
+            markers_data = []
+
+            with open(self.aruco_map_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f, delimiter=';')
+                for row in reader:
+                    m_id = int(row['id'])
+                    m_len = float(row['length'])
+                    x = float(row['x'])
+                    y = float(row['y'])
+                    markers_data.append({'id': m_id, 'len': m_len, 'x': x, 'y': y})
+                    
+                    half_l = m_len / 2.0
+                    min_x = min(min_x, x - half_l)
+                    max_x = max(max_x, x + half_l)
+                    min_y = min(min_y, y - half_l)
+                    max_y = max(max_y, y + half_l)
+
+            map_width_m = max_x - min_x
+            map_height_m = max_y - min_y
+
+            width_px = int(map_width_m * pixels_per_meter) + margin_px * 2
+            height_px = int(map_height_m * pixels_per_meter) + margin_px * 2
+
+            if width_px > 10000 or height_px > 10000:
+                scale_factor = 10000.0 / max(width_px, height_px)
+                pixels_per_meter = int(pixels_per_meter * scale_factor)
+                width_px = int(map_width_m * pixels_per_meter) + margin_px * 2
+                height_px = int(map_height_m * pixels_per_meter) + margin_px * 2
+
+            self.get_logger().info(f"Ручная отрисовка карты. Разрешение: {width_px}x{height_px} px")
+
+            image = np.full((height_px, width_px, 1), 255, dtype=np.uint8)
+
+            for mk in markers_data:
+                m_id = mk['id']
+                m_len = mk['len']
+                x = mk['x']
+                y = mk['y']
+
+                size_px = int(m_len * pixels_per_meter)
+                if size_px < 10:
+                    self.get_logger().warn(f"Маркер {m_id} слишком мал для отрисовки ({size_px} px), пропускаем.")
+                    continue
+
+                marker_img = cv2.aruco.generateImageMarker(self.aruco_dict_obj, m_id, size_px, borderBits=1)
+
+                x_tl_px = int((x - m_len / 2.0 - min_x) * pixels_per_meter) + margin_px
+                y_tl_px = int((max_y - (y + m_len / 2.0)) * pixels_per_meter) + margin_px
+
+                y1, y2 = y_tl_px, y_tl_px + size_px
+                x1, x2 = x_tl_px, x_tl_px + size_px
+
+                if 0 <= y1 < height_px and 0 <= x1 < width_px:
+                    image[y1:y2, x1:x2, 0] = marker_img
+
+            success_enc, jpg_buffer = cv2.imencode(".jpg", image)
+            if not success_enc:
+                self.get_logger().error("Не удалось сжать изображение в JPEG.")
+                response.success = False
+                response.message = "Encode failed"
+                return response
+
+            response.success = True
+            response.message = base64.b64encode(jpg_buffer.tobytes()).decode('utf-8')
+            return response
+
+        except Exception as e:
+            self.get_logger().error(f"Критическая ошибка при генерации карты: {e}")
+            response.success = False
+            response.message = str(e)
+            return response
+        
 
     def map_navigation_sub(self, msg):
         json_msg = json.loads(msg.data)

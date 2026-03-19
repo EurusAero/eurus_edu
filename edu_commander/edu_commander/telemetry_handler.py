@@ -6,7 +6,7 @@ import json
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from sensor_msgs.msg import BatteryState
 from mavros_msgs.msg import State
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 
 from EurusEdu.const import *
 from transforms3d.euler import quat2euler
@@ -41,6 +41,7 @@ class TelemetryHandler(Node):
         self.create_subscription(PoseStamped, "/mavros/local_position/pose", self.local_position_updater, sensor_qos)
         self.create_subscription(TwistStamped, "/mavros/local_position/velocity_local", self.velocity_updater, sensor_qos)
         self.create_subscription(PoseStamped, "/mavros/setpoint_position/local", self.setpoint_position_updater, sensor_qos)
+        self.create_subscription(Bool, "/edu/is_alive", )
         
         self.battery_msg = BatteryState()
         self.local_position_msg = PoseStamped()
@@ -64,7 +65,10 @@ class TelemetryHandler(Node):
     
     def state_updater(self, msg):
         self.state_msg = msg
-        
+    
+    def is_alive_updater(self, msg):
+        self.is_alive = msg.data
+    
     def telemetry_publisher(self):
         self.telemetry_msg["state"]["connected"] = self.state_msg.connected
         self.telemetry_msg["state"]["armed"] = self.state_msg.armed
@@ -108,6 +112,7 @@ class TelemetryHandler(Node):
         point_reached = dist([pose.x, pose.y, pose.z], [setpoint_pose.x, setpoint_pose.y, setpoint_pose.z]) <= 0.2
         
         self.telemetry_msg["point_reached"] = point_reached
+        self.telemetry_msg["lasertag_hitted"] = self.is_alive
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)
         
