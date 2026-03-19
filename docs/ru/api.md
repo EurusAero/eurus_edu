@@ -6,13 +6,13 @@
 
 Библиотеку можно установить напрямую из GitHub
 
-` pip3 install git` + `<https://github.com/EurusAero/eurus_edu.git#subdirectory=libs/python/EurusEdu>`
+`pip3 install git+https://github.com/EurusAero/eurus_edu.git#subdirectory=libs/python/EurusEdu`
 
 2\. Установка через клонирование репозитория
 
 - Склонируйте репозиторий
 
-    `git clone` + `https://github.com/EurusAero/eurus_edu.git`
+    `git clone https://github.com/EurusAero/eurus_edu.git`
 
 - Установите библиотеку из локальной директории
 
