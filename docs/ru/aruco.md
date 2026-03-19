@@ -98,7 +98,7 @@ drone.move_to_marker(marker_id, z, speed=None, yaw=None)
 
 **Параметры:**
 
-- `marker_id` - ID маркера (тип: str)
+- `marker_id` - ID маркера (тип: str или int)
 
 - `z` - высота над маркером (в метрах)
 
@@ -109,7 +109,7 @@ drone.move_to_marker(marker_id, z, speed=None, yaw=None)
 **Примеры использования:**
 
 ```python
-drone.move_to_marker("100", 1)
+drone.move_to_marker(100, 1)
 ```
 
 ```python
