@@ -364,7 +364,7 @@ class EurusControl:
         
         self._send_raw(payload)
     
-    def move_to_marker(self, marker_id: str, z: float, speed: float = 1.0, yaw: float = None):
+    def move_to_marker(self, marker_id: str | int, z: float, speed: float = 1.0, yaw: float = None):
         if not self.is_connected:
             self.logger("Нет соединения для отправки команды.")
             return False
