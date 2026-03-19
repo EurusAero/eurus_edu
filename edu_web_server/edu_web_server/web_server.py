@@ -10,16 +10,19 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
 from std_srvs.srv import Trigger
 
+# ================= LOAD CONFIG =================
 config = configparser.ConfigParser()
 home_dir = os.getenv("HOME")
 config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_web_server/eurus.ini" 
 config.read(config_path)
 
+# Глобальные переменные
 HOST = '0.0.0.0'
 PORT = 5000
 SERVICES = []
 VIDEO_TOPICS = {}
 APPLICATIONS = {}
+ros_node = None  # Глобальная переменная для нашей ROS-ноды
 
 if config.has_section('web_server'):
     HOST = config['web_server'].get('host', HOST)
@@ -43,15 +46,19 @@ if config.has_section('systemd'):
     else:
         print(f"[WARN] Путь к systemd сервисам не найден: {services_path}")
 
+# ==========================================
+
 app = Flask(__name__)
 
 current_frames = {}
 frame_lock = threading.Lock()
 
 
-class MultiVideoSubscriber(Node):
+# ================= ROS NODE =================
+
+class WebServerNode(Node):
     def __init__(self):
-        super().__init__('web_video_server_multi')
+        super().__init__('web_server_node')
 
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -59,6 +66,7 @@ class MultiVideoSubscriber(Node):
             depth=10
         )
 
+        # Подписки на видео
         for name, topic in VIDEO_TOPICS.items():
             self.create_subscription(
                 CompressedImage,
@@ -67,6 +75,9 @@ class MultiVideoSubscriber(Node):
                 qos_profile
             )
             self.get_logger().info(f'Подписка на топик "{topic}" (имя: {name}) создана.')
+
+        # Клиент для генерации карты
+        self.snapshot_client = self.create_client(Trigger, '/edu/get_aruco_board_snapshot')
 
     def listener_callback(self, msg, topic_name):
         with frame_lock:
@@ -90,6 +101,8 @@ def generate_frames(topic_name):
         time.sleep(max(frame_time - delta_time, 0))
 
 
+# ================= SYSTEMD FUNCTIONS =================
+
 def get_service_status(service):
     result = subprocess.run(
         ["systemctl", "is-active", service],
@@ -112,9 +125,13 @@ def get_service_log(service):
     return result.stdout
 
 
+# ================= APPLICATION CONTROL =================
+
 def run_application(path):
     subprocess.Popen(["python3", path])
 
+
+# ================= ROUTES =================
 
 @app.route('/')
 def index():
@@ -124,21 +141,19 @@ def index():
         <li><a href="/services">Сервисы</a></li>
         <li><a href="/videos">Видео топики</a></li>
         <li><a href="/apps">Приложения</a></li>
-        <li><a href="/map_snapshot">Снапшот ArUco карты</a></li> <!-- ДОБАВЛЕНА ССЫЛКА -->
+        <li><a href="/map_snapshot">Снапшот ArUco карты</a></li>
     </ul>
     """)
 
 
+# ---------- ARUCO MAP SNAPSHOT ----------
+
 @app.route('/map_snapshot')
 def map_snapshot():
+    global ros_node
     try:
-        node_name = f'web_aruco_snapshot_client_{int(time.time() * 1000)}'
-        
-        temp_node = rclpy.create_node(node_name, enable_rosout=False)
-        client = temp_node.create_client(Trigger, '/edu/get_aruco_board_snapshot')
-
-        if not client.wait_for_service(timeout_sec=3.0):
-            temp_node.destroy_node()
+        # Ждем сервис (максимум 3 секунды)
+        if not ros_node.snapshot_client.wait_for_service(timeout_sec=3.0):
             return """
             <h2>Ошибка</h2>
             <p>Сервис /edu/get_aruco_board_snapshot недоступен. Убедитесь, что узел aruco_detection запущен.</p>
@@ -146,14 +161,13 @@ def map_snapshot():
             """
 
         req = Trigger.Request()
-        future = client.call_async(req)
         
-        rclpy.spin_until_future_complete(temp_node, future)
-        response = future.result()
-        
-        temp_node.destroy_node()
+        # Так как этот код выполняется в отдельном потоке (потоке Flask), 
+        # вызов call() (синхронный вызов) абсолютно безопасен и не вызовет блокировку ROS.
+        response = ros_node.snapshot_client.call(req)
 
         if response is not None and response.success:
+            # Получаем строку Base64 из ответа
             base64_img = response.message
             
             return render_template_string("""
@@ -170,6 +184,8 @@ def map_snapshot():
     except Exception as e:
         return f"<h2>Внутренняя ошибка сервера</h2><p>{str(e)}</p><a href='/'>Назад</a>"
 
+
+# ---------- SERVICES ----------
 
 @app.route('/services')
 def services():
@@ -225,6 +241,8 @@ def service_log(service):
     """, service=service, log=log)
 
 
+# ---------- VIDEO ----------
+
 @app.route('/videos')
 def videos():
     return render_template_string("""
@@ -255,6 +273,8 @@ def stream(topic_name):
     return Response(generate_frames(topic_name),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
+# ---------- APPLICATIONS ----------
 
 @app.route('/apps')
 def apps():
@@ -287,6 +307,7 @@ def run_app(name):
     return redirect(url_for('apps'))
 
 
+# ================= MAIN =================
 
 def start_flask_app():
     print(f"Запуск Web-сервера на {HOST}:{PORT}")
@@ -294,20 +315,21 @@ def start_flask_app():
 
 
 def main(args=None):
+    global ros_node
     rclpy.init(args=args)
 
-    video_node = MultiVideoSubscriber()
+    ros_node = WebServerNode()
 
     flask_thread = threading.Thread(target=start_flask_app)
     flask_thread.daemon = True
     flask_thread.start()
 
     try:
-        rclpy.spin(video_node)
+        rclpy.spin(ros_node)
     except KeyboardInterrupt:
         pass
     finally:
-        video_node.destroy_node()
+        ros_node.destroy_node()
         rclpy.shutdown()
 
 
