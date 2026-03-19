@@ -41,13 +41,14 @@ class TelemetryHandler(Node):
         self.create_subscription(PoseStamped, "/mavros/local_position/pose", self.local_position_updater, sensor_qos)
         self.create_subscription(TwistStamped, "/mavros/local_position/velocity_local", self.velocity_updater, sensor_qos)
         self.create_subscription(PoseStamped, "/mavros/setpoint_position/local", self.setpoint_position_updater, sensor_qos)
-        self.create_subscription(Bool, "/edu/is_alive", )
+        self.create_subscription(Bool, "/edu/is_alive", self.is_alive_updater, publisher_qos)
         
         self.battery_msg = BatteryState()
         self.local_position_msg = PoseStamped()
         self.setpoint_position_msg = PoseStamped()
         self.velocity_msg = TwistStamped()
         self.state_msg = State()
+        self.is_alive = False
         
         self.timer = self.create_timer(0.05, self.telemetry_publisher)
     
