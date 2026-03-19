@@ -1,5 +1,23 @@
 # Работа с API
 
+## Установка библиотеки
+
+1\. Установка через pip (рекомендуется)
+
+Библиотеку можно установить напрямую из GitHub
+
+` pip3 install git` + `<https://github.com/EurusAero/eurus_edu.git#subdirectory=libs/python/EurusEdu>`
+
+2\. Установка через клонирование репозитория
+
+- Склонируйте репозиторий
+
+    `git clone` + `https://github.com/EurusAero/eurus_edu.git`
+
+- Установите библиотеку из локальной директории
+
+    `pip3 install ./eurus_edu/libs/python/EurusEdu/`
+
 ## Создание объектов дрона и камеры
 
 ```python
