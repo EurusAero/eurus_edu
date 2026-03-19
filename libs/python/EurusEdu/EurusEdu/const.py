@@ -179,5 +179,5 @@ TELEMETRY_DATA = {
     },
     
     "point_reached": False,
-    "lasertag_hitted": False
+    "is_alive": False
 }

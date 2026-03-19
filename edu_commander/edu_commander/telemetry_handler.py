@@ -113,7 +113,7 @@ class TelemetryHandler(Node):
         point_reached = dist([pose.x, pose.y, pose.z], [setpoint_pose.x, setpoint_pose.y, setpoint_pose.z]) <= 0.2
         
         self.telemetry_msg["point_reached"] = point_reached
-        self.telemetry_msg["lasertag_hitted"] = self.is_alive
+        self.telemetry_msg["is_alive"] = self.is_alive
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)
         
