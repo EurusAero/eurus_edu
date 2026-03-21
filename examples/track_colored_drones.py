@@ -30,8 +30,8 @@ DRONE_IP = "10.42.0.1"
 DRONE_PORT = 65432
 CAMERA_PORT = 8001
 
-TAKEOFF_ALTITUDE_M = 1.0
-BASE_MARKER_ID = 100   # Marker on field used as respawn base
+TAKEOFF_ALTITUDE_M = 0.7
+BASE_MARKER_ID = 124   # Marker on field used as respawn base
 BASE_MARKER_ALT_M = 0.5   # Altitude for move_to_marker during dead state
 BASE_MOVE_SPEED = 1.0
 TELEMETRY_POLL_SEC = 0.2
@@ -39,7 +39,7 @@ TELEMETRY_POLL_SEC = 0.2
 # Team setup:
 # - TEAM_COLOR: our team color in game mode ("red" or "blue")
 # - Target color is selected automatically as opposite team.
-TEAM_COLOR = "blue"  # "red" | "blue"
+TEAM_COLOR = "red"  # "red" | "blue"
 
 ALLOWED_CLASSES = {
     "red": {"red drone"},
@@ -61,11 +61,11 @@ MAX_TRACK_STALE_SEC = 0.8
 
 # Desired target apparent size on screen.
 # If target is larger than this, drone moves backward.
-TARGET_MAX_BBOX_PX = 190
-TARGET_MIN_BBOX_PX = 125
+TARGET_MAX_BBOX_PX = 150
+TARGET_MIN_BBOX_PX = 120
 
 # Simple P-controller gains
-K_YAW = 45.0         # deg/s for normalized X error
+K_YAW = 25.0         # deg/s for normalized X error
 K_FORWARD = 0.012    # m/s per px of bbox error
 
 MAX_YAW_RATE = 30.0
@@ -74,8 +74,8 @@ MAX_VERTICAL_VZ = 0.22
 
 # Aim point offset in image coordinates:
 # negative => aim above screen center.
-AIM_OFFSET_Y_PX = -55
-K_VERTICAL = 0.004
+AIM_OFFSET_Y_PX = -45
+K_VERTICAL = 0.002
 
 CTRL_PERIOD_SEC = 0.25
 SHOW_WINDOW = True
@@ -401,7 +401,7 @@ def control_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, stop
         preferred_shot = pick_preferred_engagement(active_det, target_color_mode) if active_det else None
 
         vx_cmd = 0.0
-        yaw_cmd = 0.0
+        yaw_cmd = 30.0
         vz_cmd = 0.0
         if frame is not None and target is not None and not pause_tracking:
             vx_cmd, yaw_cmd, vz_cmd = compute_control(target, frame.shape)
@@ -475,7 +475,10 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
         if is_alive is True and last_alive is False and in_dead_state:
             try:
                 drone.takeoff(TAKEOFF_ALTITUDE_M)
+                time.sleep(6)
                 drone.aruco_map_navigation(True, True)
+                time.sleep(3)
+                drone.set_velocity(0.0, 0.0, 0.0, 30.0)
             except Exception:
                 pass
             with lock:

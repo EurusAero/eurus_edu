@@ -37,6 +37,7 @@ class HitControllerNode(Node):
         self.game_started_prev = False
         self.led_msg = String()
         self.hitted_blinking_speed = 0.3
+        self.nled = 45
         
         hit_pin = 139
         if os.path.exists(ini_path):
@@ -48,6 +49,7 @@ class HitControllerNode(Node):
                 self.hitted_color = list(map(int, config.get("hit_controller", "hitted_color").split()))
                 self.led_brightness = float(config.get("hit_controller", "led_brightness"))
                 self.hitted_blinking_speed = float(config.get("hit_controller", "hitted_blinking_speed"))
+                self.nled = int(config.get("hit_controller", "nled"))
             except Exception as e:
                 self.get_logger().error(f"Error reading config: {e}. Using defaults.")
             
@@ -98,7 +100,7 @@ class HitControllerNode(Node):
                 
                 msg = {
                     "command": "led_control",
-                    "nLED": 30,
+                    "nLED": self.nled,
                     "effect": "static",
                     "brightness": self.led_brightness,
                     "color": self.command_color,
@@ -109,7 +111,7 @@ class HitControllerNode(Node):
 
                 msg = {
                     "command": "led_control",
-                    "nLED": 30,
+                    "nLED": self.nled,
                     "effect": "blink",
                     "brightness": self.led_brightness,
                     "color": self.hitted_color,
@@ -122,7 +124,7 @@ class HitControllerNode(Node):
             if self.game_started_prev:
                 msg = {
                     "command": "led_control",
-                    "nLED": 30,
+                    "nLED": self.nled,
                     "effect": "base",
                     "brightness": 1.0,
                     "color": [255, 255, 255],
