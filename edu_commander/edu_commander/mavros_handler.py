@@ -14,7 +14,7 @@ from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from mavros_msgs.msg import PositionTarget, State
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from edu_msgs.msg import Command
 from EurusEdu.const import *
 
@@ -38,6 +38,7 @@ class MavrosHandler(Node):
 
         self.local_pos_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', qos_profile)
         self.raw_velocity_pub = self.create_publisher(PositionTarget, "/mavros/setpoint_raw/local", qos_profile)
+        self.point_reached_pub = self.create_publisher(Bool, "/edu/point_reached", qos_profile)
         
         self.local_pose = PoseStamped()
         self.home_position = PoseStamped()
@@ -113,12 +114,15 @@ class MavrosHandler(Node):
         self.Kp = 1.5
         self.max_corr = 1.0
         self.aruco_border_indent = 0.3
+        self.point_reached_diff = 0.2
         if os.path.exists(handler_ini_path):
             config = configparser.ConfigParser()
             config.read(handler_ini_path)
             self.Kp = config.getfloat("velocity", "aruco_borders_kp")
             self.max_corr = config.getfloat("velocity", "aruco_borders_correlation_speed")
             self.aruco_border_indent = config.getfloat("velocity", "aruco_border_indent")
+            
+            self.point_reached_diff = config.getfloat("local_position", "point_reached_diff")
         
         self.setpoint_pose = PoseStamped()
         self.start_position = PoseStamped()
@@ -126,6 +130,7 @@ class MavrosHandler(Node):
         self.setpoint_raw = PositionTarget()
         self.target_raw = PositionTarget()
         self.state_msg = State()
+        self.point_reached = Bool()
         
         self.aruco_nav_status = {
             "aruco_nav_status": False,
@@ -175,9 +180,12 @@ class MavrosHandler(Node):
                 self.sync_target_to_local()
                 self.frame_alignment_counter -= 1
             
-            else:    
+            else:
                 self.calculate_next_target_position()
-                
+            
+            
+            self.point_reached.data = self.get_distance(self.local_pose, self.target_pose) < self.point_reached_diff
+            self.point_reached_pub.publish(self.point_reached)
             self.local_pos_pub.publish(self.setpoint_pose)
 
         elif self.current_control_method == "RAW_VELOCITY":

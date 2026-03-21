@@ -42,6 +42,7 @@ class TelemetryHandler(Node):
         self.create_subscription(TwistStamped, "/mavros/local_position/velocity_local", self.velocity_updater, sensor_qos)
         self.create_subscription(PoseStamped, "/mavros/setpoint_position/local", self.setpoint_position_updater, sensor_qos)
         self.create_subscription(Bool, "/edu/is_alive", self.is_alive_updater, publisher_qos)
+        self.create_subscription(Bool, "/edu/point_reached", self.point_reached_updater, publisher_qos)
         
         self.battery_msg = BatteryState()
         self.local_position_msg = PoseStamped()
@@ -49,6 +50,7 @@ class TelemetryHandler(Node):
         self.velocity_msg = TwistStamped()
         self.state_msg = State()
         self.is_alive = False
+        self.point_reached = False
         
         self.timer = self.create_timer(0.05, self.telemetry_publisher)
     
@@ -69,6 +71,9 @@ class TelemetryHandler(Node):
     
     def is_alive_updater(self, msg):
         self.is_alive = msg.data
+    
+    def point_reached_updater(self, msg):
+        self.point_reached = msg.data
     
     def telemetry_publisher(self):
         self.telemetry_msg["state"]["connected"] = self.state_msg.connected
@@ -110,9 +115,7 @@ class TelemetryHandler(Node):
         self.telemetry_msg["velocity"]["vy"] = velocity.y
         self.telemetry_msg["velocity"]["vz"] = velocity.z
         
-        point_reached = dist([pose.x, pose.y, pose.z], [setpoint_pose.x, setpoint_pose.y, setpoint_pose.z]) <= 0.2
-        
-        self.telemetry_msg["point_reached"] = point_reached
+        self.telemetry_msg["point_reached"] = self.point_reached
         self.telemetry_msg["is_alive"] = self.is_alive
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)

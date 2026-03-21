@@ -462,10 +462,11 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
             in_dead_state = True
             with lock:
                 shared["pause_tracking"] = True
-            try:
-                drone.set_velocity(0.0, 0.0, 0.0, 0.0)
-            except Exception:
-                pass
+            # try:
+            #     drone.set_velocity(0.0, 0.0, 0.0, 0.0)
+            #     time.sleep(2)
+            # except Exception:
+            #     pass
             try:
                 drone.move_to_marker(marker_id=BASE_MARKER_ID, z=BASE_MARKER_ALT_M, speed=BASE_MOVE_SPEED)
             except Exception:
