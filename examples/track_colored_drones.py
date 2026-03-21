@@ -35,6 +35,9 @@ BASE_MARKER_ID = 124   # Marker on field used as respawn base
 BASE_MARKER_ALT_M = 0.5   # Altitude for move_to_marker during dead state
 BASE_MOVE_SPEED = 1.0
 TELEMETRY_POLL_SEC = 0.2
+POINT_REACHED_TIMEOUT_SEC = 20.0
+POINT_REACHED_POLL_SEC = 0.5
+BASE_STABILIZE_SEC = 2.5
 
 # Team setup:
 # - TEAM_COLOR: our team color in game mode ("red" or "blue")
@@ -282,6 +285,7 @@ def draw_overlay(
     ready_shot: bool,
     preferred_shot_class: str,
     is_alive: Optional[bool],
+    point_reached: Optional[bool],
 ):
     objects = extract_objects(detections)
     for obj in objects:
@@ -366,6 +370,17 @@ def draw_overlay(
         alive_color,
         2,
     )
+    pr_text = "point_reached=unknown" if point_reached is None else f"point_reached={point_reached}"
+    pr_color = (100, 220, 255) if point_reached is None else ((0, 255, 0) if point_reached else (0, 0, 255))
+    cv2.putText(
+        frame,
+        pr_text,
+        (10, 154),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        pr_color,
+        2,
+    )
 
 
 def parse_is_alive(telemetry: Optional[Dict]) -> Optional[bool]:
@@ -385,6 +400,30 @@ def parse_is_alive(telemetry: Optional[Dict]) -> Optional[bool]:
         except Exception:
             return None
     return None
+
+
+def is_point_reached_payload(payload: Optional[Dict]) -> bool:
+    if not payload:
+        return False
+    # Accept either {"point_reached": True} or direct boolean-like dict values.
+    if "point_reached" in payload:
+        return bool(payload.get("point_reached"))
+    if "reached" in payload:
+        return bool(payload.get("reached"))
+    return any(bool(v) for v in payload.values() if isinstance(v, bool))
+
+
+def wait_until_point_reached(drone: EurusControl, timeout_sec: float) -> bool:
+    start = time.time()
+    while (time.time() - start) < timeout_sec:
+        try:
+            status = drone.point_reached()
+        except Exception:
+            status = None
+        if is_point_reached_payload(status):
+            return True
+        time.sleep(POINT_REACHED_POLL_SEC)
+    return False
 
 
 def control_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, stop_event: threading.Event, target_color_mode: str):
@@ -472,6 +511,17 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
             except Exception:
                 pass
 
+            # Wait until we are at base marker, then stabilize and land.
+            reached = wait_until_point_reached(drone, POINT_REACHED_TIMEOUT_SEC)
+            with lock:
+                shared["point_reached"] = reached
+            if reached:
+                time.sleep(BASE_STABILIZE_SEC)
+                try:
+                    drone.land()
+                except Exception:
+                    pass
+
         # Transition dead -> alive: takeoff and resume tracking
         if is_alive is True and last_alive is False and in_dead_state:
             try:
@@ -484,6 +534,7 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
                 pass
             with lock:
                 shared["pause_tracking"] = False
+                shared["point_reached"] = None
             in_dead_state = False
 
         last_alive = is_alive
@@ -507,13 +558,25 @@ def view_worker(shared: Dict, lock: threading.Lock, stop_event: threading.Event,
             ready_shot = shared.get("ready_shot", False)
             preferred_shot_class = shared.get("preferred_shot_class", "none")
             is_alive = shared.get("is_alive")
+            point_reached = shared.get("point_reached")
 
         if frame is None:
             time.sleep(0.01)
             continue
 
         if SHOW_WINDOW:
-            draw_overlay(frame, active_det, target, vx_cmd, yaw_cmd, vz_cmd, ready_shot, preferred_shot_class, is_alive)
+            draw_overlay(
+                frame,
+                active_det,
+                target,
+                vx_cmd,
+                yaw_cmd,
+                vz_cmd,
+                ready_shot,
+                preferred_shot_class,
+                is_alive,
+                point_reached,
+            )
             cv2.putText(
                 frame,
                 f"team={TEAM_COLOR} target={target_color_mode}",
@@ -549,6 +612,7 @@ def main():
         "ready_shot": False,
         "preferred_shot_class": "none",
         "is_alive": None,
+        "point_reached": None,
         "pause_tracking": False,
     }
     lock = threading.Lock()
