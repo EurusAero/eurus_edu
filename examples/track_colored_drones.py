@@ -14,6 +14,7 @@ Autonomous firing is intentionally omitted.
 import os
 import sys
 import time
+import datetime
 from typing import Dict, List, Optional, Tuple
 import threading
 
@@ -30,14 +31,20 @@ DRONE_IP = "10.42.0.1"
 DRONE_PORT = 65432
 CAMERA_PORT = 8001
 
-TAKEOFF_ALTITUDE_M = 0.7
+TAKEOFF_ALTITUDE_M = 1
+MIN_TRACK_ALT_M = 1.0   # Minimum altitude during normal flight/tracking
+MAX_TRACK_ALT_M = 2.0   # Minimum altitude during normal flight/tracking
+ALT_FLOOR_K = 0.8       # Upward correction gain if lower than MIN_TRACK_ALT_M
 BASE_MARKER_ID = 124   # Marker on field used as respawn base
-BASE_MARKER_ALT_M = 0.5   # Altitude for move_to_marker during dead state
+BASE_MARKER_ALT_M = 0.7   # Altitude for move_to_marker during dead state
 BASE_MOVE_SPEED = 1.0
 TELEMETRY_POLL_SEC = 0.2
 POINT_REACHED_TIMEOUT_SEC = 20.0
 POINT_REACHED_POLL_SEC = 0.5
 BASE_STABILIZE_SEC = 2.5
+POINT_REACHED_CMD_APPLY_DELAY_SEC = 0.7
+POINT_REACHED_FORCE_PROGRESS_SEC = 3.0
+POST_RESPAWN_HOVER_SEC = 2.0  # Hold hover briefly after respawn before scan yaw
 
 # Team setup:
 # - TEAM_COLOR: our team color in game mode ("red" or "blue")
@@ -84,6 +91,12 @@ CTRL_PERIOD_SEC = 0.25
 SHOW_WINDOW = True
 WINDOW_NAME = "Drone Follow"
 SHOW_FULLSCREEN = True
+
+# Raw camera recording (without overlays/UI)
+ENABLE_RECORDING = True
+RECORD_FPS = 30
+RECORD_FOURCC = "mp4v"
+RECORD_FILENAME_PREFIX = "recording_raw_"
 
 AUTO_LAND_ON_EXIT = True
 
@@ -402,37 +415,88 @@ def parse_is_alive(telemetry: Optional[Dict]) -> Optional[bool]:
     return None
 
 
-def is_point_reached_payload(payload: Optional[Dict]) -> bool:
-    if not payload:
-        return False
-    # Accept either {"point_reached": True} or direct boolean-like dict values.
-    if "point_reached" in payload:
-        return bool(payload.get("point_reached"))
-    if "reached" in payload:
-        return bool(payload.get("reached"))
-    return any(bool(v) for v in payload.values() if isinstance(v, bool))
+def parse_altitude_m(telemetry: Optional[Dict]) -> Optional[float]:
+    if not telemetry:
+        return None
+    local_pos = telemetry.get("local_position", {})
+    if isinstance(local_pos, dict) and "z" in local_pos:
+        try:
+            return float(local_pos.get("z"))
+        except Exception:
+            return None
+    return None
 
+def wait_until_point_reached(
+    drone: EurusControl,
+    timeout_sec: float,
+    cmd_apply_delay_sec: float = POINT_REACHED_CMD_APPLY_DELAY_SEC,
+    force_progress_sec: float = POINT_REACHED_FORCE_PROGRESS_SEC,
+) -> bool:
+    # Give FC a short time to apply the new move command, otherwise we may read stale point_reached=True.
+    time.sleep(max(cmd_apply_delay_sec, 0.0))
 
-def wait_until_point_reached(drone: EurusControl, timeout_sec: float) -> bool:
     start = time.time()
+    saw_not_reached = False
     while (time.time() - start) < timeout_sec:
         try:
             status = drone.point_reached()
         except Exception:
             status = None
-        if is_point_reached_payload(status):
+        reached_now = bool(status)
+
+        if not reached_now:
+            saw_not_reached = True
+
+        # Normal path: first we see "not reached", then accept "reached".
+        if saw_not_reached and reached_now:
             return True
+
+        # Fallback: if estimator never reports explicit False, accept True after a grace period.
+        if reached_now and (time.time() - start) >= force_progress_sec:
+            return True
+
         time.sleep(POINT_REACHED_POLL_SEC)
     return False
 
 
 def control_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, stop_event: threading.Event, target_color_mode: str):
     last_sent_cmd = {"vx": None, "vz": None, "yaw_rate": None}
+    dead_latched = False
     while not stop_event.is_set():
         with lock:
             frame = shared.get("frame")
             active_det = shared.get("active_det")
             pause_tracking = shared.get("pause_tracking", False)
+            is_alive = shared.get("is_alive")
+            current_alt_m = shared.get("current_alt_m")
+            respawn_hold_until = shared.get("respawn_hold_until")
+
+        # Immediate local dead reaction (independent from life_state_worker latency).
+        if is_alive is False:
+            if not dead_latched:
+                # try:
+                    # drone.set_velocity(vx=0.0, vy=0.0, vz=0.0, yaw_rate=0.0)
+                # except Exception:
+                #     stop_event.set()
+                #     break
+                last_sent_cmd["vx"] = 0.0
+                last_sent_cmd["vz"] = 0.0
+                last_sent_cmd["yaw_rate"] = 0.0
+                dead_latched = True
+
+            with lock:
+                shared["pause_tracking"] = True
+                shared["target"] = None
+                shared["vx_cmd"] = 0.0
+                shared["yaw_cmd"] = 0.0
+                shared["vz_cmd"] = 0.0
+                shared["ready_shot"] = False
+
+            time.sleep(CTRL_PERIOD_SEC)
+            continue
+        else:
+            # Alive or unknown -> allow normal tracking logic.
+            dead_latched = False
 
         target = None
         if not pause_tracking:
@@ -444,6 +508,38 @@ def control_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, stop
         vz_cmd = 0.0
         if frame is not None and target is not None and not pause_tracking:
             vx_cmd, yaw_cmd, vz_cmd = compute_control(target, frame.shape)
+        elif (
+            (not pause_tracking)
+            and target is None
+            and (respawn_hold_until is not None)
+            and (time.time() < float(respawn_hold_until))
+        ):
+            # Right after respawn, hold position instead of immediate scan yaw.
+            yaw_cmd = 0.0
+
+        # Height floor during normal flight/tracking.
+        # Going below is allowed only in base-return mode (pause_tracking=True).
+        if (not pause_tracking) and (current_alt_m is not None) and (current_alt_m < MIN_TRACK_ALT_M):
+            alt_err = MIN_TRACK_ALT_M - current_alt_m
+            vz_up_cmd = clamp(ALT_FLOOR_K * alt_err, 0.0, MAX_VERTICAL_VZ)
+            vz_cmd = max(vz_cmd, vz_up_cmd)
+        elif (not pause_tracking) and (current_alt_m is not None) and (current_alt_m > MAX_TRACK_ALT_M):
+            alt_err = MIN_TRACK_ALT_M - current_alt_m
+            vz_up_cmd = clamp(ALT_FLOOR_K * alt_err, -MAX_VERTICAL_VZ, 0.0)
+            vz_cmd = min(vz_cmd, vz_up_cmd)
+
+        suppress_velocity = pause_tracking or (
+            (respawn_hold_until is not None) and (time.time() < float(respawn_hold_until))
+        )
+        if suppress_velocity:
+            # Do not interrupt blocking movement commands (e.g. move_in_body_frame after respawn).
+            vx_cmd = 0.0
+            yaw_cmd = 0.0
+            vz_cmd = 0.0
+            # Force fresh comparison when velocity control is re-enabled.
+            last_sent_cmd["vx"] = None
+            last_sent_cmd["vz"] = None
+            last_sent_cmd["yaw_rate"] = None
 
         should_send_cmd = True
         if last_sent_cmd["vx"] is not None:
@@ -452,7 +548,7 @@ def control_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, stop
             same_yaw = abs(yaw_cmd - last_sent_cmd["yaw_rate"]) < CMD_EPS_YAW
             should_send_cmd = not (same_vx and same_vz and same_yaw)
 
-        if should_send_cmd:
+        if should_send_cmd and (not suppress_velocity):
             try:
                 drone.set_velocity(vx=vx_cmd, vy=0.0, vz=vz_cmd, yaw_rate=yaw_cmd)
                 last_sent_cmd["vx"] = vx_cmd
@@ -462,7 +558,7 @@ def control_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, stop
                 stop_event.set()
                 break
 
-        ready_shot = (not pause_tracking) and frame is not None and is_ready_shot(target, frame.shape)
+        ready_shot = (not pause_tracking) and (not suppress_velocity) and frame is not None and is_ready_shot(target, frame.shape)
         if ready_shot:
             drone.laser_shot()
 
@@ -488,9 +584,11 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
     while not stop_event.is_set():
         telemetry = drone.get_telemetry()
         is_alive = parse_is_alive(telemetry)
+        current_alt_m = parse_altitude_m(telemetry)
 
         with lock:
             shared["is_alive"] = is_alive
+            shared["current_alt_m"] = current_alt_m
 
         if is_alive is None:
             time.sleep(TELEMETRY_POLL_SEC)
@@ -518,23 +616,26 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
             if reached:
                 time.sleep(BASE_STABILIZE_SEC)
                 try:
-                    drone.land()
+                    drone.move_in_body_frame(0, 0, -1, speed=0.5)
                 except Exception:
                     pass
 
         # Transition dead -> alive: takeoff and resume tracking
         if is_alive is True and last_alive is False and in_dead_state:
             try:
-                drone.takeoff(TAKEOFF_ALTITUDE_M)
-                time.sleep(6)
-                drone.aruco_map_navigation(True, True)
-                time.sleep(3)
-                drone.set_velocity(0.0, 0.0, 0.0, 30.0)
+                # drone.arm()
+                # time.sleep(1)
+                drone.move_in_body_frame(0, 0, TAKEOFF_ALTITUDE_M, speed=0.2)
+                time.sleep(10)
+                # drone.aruco_map_navigation(True, True)
+                # time.sleep(3)
+                # drone.set_velocity(0.0, 0.0, 0.0, 30.0)
             except Exception:
                 pass
             with lock:
                 shared["pause_tracking"] = False
                 shared["point_reached"] = None
+                shared["respawn_hold_until"] = time.time() + POST_RESPAWN_HOVER_SEC
             in_dead_state = False
 
         last_alive = is_alive
@@ -594,6 +695,43 @@ def view_worker(shared: Dict, lock: threading.Lock, stop_event: threading.Event,
             time.sleep(0.02)
 
 
+def record_worker(shared: Dict, lock: threading.Lock, stop_event: threading.Event):
+    if not ENABLE_RECORDING:
+        return
+
+    frame_period = 1.0 / RECORD_FPS
+    writer = None
+    output_path = None
+
+    try:
+        while not stop_event.is_set():
+            cycle_start = time.time()
+
+            with lock:
+                frame = None if shared.get("frame") is None else shared["frame"].copy()
+
+            if frame is not None:
+                if writer is None:
+                    h, w = frame.shape[:2]
+                    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_name = f"{RECORD_FILENAME_PREFIX}{ts}.mp4"
+                    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), output_name)
+                    fourcc = cv2.VideoWriter_fourcc(*RECORD_FOURCC)
+                    writer = cv2.VideoWriter(output_path, fourcc, RECORD_FPS, (w, h))
+                    print(f"[REC] started: {output_path} ({w}x{h} @ {RECORD_FPS}fps)")
+
+                writer.write(frame)
+
+            elapsed = time.time() - cycle_start
+            time_to_sleep = max(frame_period - elapsed, 0.0)
+            if time_to_sleep > 0:
+                time.sleep(time_to_sleep)
+    finally:
+        if writer is not None:
+            writer.release()
+            print(f"[REC] saved: {output_path}")
+
+
 def main():
     target_color_mode = get_target_mode_for_team(TEAM_COLOR)
     if target_color_mode not in ALLOWED_CLASSES:
@@ -612,14 +750,17 @@ def main():
         "ready_shot": False,
         "preferred_shot_class": "none",
         "is_alive": None,
+        "current_alt_m": None,
         "point_reached": None,
         "pause_tracking": False,
+        "respawn_hold_until": None,
     }
     lock = threading.Lock()
     stop_event = threading.Event()
     control_thread = None
     view_thread = None
     life_thread = None
+    record_thread = None
 
     last_det = None
     last_det_time = 0.0
@@ -631,7 +772,7 @@ def main():
         cam.start_stream()
         drone.start_game(True, TEAM_COLOR)
 
-        drone.takeoff(TAKEOFF_ALTITUDE_M)
+        drone.takeoff(TAKEOFF_ALTITUDE_M, speed=0.2)
         time.sleep(10.0)
         drone.aruco_map_navigation(True, True)
         time.sleep(5.0)
@@ -653,9 +794,15 @@ def main():
             args=(drone, shared, lock, stop_event),
             daemon=True,
         )
+        record_thread = threading.Thread(
+            target=record_worker,
+            args=(shared, lock, stop_event),
+            daemon=True,
+        )
         control_thread.start()
         view_thread.start()
         life_thread.start()
+        record_thread.start()
 
         # Acquisition loop: keep camera and detections fresh for both threads
         while not stop_event.is_set():
@@ -690,6 +837,8 @@ def main():
             view_thread.join(timeout=1.0)
         if life_thread and life_thread.is_alive():
             life_thread.join(timeout=1.0)
+        if record_thread and record_thread.is_alive():
+            record_thread.join(timeout=1.0)
 
         try:
             drone.set_velocity(0.0, 0.0, 0.0, 0.0)

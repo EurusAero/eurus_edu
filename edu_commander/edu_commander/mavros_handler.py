@@ -511,6 +511,9 @@ class MavrosHandler(Node):
         return False, f"Disarming failed"
 
     def do_takeoff(self, data):
+        self.do_set_mode("OFFBOARD")
+        self.do_arm()
+        
         altitude = data.get("altitude", 1.0)
         self.setpoint_speed = data.get("speed", 1)
         
@@ -531,9 +534,6 @@ class MavrosHandler(Node):
         
         self.frame_alignment_counter = 0
         self.current_control_method = "LOCAL_POSITION"
-        
-        self.do_set_mode("OFFBOARD")
-        self.do_arm()
         
         return True, "Takeoff initiated"
 
