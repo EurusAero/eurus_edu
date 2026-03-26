@@ -35,9 +35,9 @@ TAKEOFF_ALTITUDE_M = 1
 MIN_TRACK_ALT_M = 1.0   # Minimum altitude during normal flight/tracking
 MAX_TRACK_ALT_M = 2.0   # Minimum altitude during normal flight/tracking
 ALT_FLOOR_K = 0.8       # Upward correction gain if lower than MIN_TRACK_ALT_M
-BASE_MARKER_ID = 124   # Marker on field used as respawn base
-BASE_MARKER_ALT_M = 0.7   # Altitude for move_to_marker during dead state
-BASE_MOVE_SPEED = 1.0
+BASE_MARKER_ID = 250   # Marker on field used as respawn base
+BASE_MARKER_ALT_M = 1   # Altitude for move_to_marker during dead state
+BASE_MOVE_SPEED = 0.5
 TELEMETRY_POLL_SEC = 0.2
 POINT_REACHED_TIMEOUT_SEC = 20.0
 POINT_REACHED_POLL_SEC = 0.5
@@ -610,26 +610,26 @@ def life_state_worker(drone: EurusControl, shared: Dict, lock: threading.Lock, s
                 pass
 
             # Wait until we are at base marker, then stabilize and land.
-            reached = wait_until_point_reached(drone, POINT_REACHED_TIMEOUT_SEC)
-            with lock:
-                shared["point_reached"] = reached
-            if reached:
-                time.sleep(BASE_STABILIZE_SEC)
-                try:
-                    drone.move_in_body_frame(0, 0, -1, speed=0.5)
-                except Exception:
-                    pass
+            # reached = wait_until_point_reached(drone, POINT_REACHED_TIMEOUT_SEC)
+            # with lock:
+            #     shared["point_reached"] = reached
+            # if reached:
+            #     time.sleep(BASE_STABILIZE_SEC)
+            #     try:
+            #         # drone.move_in_body_frame(0, 0, 0.2, speed=0.2)
+            #     except Exception:
+            #         pass
 
         # Transition dead -> alive: takeoff and resume tracking
         if is_alive is True and last_alive is False and in_dead_state:
             try:
                 # drone.arm()
                 # time.sleep(1)
-                drone.move_in_body_frame(0, 0, TAKEOFF_ALTITUDE_M, speed=0.2)
-                time.sleep(10)
+                # drone.move_in_body_frame(0, 0, TAKEOFF_ALTITUDE_M, speed=0.2)
+                # time.sleep(5)
                 # drone.aruco_map_navigation(True, True)
                 # time.sleep(3)
-                # drone.set_velocity(0.0, 0.0, 0.0, 30.0)
+                drone.set_velocity(0.0, 0.0, 0.0, 30.0)
             except Exception:
                 pass
             with lock:
@@ -774,6 +774,7 @@ def main():
 
         drone.takeoff(TAKEOFF_ALTITUDE_M, speed=0.2)
         time.sleep(10.0)
+        
         drone.aruco_map_navigation(True, True)
         time.sleep(5.0)
 

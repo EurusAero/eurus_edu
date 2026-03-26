@@ -48,7 +48,7 @@ class ArucoDetector(Node):
         self.aruco_map_path = ""
         self.camera_config_path = ""
         self.aruco_debug = False
-        
+
         self.map_origin = "BR"
         self.camera_yaw_offset_deg = 0
 
@@ -67,7 +67,7 @@ class ArucoDetector(Node):
 
         self.create_subscription(CompressedImage, camera_topic, self.camera_sub, camera_qos)
         self.create_subscription(String, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
-        
+
         self.create_service(Trigger, "/edu/get_aruco_board_snapshot", self.aruco_board_snapshot_callback)
 
         self.aruco_nav_pub = self.create_publisher(String, "/edu/aruco_map_nav", reliable_qos)
@@ -86,7 +86,7 @@ class ArucoDetector(Node):
             "map_in_vision": self.map_in_vision,
             "fly_in_borders": self.fly_in_borders,
         }
-        
+
         self.board = None
         self.map_width_m = 0.0
         self.map_height_m = 0.0
@@ -116,33 +116,33 @@ class ArucoDetector(Node):
     def parse_map_file(self):
         try:
             self.get_logger().info(f"Loading map from {self.aruco_map_path}")
-            
+
             obj_points = []
             ids_list = []
-            
+
             min_x, min_y = float('inf'), float('inf')
             max_x, max_y = float('-inf'), float('-inf')
 
             with open(self.aruco_map_path, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f, delimiter=';')
-                
+
                 for row in reader:
                     m_id = int(row['id'])
                     m_len = float(row['length'])
                     x = float(row['x'])
                     y = float(row['y'])
                     z = float(row['z'])
-                    
+
                     half_l = m_len / 2.0
-                    
+
                     c1 = [x - half_l, y + half_l, z]  # Top-Left
                     c2 = [x + half_l, y + half_l, z]  # Top-Right
                     c3 = [x + half_l, y - half_l, z]  # Bottom-Right
                     c4 = [x - half_l, y - half_l, z]  # Bottom-Left
-                    
+
                     obj_points.append(np.array([c1, c2, c3, c4], dtype=np.float32))
                     ids_list.append(m_id)
-                    
+
                     min_x = min(min_x, x - half_l)
                     max_x = max(max_x, x + half_l)
                     min_y = min(min_y, y - half_l)
@@ -165,7 +165,7 @@ class ArucoDetector(Node):
                 self.aruco_dict_obj,
                 ids_np
             )
-            
+
             self.get_logger().info(f"Custom Board loaded: {len(ids_list)} markers. Origin set to: {self.map_origin}")
 
         except Exception as e:
@@ -193,7 +193,7 @@ class ArucoDetector(Node):
             np_arr = np.frombuffer(msg.data, np.uint8)
             timestamp = msg.header.stamp
             image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            
+
             self.process_frame(image, timestamp)
 
     def aruco_board_snapshot_callback(self, request, response):
@@ -204,7 +204,7 @@ class ArucoDetector(Node):
             return response
 
         try:
-            pixels_per_meter = 1000 
+            pixels_per_meter = 1000
             margin_px = 50
 
             min_x, min_y = float('inf'), float('inf')
@@ -219,7 +219,7 @@ class ArucoDetector(Node):
                     x = float(row['x'])
                     y = float(row['y'])
                     markers_data.append({'id': m_id, 'len': m_len, 'x': x, 'y': y})
-                    
+
                     half_l = m_len / 2.0
                     min_x = min(min_x, x - half_l)
                     max_x = max(max_x, x + half_l)
@@ -280,7 +280,7 @@ class ArucoDetector(Node):
             response.success = False
             response.message = str(e)
             return response
-        
+
 
     def map_navigation_sub(self, msg):
         json_msg = json.loads(msg.data)
@@ -294,14 +294,14 @@ class ArucoDetector(Node):
         self.payload["fly_in_borders"] = self.fly_in_borders
 
     def process_frame(self, image, timestamp):
-    
+
         corners, ids = self.detect_aruco(image)
         rvec, tvec = None, None
 
         if (self.board is not None and
             self.camera_matrix is not None and
             ids is not None):
-            
+
             rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
         if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
@@ -326,14 +326,14 @@ class ArucoDetector(Node):
                 debug_msg.header.stamp = timestamp
                 debug_msg.header.frame_id = "aruco"
                 debug_msg.format = "jpeg"
-                
+
                 encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
                 success, encoded_image = cv2.imencode(".jpg", image, encode_param)
-                
+
                 if success:
                     debug_msg.data = encoded_image.tobytes()
                     self.aruco_debug_pub.publish(debug_msg)
-                    
+
             except queue.Empty:
                 continue
             except Exception as e:
@@ -386,7 +386,7 @@ class ArucoDetector(Node):
             self.vpe_pose.pose.position.x = raw_x
             self.vpe_pose.pose.position.y = raw_y
             self.vpe_pose.pose.position.z = raw_z
-        
+
             qw, qx, qy, qz = euler2quat(0, 0, final_yaw)
             self.vpe_pose.pose.orientation.x = qx
             self.vpe_pose.pose.orientation.y = qy
@@ -418,9 +418,9 @@ class ArucoDetector(Node):
             return rvec, tvec
         elif retval:
             return rvec, tvec
-            
+
         return None, None
-    
+
 def main(args=None):
     rclpy.init()
     node = ArucoDetector()
