@@ -386,7 +386,7 @@ class MavrosHandler(Node):
         self.target_raw.type_mask = 2040
         self.target_raw.velocity.x = 0.0
         self.target_raw.velocity.y = 0.0
-        self.target_raw.yaw_rate = 0.0
+        # self.target_raw.yaw_rate = 0.0
         
         if pos_x is None:
             self.target_raw.position.x = self.local_pose.pose.position.x
