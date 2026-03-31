@@ -34,7 +34,6 @@ class MavrosHandler(Node):
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
         self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
         self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
-        
 
         self.local_pos_pub = self.create_publisher(PoseStamped, '/mavros/setpoint_position/local', qos_profile)
         self.raw_velocity_pub = self.create_publisher(PositionTarget, "/mavros/setpoint_raw/local", qos_profile)
@@ -95,6 +94,8 @@ class MavrosHandler(Node):
             config = configparser.ConfigParser()
             config.read(ini_path)
             self.aruco_map_path = config["aruco"].get("map_path", "")
+        else:
+            self.get_logger().warn(f"Конфиг не найден по адрессу: {ini_path}")
         
         if self.aruco_map_path and os.path.exists(self.aruco_map_path):
             with open(self.aruco_map_path, "r") as f:
@@ -110,7 +111,9 @@ class MavrosHandler(Node):
                     
                     self.map_width_min = min(self.map_width_min, float(row["x"]))
                     self.map_height_min = min(self.map_height_min, float(row["y"]))
-        
+        else:
+            self.get_logger().warn(f"Aruco карта не создана.")    
+
         self.Kp = 1.5
         self.max_corr = 1.0
         self.aruco_border_indent = 0.3
@@ -151,14 +154,14 @@ class MavrosHandler(Node):
         self.current_task_thread = None
         self.current_control_method = "LOCAL_POSITION"
         self.setpoint_speed = 1.0
-        self.get_logger().info("MavrosHandler готов к работе.")
+        self.get_logger().info("MavrosHandler нода создана.")
 
     def cmd_loop(self):
         is_map_visible = self.aruco_nav_status.get("map_in_vision", False)
         aruco_active = self.aruco_nav_status.get("aruco_nav_status", False)
 
         if aruco_active and is_map_visible and not self.prev_map_in_vision:
-            self.get_logger().warn("Аруко карта обнаружена, синхронизирую координаты")
+            self.get_logger().info("Аруко карта обнаружена, синхронизирую координаты")
             self.frame_alignment_counter = self.ALIGNMENT_DURATION
         
         if not aruco_active and self.aruco_active_prev:
@@ -172,6 +175,7 @@ class MavrosHandler(Node):
             self.setpoint_pose.header.stamp = self.get_clock().now().to_msg()
             self.setpoint_pose.header.frame_id = "map"
                     
+
             if self.only_arm:
                 self.sync_target_to_local()
                 self.setpoint_pose.pose.position.z = self.local_pose.pose.position.z - 2
@@ -462,7 +466,7 @@ class MavrosHandler(Node):
         except Exception as e:
             success = False
             error_msg = str(e)
-            self.get_logger().error(f"Exception: {e}")
+            self.get_logger().error(f"Ошибка при обработке комманды: {e}")
 
         final_status = COMPLETED_STATUS if success else DENIED_STATUS
         self.publish_status(msg, final_status, error_msg)
@@ -481,13 +485,16 @@ class MavrosHandler(Node):
             self.home_position.pose.orientation = self.local_pose.pose.orientation
         else:
             self.home_position.pose = self.local_pose.pose
+        self.get_logger().info(f"home position установленна в: x: {self.home_position.pose.position.x}, y: {self.home_position.pose.positon.y}, orientation: {self.home_position.pose.orientation}")
 
     def do_set_mode(self, mode="OFFBOARD"):
         req = SetMode.Request()
         req.custom_mode = mode
         res = self._call_service_sync(self.set_mode_client, req)
         if res.mode_sent:
+            self.get_logger().debug(f"Отправленна команда установки режима {mode}")
             return True, "Mode sent"
+        self.get_logger().warn(f"Не удалось отправить команду установки режима {mode}: {res.result}")
         return False, f"Mode sent failed: {res.result}"
 
     def do_arm(self):
@@ -517,7 +524,7 @@ class MavrosHandler(Node):
         altitude = data.get("altitude", 1.0)
         self.setpoint_speed = data.get("speed", 1)
         
-        self.get_logger().info(f"Takeoff to {altitude}m")
+        self.get_logger().info(f"Взлёт на высоту {altitude}m")
         
         self.start_position.header = self.local_pose.header
         self.start_position.pose = self.local_pose.pose

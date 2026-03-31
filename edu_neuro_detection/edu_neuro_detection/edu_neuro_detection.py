@@ -31,12 +31,15 @@ class YoloDetectorNode(Node):
         self.conf_threshold = 0.5
         
         if os.path.exists(config_path):
-            self.get_logger().info(f"Loading config from {config_path}")
             config.read(config_path)
             if "neuro" in config:
                 model_path = config["neuro"].get("model_path")
                 self.conf_threshold = config["neuro"].getfloat("conf_threshold", 0.5)
                 camera_topic = config["neuro"].get("camera_topic", "/edu/forward_camera")
+            else:
+                self.get_logger().warn(f"Конфигурация для ноды не обнаруженна в {config_path}.")
+        else:
+            self.get_logger().warn(f"Файл конфигурации не обнаружен по адресу {config_path}.")
 
         self.get_logger().info(f"Загрузка модели YOLO из {model_path}...")
         
@@ -59,6 +62,8 @@ class YoloDetectorNode(Node):
         except Exception as e:
             self.get_logger().error(f"Ошибка загрузки модели: {e}")
 
+        self.get_logger().info("YoloDetector нода создана.")
+
     def image_callback(self, msg: CompressedImage):
         """
         Получаем картинку -> Декодируем -> YOLO -> JSON -> Publish
@@ -68,6 +73,7 @@ class YoloDetectorNode(Node):
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
             if frame is None:
+                self.get_logger().debug("Кадр не получен.")
                 return
 
             results = self.model(frame, verbose=False, conf=self.conf_threshold)

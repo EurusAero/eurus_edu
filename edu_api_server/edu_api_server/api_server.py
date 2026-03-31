@@ -16,6 +16,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from std_msgs.msg import String, Bool
 from edu_msgs.msg import Command
 
+# Перекинуть в Ноду для логирования
 config = configparser.ConfigParser()
 home_dir = os.getenv("HOME")
 config_path = f'{home_dir}/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
@@ -25,18 +26,6 @@ if os.path.exists(config_path):
     HOST = config['server'].get('host')
     PORT = int(config['server'].get('port'))
     BUFFER_SIZE = int(config['server'].get('buffer_size'))
-    LOG_LEVEL = config['logging'].get('level', 'DEBUG').upper()
-    LOG_FILE = config['logging'].get('file', None)
-
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.DEBUG),
-    format='[SERVER] [%(asctime)s] [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE) if LOG_FILE else logging.NullHandler(),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("EurusServer")
 
 
 class EduApiNode(Node):
@@ -95,23 +84,27 @@ class EduApiNode(Node):
         
         self.active_session = None
         self.session_lock = threading.Lock()
+        self.get_logger().info("API нода создана")
 
     def set_active_session(self, session):
         with self.session_lock:
             self.active_session = session
+        self.get_logger().debug(f"Установленна активная сессия - {session}")
 
     def remove_active_session(self, session):
         with self.session_lock:
             if self.active_session == session:
                 self.active_session = None
-    
+        self.get_logger().debug(f"Очищенна активная сессия - {session}")
+
+
     def telemetry_callback(self, msg):
         """Обновляем кэш телеметрии из топика."""
         try:
             data = json.loads(msg.data)
             self.latest_telemetry = data
         except json.JSONDecodeError:
-            logger.error("Получена некорректная JSON телеметрия из ROS топика")
+            self.get_logger().warn("Получена некорректная JSON телеметрия из ROS топика")
 
     def lasertag_callback(self, msg):
         """
@@ -136,12 +129,12 @@ class EduApiNode(Node):
                 with self.session_lock:
                     if self.active_session:
                         self.active_session.send_json(response_data)
-                        logger.info("Подтверждение выстрела отправлено клиенту.")
+                        self.get_logger().info("Подтверждение выстрела отправлено клиенту.")
 
         except json.JSONDecodeError:
-            logger.error("Ошибка JSON в lasertag callback")
+            self.get_logger().warn("Ошибка JSON в lasertag callback")
         except Exception as e:
-            logger.error(f"Ошибка обработки callback лазертага: {e}")
+            self.get_logger().warn(f"Ошибка обработки callback лазертага: {e}")
 
     def command_status_callback(self, msg: Command):
         """
@@ -151,7 +144,8 @@ class EduApiNode(Node):
             return
 
         status = msg.status
-        logger.info(f"Обновление статуса команды '{msg.command}': {status}")
+        
+        self.get_logger().info(f"Обновление статуса команды '{msg.command}': {status}")
 
         response_data = {
             "command": "action_status",
@@ -167,7 +161,7 @@ class EduApiNode(Node):
         if status in [COMPLETED_STATUS, DENIED_STATUS]:
             self.is_busy = False
             self.current_command_name = None
-            logger.info(f"Поток команд разблокирован. Команда '{msg.command}' завершена со статусом {status}.")
+            self.get_logger().info(f"Поток команд разблокирован. Команда '{msg.command}' завершена со статусом {status}.")
 
     def process_client_command(self, request_msg: dict, session):
         """
@@ -180,9 +174,9 @@ class EduApiNode(Node):
                 msg = String()
                 msg.data = json.dumps(request_msg)
                 self.led_pub.publish(msg)
-                logger.info(f"LED команда отправлена в топик: {request_msg.get('effect', 'unknown')}")
+                self.get_logger().info(f"LED команда отправлена в топик: {request_msg.get('effect', 'unknown')}")
             except Exception as e:
-                logger.error(f"Ошибка публикации LED команды: {e}")
+                self.get_logger().warn(f"Ошибка публикации LED команды: {e}")
             return None
 
         elif cmd_name == "start_game":
@@ -190,9 +184,9 @@ class EduApiNode(Node):
                 msg = String()
                 msg.data = json.dumps(request_msg)
                 self.startgame_pub.publish(msg)
-                logger.info(f"Сообщение о статусе игры отправлено в топик")
+                self.get_logger().info(f"Сообщение о статусе игры отправлено в топик")
             except Exception as e:
-                logger.error(f"Ошибка публикации статуса игры: {e}")
+                self.get_logger().warn(f"Ошибка публикации статуса игры: {e}")
             return None
         
         elif cmd_name == "laser_shot":
@@ -208,7 +202,7 @@ class EduApiNode(Node):
                 msg.data = json.dumps(payload)
                 self.lasertag_pub.publish(msg)
                 
-                logger.info("Команда выстрела отправлена в топик /edu/lasertag")
+                self.get_logger().info("Команда выстрела отправлена в топик /edu/lasertag")
                 
                 self.set_active_session(session)
                 
@@ -219,7 +213,7 @@ class EduApiNode(Node):
                     "message": "Shot initiated"
                 }
             except Exception as e:
-                logger.error(f"Ошибка отправки выстрела: {e}")
+                self.get_logger().warn(f"Ошибка отправки выстрела: {e}")
                 return {
                     "command": "action_status",
                     "action": "laser_shot",
@@ -228,6 +222,7 @@ class EduApiNode(Node):
                 }
 
         elif cmd_name == "request_telemetry":
+            # self.get_logger().debug("sending telemetry")
             return {
                 "command": "response_telemetry",
                 "telemetry": self.latest_telemetry
@@ -257,7 +252,7 @@ class EduApiNode(Node):
                     "message": "Request accepted"
                 }
             except Exception as e:
-                pass
+                self.get_logger().warn(f"Exeptiong getting aruco map navigation {e}")
         elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
@@ -281,7 +276,7 @@ class EduApiNode(Node):
             ros_msg.data = json.dumps(data_payload)
             
             self.cmd_pub.publish(ros_msg)
-            logger.info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
+            self.get_logger().info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
 
             return {
                 "command": "action_status",
@@ -304,6 +299,7 @@ class EduApiNode(Node):
         msg.data = ""
         
         self.cmd_pub.publish(msg)
+        self.get_logger().info(f"Отправленна принудительная команда посадки.")
         self.is_busy = False
     
     def force_aruco_map_disable(self):
@@ -316,6 +312,7 @@ class EduApiNode(Node):
                 }
         msg.data = json.dumps(payload)
         self.aruco_map_pub.publish(msg)
+        self.get_logger().info(f"Принудительное завершение навигации по аруко карте")
 
 
 class ClientSession:
@@ -332,7 +329,7 @@ class ClientSession:
         self.socket_lock = threading.Lock()
 
     def start(self):
-        logger.info(f"Сессия начата для {self.addr}")
+        self.ros_node.get_logger().info(f"Сессия начата для {self.addr}")
         buffer = b""
         
         try:
@@ -349,15 +346,15 @@ class ClientSession:
                         self._handle_request(msg_str)
                         
         except ConnectionResetError:
-            logger.info(f"Клиент {self.addr} разорвал соединение.")
+            self.ros_node.get_logger().info(f"Клиент {self.addr} разорвал соединение.")
         except Exception as e:
-            logger.error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
+            self.ros_node.get_logger().warn(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
         finally:
             self.ros_node.force_land()
             self.ros_node.force_aruco_map_disable()
             self.ros_node.remove_active_session(self)
             self.conn.close()
-            logger.info(f"Сессия завершена для {self.addr}")
+            self.ros_node.get_logger().info(f"Сессия завершена для {self.addr}")
 
     def send_json(self, data):
         """Отправка JSON клиенту (потокобезопасно)."""
@@ -366,7 +363,7 @@ class ClientSession:
                 self.sock_utils.send_json(self.conn, data)
                 # logger.debug(f"Отправлено клиенту {self.addr}: {data.get('command')}")
             except Exception as e:
-                logger.error(f"Не удалось отправить данные {self.addr}: {e}")
+                self.ros_node.get_logger().warn(f"Не удалось отправить данные {self.addr}: {e}")
 
     def _handle_request(self, json_data):
         try:
@@ -387,7 +384,7 @@ class ClientSession:
                 self.send_json(result)
 
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-            logger.warning(f"Ошибка обработки от {self.addr}: {e}")
+            self.ros_node.get_logger().warn(f"Ошибка обработки от {self.addr}: {e}")
             self.send_json({
                 "command": "response",
                 "status": "error",
@@ -402,7 +399,7 @@ def start_server():
     ros_thread = threading.Thread(target=rclpy.spin, args=(edu_node,), daemon=True)
     ros_thread.start()
 
-    logger.info(f"Запуск TCP сервера EurusEdu на {HOST}:{PORT}...")
+    edu_node.get_logger().info(f"Запуск TCP сервера EurusEdu на {HOST}:{PORT}...")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
@@ -416,7 +413,7 @@ def start_server():
             conn, addr = server.accept()
 
             if active_client_thread is not None and active_client_thread.is_alive():
-                logger.warning(f"Входящее соединение от {addr} отклонено: сервер занят другим клиентом.")
+                edu_node.get_logger().warn(f"Входящее соединение от {addr} отклонено: сервер занят другим клиентом.")
                 conn.close()
                 continue
             
@@ -426,12 +423,12 @@ def start_server():
             active_client_thread.daemon = True
             active_client_thread.start()
             
-            logger.info(f"Клиент {addr} принят.")
+            edu_node.get_logger().info(f"Клиент {addr} принят.")
 
     except KeyboardInterrupt:
-        logger.info("\nОстановка сервера...")
+        edu_node.get_logger().info("\nОстановка сервера...")
     except Exception as e:
-        logger.critical(f"Критическая ошибка сервера: {e}", exc_info=True)
+        edu_node.get_logger().error(f"Критическая ошибка сервера: {e}", exc_info=True)
     finally:
         server.close()
         try:

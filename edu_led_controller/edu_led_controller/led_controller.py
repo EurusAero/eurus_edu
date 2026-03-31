@@ -190,7 +190,7 @@ class LedNode(Node):
             self.listener_callback,
             10
         )
-        self.get_logger().info("LED Driver Node Started. Waiting for commands on 'edu/led_control'...")
+        self.get_logger().info("LED нода создана. Ожидает комманд на 'edu/led_control'...")
 
     def listener_callback(self, msg):
         try:
@@ -207,7 +207,7 @@ class LedNode(Node):
             # Установка яркости
             self.led.set_brightness(brightness)
             
-            self.get_logger().info(f"Received LED command: {effect} | Color: {color}")
+            self.get_logger().info(f"Получена LED комманда: {effect} | цвет: {color} | яркость: {brightness}")
 
             if effect == "base":
                 self.led.set_base()
@@ -238,9 +238,9 @@ class LedNode(Node):
                 self.get_logger().warning(f"Unknown effect: {effect}")
 
         except json.JSONDecodeError:
-            self.get_logger().error(f"Invalid JSON: {msg.data}")
+            self.get_logger().error(f"Некорректный JSON: {msg.data}")
         except Exception as e:
-            self.get_logger().error(f"Error processing command: {e}")
+            self.get_logger().error(f"Ошибка при обработке комманды: {e}")
 
 
 def main(args=None):
@@ -264,9 +264,9 @@ def main(args=None):
         rclpy.spin(node)
         
     except KeyboardInterrupt:
-        print("\nОстановка по Ctrl+C")
+        node.get_logger().info("Остановка по Ctrl+C")
     except Exception as e:
-        print(f"Критическая ошибка: {e}")
+        node.get_logger().info(f"Критическая ошибка: {e}")
     finally:
         # Корректное завершение
         leds.stop()

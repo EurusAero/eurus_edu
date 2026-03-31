@@ -53,6 +53,8 @@ class TelemetryHandler(Node):
         self.point_reached = False
         
         self.timer = self.create_timer(0.05, self.telemetry_publisher)
+
+        self.get_logger().info("Нода обработчик телеметрии создана.")
     
     def battery_updater(self, msg):
         self.battery_msg = msg
@@ -130,6 +132,8 @@ def main():
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        node.get_logger().error(f"Ошибка в ноде обработки телеметрии: {e}")
     finally:
         node.destroy_node()
         rclpy.shutdown()

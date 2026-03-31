@@ -110,6 +110,8 @@ class MultiCameraPublisher(Node):
                         cam_thread.start()
         else:
             self.get_logger().error(f"Файл конфигурации не найден: {config_path}")
+        
+        self.get_logger().info("Camera publisher нода создана")
 
     def stop_all(self):
         self.get_logger().info("Остановка всех потоков камер...")

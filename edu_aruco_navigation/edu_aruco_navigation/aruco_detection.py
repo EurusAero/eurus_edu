@@ -53,17 +53,22 @@ class ArucoDetector(Node):
         self.camera_yaw_offset_deg = 0
 
         if os.path.exists(ini_path):
-            config = configparser.ConfigParser()
-            config.read(ini_path)
+            try:
+                config = configparser.ConfigParser()
+                config.read(ini_path)
 
-            self.dictionary_name = config["aruco"].get("dictionary", self.dictionary_name)
-            self.aruco_map_path = config["aruco"].get("map_path", "")
-            self.map_origin = config["aruco"].get("map_origin", "BR")
+                self.dictionary_name = config["aruco"].get("dictionary", self.dictionary_name)
+                self.aruco_map_path = config["aruco"].get("map_path", "")
+                self.map_origin = config["aruco"].get("map_origin", "BR")
 
-            camera_topic = config["settings"].get("camera_topic", camera_topic)
-            self.camera_config_path = config["settings"].get("camera_config_path", "")
-            self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
-            self.aruco_debug = config["settings"].getboolean("aruco_debug", False)
+                camera_topic = config["settings"].get("camera_topic", camera_topic)
+                self.camera_config_path = config["settings"].get("camera_config_path", "")
+                self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
+                self.aruco_debug = config["settings"].getboolean("aruco_debug", False)
+            except Exception as e:
+                self.get_logger().error(f"При чтении конфига - {ini_path} произошла ошибка: {e}")
+        else:
+            self.get_logger().warn(f"Не найден файл конфигурации по пути: {ini_path}")
 
         self.create_subscription(CompressedImage, camera_topic, self.camera_sub, camera_qos)
         self.create_subscription(String, "/edu/aruco_map_nav", self.map_navigation_sub, reliable_qos)
@@ -94,7 +99,7 @@ class ArucoDetector(Node):
         self.dist_coeffs = None
 
         if self.dictionary_name not in self.aruco_dicts:
-             self.dictionary_name = "4X4_250"
+            self.dictionary_name = "4X4_250"
 
         self.aruco_dict_obj = cv2.aruco.getPredefinedDictionary(self.aruco_dicts[self.dictionary_name])
         parameters = cv2.aruco.DetectorParameters()
@@ -102,20 +107,25 @@ class ArucoDetector(Node):
 
         if self.aruco_map_path:
             self.parse_map_file()
+        else:
+            self.get_logger().warn("Конфигурация для аруко карты не найдена.")
 
         if self.camera_config_path:
             self.load_camera_config()
         else:
-            self.get_logger().warn("Camera config path not set in eurus.ini!")
+            self.get_logger().warn("Конфигурация камеры не установленна в eurus.ini!")
 
         if self.aruco_debug:
             self.debug_queue = queue.Queue(maxsize=2)
             self.debug_thread = threading.Thread(target=self.debug_worker, daemon=True)
             self.debug_thread.start()
+            self.get_logger().debug("Установлен режим отладки")
+        self.get_logger().info("Aruco detector нода создана")
+        
 
     def parse_map_file(self):
         try:
-            self.get_logger().info(f"Loading map from {self.aruco_map_path}")
+            self.get_logger().info(f"Загрузка карты из {self.aruco_map_path}")
 
             obj_points = []
             ids_list = []
@@ -149,7 +159,7 @@ class ArucoDetector(Node):
                     max_y = max(max_y, y + half_l)
 
             if not ids_list:
-                self.get_logger().error("Map file is empty or invalid.")
+                self.get_logger().warn("Файл карты пустой или в неправильном формате.")
                 return
 
             ids_np = np.array(ids_list, dtype=np.int32)
@@ -166,16 +176,16 @@ class ArucoDetector(Node):
                 ids_np
             )
 
-            self.get_logger().info(f"Custom Board loaded: {len(ids_list)} markers. Origin set to: {self.map_origin}")
+            self.get_logger().info(f"Кастомное поле загруженно. Количество маркеров: {len(ids_list)}. Origin установлен в: {self.map_origin}")
 
         except Exception as e:
-            self.get_logger().error(f"Failed to parse map csv: {e}")
+            self.get_logger().error(f"Ошибка при чтении csv карты: {e}")
             self.board = None
 
     def load_camera_config(self):
         try:
             if not os.path.exists(self.camera_config_path):
-                self.get_logger().error(f"Camera config file not found: {self.camera_config_path}")
+                self.get_logger().error(f"Файл конфигурации камеры не найден по пути: {self.camera_config_path}")
                 return
 
             with open(self.camera_config_path, 'r') as f:
@@ -183,10 +193,10 @@ class ArucoDetector(Node):
 
             self.camera_matrix = np.array(data["camera_matrix"], dtype=np.float64)
             self.dist_coeffs = np.array(data["dist_coeffs"], dtype=np.float64)
-            self.get_logger().info(f"Camera parameters loaded. Mount offset: {self.camera_yaw_offset_deg} deg")
+            self.get_logger().info(f"Параметры камеры загруженны. Смещение места установки: {self.camera_yaw_offset_deg} deg")
 
         except Exception as e:
-            self.get_logger().error(f"Failed to load camera config: {e}")
+            self.get_logger().error(f"Ошибка при загрузке конфигурации камеры: {e}")
 
     def camera_sub(self, msg):
         if self.navigation_state or self.aruco_debug:
@@ -198,7 +208,7 @@ class ArucoDetector(Node):
 
     def aruco_board_snapshot_callback(self, request, response):
         if self.board is None or self.map_width_m <= 0:
-            self.get_logger().error("Board is not initialized or map size is 0.")
+            self.get_logger().error("Аруко поле не инициализированно или размер карты = 0.")
             response.success = False
             response.message = "Board not initialized"
             return response
@@ -337,7 +347,7 @@ class ArucoDetector(Node):
             except queue.Empty:
                 continue
             except Exception as e:
-                self.get_logger().error(f"Debug worker error: {e}")
+                self.get_logger().error(f"Ошибка в режиме отладки: {e}")
 
     def detect_aruco(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -355,9 +365,13 @@ class ArucoDetector(Node):
                 self.payload["map_in_vision"] = self.map_in_vision
                 msg.data = json.dumps(self.payload)
                 self.aruco_nav_pub.publish(msg)
-
+            else:
+                self.get_logger().debug("Aruco карта не видна")
+            
             return None, None
-
+        else:
+            self.get_logger().debug("Не обнаруженно aruco маркеров")
+        
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
 
         if retval and self.navigation_state:

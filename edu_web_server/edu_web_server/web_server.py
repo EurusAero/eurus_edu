@@ -24,28 +24,6 @@ VIDEO_TOPICS = {}
 APPLICATIONS = {}
 ros_node = None  # Глобальная переменная для нашей ROS-ноды
 
-if config.has_section('web_server'):
-    HOST = config['web_server'].get('host', HOST)
-    PORT = config['web_server'].getint('port', PORT)
-
-if config.has_section('video_topics'):
-    for key, value in config.items('video_topics'):
-        VIDEO_TOPICS[key] = value
-
-if config.has_section('applications'):
-    for key, value in config.items('applications'):
-        APPLICATIONS[key] = value
-
-if config.has_section('systemd'):
-    services_path = config['systemd'].get('services_path', '/etc/systemd/system/')
-    if os.path.exists(services_path):
-        for file in os.listdir(services_path):
-            if file.endswith('.service'):
-                SERVICES.append(file)
-        SERVICES.sort()
-    else:
-        print(f"[WARN] Путь к systemd сервисам не найден: {services_path}")
-
 # ==========================================
 
 app = Flask(__name__)
@@ -319,6 +297,44 @@ def main(args=None):
     rclpy.init(args=args)
 
     ros_node = WebServerNode()
+
+        
+    if config.has_section('web_server'):
+        global HOST
+        HOST = config['web_server'].get('host', HOST)
+        global PORT
+        PORT = config['web_server'].getint('port', PORT)
+    else:
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции web_server. Используются Host: {HOST} | Port:{PORT}")
+
+    if config.has_section('video_topics'):
+        for key, value in config.items('video_topics'):
+            global VIDEO_TOPICS
+            VIDEO_TOPICS[key] = value
+    else:
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции видео топиков")
+
+
+    if config.has_section('applications'):
+        for key, value in config.items('applications'):
+            global APPLICATIONS
+            APPLICATIONS[key] = value
+    else: 
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции applications.")
+
+
+    if config.has_section('systemd'):
+        services_path = config['systemd'].get('services_path', '/etc/systemd/system/')
+        if os.path.exists(services_path):
+            global SERVICES
+            for file in os.listdir(services_path):
+                if file.endswith('.service'):
+                    SERVICES.append(file)
+            SERVICES.sort()
+        else:
+            ros_node.get_logger().warn(f"Путь к systemd сервисам не найден: {services_path}")
+    else: 
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции systemd.")
 
     flask_thread = threading.Thread(target=start_flask_app)
     flask_thread.daemon = True

@@ -17,19 +17,6 @@ from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 
 BUFFER_SIZE = 4096
-LOG_LEVEL = 'INFO'
-LOG_FILE = None
-
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format='[CAM-SERVER] [%(asctime)s] [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE) if LOG_FILE else logging.NullHandler(),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("EurusCamServer")
-
 
 class CameraBridgeNode(Node):
     """
@@ -58,7 +45,7 @@ class CameraBridgeNode(Node):
         self.latest_targets = None
         self.lock = threading.Lock()
         
-        logger.info("MultiCameraBridgeNode запущен, ожидание конфигурации...")
+        self.get_logger().info("MultiCameraBridgeNode запущен, ожидание конфигурации...")
 
     def add_camera(self, camera_name):
         """Динамическое добавление подписки на камеру."""
@@ -76,7 +63,7 @@ class CameraBridgeNode(Node):
             cb,
             self.qos_profile
         )
-        logger.info(f"Подписка на топик создана: {topic_name}")
+        self.get_logger().info(f"Подписка на топик создана: {topic_name}")
 
     def image_callback(self, msg: CompressedImage, camera_name: str):
         """Получаем JPEG байты, конвертируем в Base64 и сохраняем для конкретной камеры."""
@@ -85,7 +72,7 @@ class CameraBridgeNode(Node):
             with self.lock:
                 self.latest_frames_b64[camera_name] = b64_data
         except Exception as e:
-            logger.error(f"Ошибка обработки кадра для {camera_name}: {e}")
+            self.get_logger().warn(f"Ошибка обработки кадра для {camera_name}: {e}")
 
     def target_callback(self, msg: String):
         """Получаем JSON строку от YOLO ноды."""
@@ -94,7 +81,7 @@ class CameraBridgeNode(Node):
             with self.lock:
                 self.latest_targets = data
         except json.JSONDecodeError:
-            logger.error(f"Получен битый JSON в /edu/targets: {msg.data}")
+            self.get_logger().warn(f"Получен битый JSON в /edu/targets: {msg.data}")
 
     def get_frame(self, camera_name):
         with self.lock:
@@ -123,7 +110,7 @@ class CameraSession:
         self.running = True
 
     def start(self):
-        logger.info(f"[{self.camera_name}] Видео-сессия начата для {self.addr}")
+        self.ros_node.get_logger().info(f"[{self.camera_name}] Видео-сессия начата для {self.addr}")
         buffer = b""
         
         try:
@@ -140,13 +127,13 @@ class CameraSession:
                         self._process_command(msg_str)
                         
         except (ConnectionResetError, BrokenPipeError):
-            logger.info(f"[{self.camera_name}] Клиент {self.addr} отключился.")
+            self.ros_node.get_logger().info(f"[{self.camera_name}] Клиент {self.addr} отключился.")
         except Exception as e:
-            logger.error(f"[{self.camera_name}] Ошибка сессии {self.addr}: {e}", exc_info=True)
+            self.ros_node.get_logger().error(f"[{self.camera_name}] Ошибка сессии {self.addr}: {e}", exc_info=True)
         finally:
             self.stop_stream()
             self.conn.close()
-            logger.info(f"[{self.camera_name}] Видео-сессия завершена для {self.addr}")
+            self.ros_node.get_logger().info(f"[{self.camera_name}] Видео-сессия завершена для {self.addr}")
 
     def send_json(self, data):
         with self.socket_lock:
@@ -154,7 +141,7 @@ class CameraSession:
                 self.sock_utils.send_json(self.conn, data)
                 return True
             except Exception as e:
-                logger.error(f"[{self.camera_name}] Ошибка отправки данных: {e}")
+                self.ros_node.get_logger().error(f"[{self.camera_name}] Ошибка отправки данных: {e}")
                 self.running = False
                 return False
 
@@ -196,13 +183,13 @@ class CameraSession:
         self.is_streaming = True
         self.stream_thread = threading.Thread(target=self._stream_loop, daemon=True)
         self.stream_thread.start()
-        logger.info(f"[{self.camera_name}] Поток видео запущен.")
+        self.ros_node.get_logger().info(f"[{self.camera_name}] Поток видео запущен.")
 
     def stop_stream(self):
         self.is_streaming = False
         if self.stream_thread and self.stream_thread.is_alive():
             self.stream_thread.join(timeout=1.0)
-        logger.info(f"[{self.camera_name}] Поток видео остановлен.")
+        self.ros_node.get_logger().info(f"[{self.camera_name}] Поток видео остановлен.")
 
     def _stream_loop(self):
         interval = 1.0 / self.fps
@@ -238,14 +225,14 @@ class SocketServerThread(threading.Thread):
         try:
             self.server_socket.bind((self.host, self.port))
             self.server_socket.listen()
-            logger.info(f"[{self.camera_name}] Сервер слушает {self.host}:{self.port}")
+            self.ros_node.get_logger().info(f"[{self.camera_name}] Сервер слушает {self.host}:{self.port}")
             
             while True:
                 conn, addr = self.server_socket.accept()
                 
                 # Single Client Check per camera
                 if self.active_session_thread is not None and self.active_session_thread.is_alive():
-                    logger.warning(f"[{self.camera_name}] Соединение {addr} отклонено (сервер занят).")
+                    self.ros_node.get_logger().warn(f"[{self.camera_name}] Соединение {addr} отклонено (сервер занят).")
                     conn.close()
                     continue
                 
@@ -254,7 +241,7 @@ class SocketServerThread(threading.Thread):
                 self.active_session_thread.start()
                 
         except Exception as e:
-            logger.error(f"[{self.camera_name}] Ошибка сервера: {e}")
+            self.ros_node.get_logger().error(f"[{self.camera_name}] Ошибка сервера: {e}")
         finally:
             if self.server_socket:
                 self.server_socket.close()
@@ -287,12 +274,12 @@ def main():
                     server_threads.append(srv_thread)
                     srv_thread.start()
     else:
-        logger.error(f"Файл конфига не найден: {config_path}")
+        node.get_logger().error(f"Файл конфига не найден: {config_path}")
 
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        logger.info("Остановка серверов...")
+        node.get_logger().info("Остановка серверов...")
     finally:
         node.destroy_node()
         rclpy.shutdown()

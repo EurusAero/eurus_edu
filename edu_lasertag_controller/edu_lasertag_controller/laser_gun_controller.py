@@ -29,7 +29,9 @@ class LasertagNode(Node):
                 laser_pin = int(config.get("laser_gun", "shot_pin"))
                 shots_amount = int(config.get("laser_gun", "shots_per_command"))
             except Exception as e:
-                self.get_logger().error(f"Error reading config: {e}. Using defaults.")
+                self.get_logger().error(f"Ошибка при чтении файла конфигурации - {ini_path}: {e}. Используются дефолтные значения.")
+        else:
+            self.get_logger().warn(f"Не обнаружен файл конфигурации по пути - {ini_path}. Используются дефолтные значения")
         
         self.shooting_sleep = shots_amount * 0.1
         
@@ -40,11 +42,11 @@ class LasertagNode(Node):
             self.laser_gpio.set_mode("out")
             self.laser_gpio.write(0)
             
-            self.get_logger().info(f"GPIO initialized via Sysfs. Laser GPIO: {laser_pin}")
+            self.get_logger().info(f"GPIO инициализирован через Sysfs. GPIO лазера: {laser_pin}")
         except Exception as e:
             if "Permission denied" in str(e):
                 raise Exception("Permission denied for GPIO access..")
-            self.get_logger().error(f"Failed to init GPIO: {e}")
+            self.get_logger().error(f"Ошибка при инициализации GPIO: {e}")
 
         self.lasertag_sub = self.create_subscription(
             String,
@@ -59,7 +61,7 @@ class LasertagNode(Node):
             10
         )
 
-        self.get_logger().info(f"Lasertag Node Started. Watching /edu/lasertag...")
+        self.get_logger().info(f"Lasertag нода созданна. Слушает /edu/lasertag...")
         
         self._shooting_lock = threading.Lock()
 
@@ -72,7 +74,7 @@ class LasertagNode(Node):
             timestamp = data.get("timestamp")
 
             if cmd_name == "shoot" and status == PENDING_STATUS:
-                self.get_logger().info(f"Shoot command received (T:{timestamp}). Firing...")
+                self.get_logger().info(f"Команда на выстрел получена (T:{timestamp}). Выстрел...")
                 
                 threading.Thread(
                     target=self.perform_shot, 
@@ -81,16 +83,16 @@ class LasertagNode(Node):
                 ).start()
 
         except json.JSONDecodeError:
-            self.get_logger().error(f"Invalid JSON received: {msg.data}")
+            self.get_logger().error(f"Получен некорректный JSON в lasertag_callback: {msg.data}")
         except Exception as e:
-            self.get_logger().error(f"Error in callback: {e}")
+            self.get_logger().error(f"Ошибка при обработке сообщения в lasertag_callback: {e}")
 
     def perform_shot(self, cmd_timestamp):
         """
         Выполнение выстрела и отправка ответа в edu/lasertag
         """
         if not self._shooting_lock.acquire(blocking=False):
-            self.get_logger().warn("Shot ignored: already shooting.")
+            self.get_logger().warn("Команда выстерла проигнорированна: уже стреляет.")
             return
 
         try:
@@ -103,7 +105,7 @@ class LasertagNode(Node):
             self.send_completed_status(cmd_timestamp)
 
         except Exception as e:
-            self.get_logger().error(f"Hardware error during shot: {e}")
+            self.get_logger().error(f"Ошибка в физических компонентах во время выстрела: {e}")
         finally:
             self._shooting_lock.release()
 
@@ -122,7 +124,7 @@ class LasertagNode(Node):
         msg.data = json.dumps(response_data)
         
         self.lasertag_pub.publish(msg)
-        self.get_logger().info(f"Published completion {response_data}")
+        self.get_logger().info(f"Публикация завершена. Ответ: {response_data}")
 
 def main(args=None):
     rclpy.init(args=args)

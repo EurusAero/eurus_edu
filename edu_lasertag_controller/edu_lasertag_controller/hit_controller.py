@@ -51,8 +51,10 @@ class HitControllerNode(Node):
                 self.hitted_blinking_speed = float(config.get("hit_controller", "hitted_blinking_speed"))
                 self.nled = int(config.get("hit_controller", "nled"))
             except Exception as e:
-                self.get_logger().error(f"Error reading config: {e}. Using defaults.")
-            
+                self.get_logger().warn(f"Ошибка при чтении файла конфигурации {ini_path}: {e}. Используются значения по умолчанию.")
+        else:
+            self.get_logger().warn(f"Файл конфигурации не обнаружен по пути: {ini_path}.") 
+     
         self.hit_gpio = GpioController(hit_pin)
         
         try:
@@ -61,7 +63,7 @@ class HitControllerNode(Node):
         except Exception as e:
             if "Permission denied" in str(e):
                 raise Exception("Permission denied for GPIO access..")
-            self.get_logger().error(f"Failed to init GPIO: {e}")
+            self.get_logger().error(f"Ошибка при инициализации GPIO: {e}")
             
         self.gamestart_sub = self.create_subscription(
             String,
@@ -70,7 +72,8 @@ class HitControllerNode(Node):
             10
         )
         self.timer = self.create_timer(0.2, self.hit_controller)
-        
+        self.get_logger().info("Hit controller нода создана.")
+
     def gamestart_callback(self, msg):
         try:
             data = json.loads(msg.data)
@@ -87,8 +90,10 @@ class HitControllerNode(Node):
             
             self.game_started = data.get("start_game", False)
 
+            # self.get_logger().info(".")
+
         except Exception as e:
-            self.get_logger().error(f"Error in callback: {e}")
+            self.get_logger().error(f"Ошибка при обработке запроса на начало игры: {e}")
     
     def hit_controller(self):
         if self.game_started:
@@ -117,6 +122,8 @@ class HitControllerNode(Node):
                     "color": self.hitted_color,
                     "speed": self.hitted_blinking_speed
                     }
+                
+                self.get_logger().info("Зарегистрированно попадание.")
             
             self.led_msg.data = json.dumps(msg)
             self.led_pub.publish(self.led_msg)
