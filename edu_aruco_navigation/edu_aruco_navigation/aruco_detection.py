@@ -304,21 +304,23 @@ class ArucoDetector(Node):
         self.payload["fly_in_borders"] = self.fly_in_borders
 
     def process_frame(self, image, timestamp):
+        try:
+            corners, ids = self.detect_aruco(image)
+            rvec, tvec = None, None
 
-        corners, ids = self.detect_aruco(image)
-        rvec, tvec = None, None
+            if (self.board is not None and
+                self.camera_matrix is not None and
+                ids is not None):
 
-        if (self.board is not None and
-            self.camera_matrix is not None and
-            ids is not None):
+                rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
-            rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
-
-        if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
-            try:
-                self.debug_queue.put_nowait((image, corners, ids, rvec, tvec, timestamp))
-            except queue.Full:
-                pass
+            if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
+                try:
+                    self.debug_queue.put_nowait((image, corners, ids, rvec, tvec, timestamp))
+                except queue.Full:
+                    pass
+        except Exception as e:
+            self.get_logger().error(f"Ошибка при обработке кадра: {e}")
 
     def debug_worker(self):
         while rclpy.ok():
@@ -371,6 +373,7 @@ class ArucoDetector(Node):
             return None, None
         else:
             self.get_logger().debug("Не обнаруженно aruco маркеров")
+        
         
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
 

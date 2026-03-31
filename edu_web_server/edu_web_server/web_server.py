@@ -314,14 +314,6 @@ def main(args=None):
     else:
         ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции web_server. Используются Host: {HOST} | Port:{PORT}")
 
-    # if config.has_section('video_topics'):
-    #     for key, value in config.items('video_topics'):
-    #         global VIDEO_TOPICS
-    #         VIDEO_TOPICS[key] = value
-    # else:
-    #     ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции видео топиков")
-
-
     if config.has_section('applications'):
         for key, value in config.items('applications'):
             global APPLICATIONS

@@ -252,7 +252,7 @@ class EduApiNode(Node):
                     "message": "Request accepted"
                 }
             except Exception as e:
-                self.get_logger().warn(f"Exeptiong getting aruco map navigation {e}")
+                self.get_logger().error(f"Exeptiong getting aruco map navigation {e}")
         elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
@@ -262,28 +262,39 @@ class EduApiNode(Node):
                     "message": f"Server busy executing: {self.current_command_name}"
                 }
             
-            self.is_busy = True
-            self.current_command_name = cmd_name
-            self.current_command_id = time.time()
-            self.set_active_session(session)
+            try:
+                self.is_busy = True
+                self.current_command_name = cmd_name
+                self.current_command_id = time.time()
+                self.set_active_session(session)
 
-            ros_msg = Command()
-            ros_msg.timestamp = self.current_command_id
-            ros_msg.command = cmd_name
-            ros_msg.status = PENDING_STATUS
-            
-            data_payload = {k: v for k, v in request_msg.items() if k != "command"}
-            ros_msg.data = json.dumps(data_payload)
-            
-            self.cmd_pub.publish(ros_msg)
-            self.get_logger().info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
+                ros_msg = Command()
+                ros_msg.timestamp = self.current_command_id
+                ros_msg.command = cmd_name
+                ros_msg.status = PENDING_STATUS
+                
+                data_payload = {k: v for k, v in request_msg.items() if k != "command"}
+                ros_msg.data = json.dumps(data_payload)
+                
+                self.cmd_pub.publish(ros_msg)
+                self.get_logger().info(f"Опубликована команда в ROS: {cmd_name}, ID: {self.current_command_id}")
 
-            return {
-                "command": "action_status",
-                "action": cmd_name,
-                "status": PENDING_STATUS,
-                "message": "Command sent to controller"
-            }
+                return {
+                    "command": "action_status",
+                    "action": cmd_name,
+                    "status": PENDING_STATUS,
+                    "message": "Command sent to controller"
+                }
+            
+            except Exception as e:
+                self.get_logger().error(f"Ошибка отправки комманды: {e}")
+                return {
+                    "command": "action_status",
+                    "action": cmd_name,
+                    "status": DENIED_STATUS,
+                    "message": str(e)
+                }
+
 
         return {
             "command": "response",
