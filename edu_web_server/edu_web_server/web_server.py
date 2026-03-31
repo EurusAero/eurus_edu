@@ -24,6 +24,12 @@ VIDEO_TOPICS = {}
 APPLICATIONS = {}
 ros_node = None  # Глобальная переменная для нашей ROS-ноды
 
+
+if config.has_section('video_topics'):
+    for key, value in config.items('video_topics'):
+        # global VIDEO_TOPICS
+        VIDEO_TOPICS[key] = value
+
 # ==========================================
 
 app = Flask(__name__)
@@ -52,10 +58,11 @@ class WebServerNode(Node):
                 lambda msg, topic_name=name: self.listener_callback(msg, topic_name),
                 qos_profile
             )
-            self.get_logger().info(f'Подписка на топик "{topic}" (имя: {name}) создана.')
+            self.get_logger().info(f'Подписка на видео топик "{topic}" (имя: {name}) создана.')
 
         # Клиент для генерации карты
         self.snapshot_client = self.create_client(Trigger, '/edu/get_aruco_board_snapshot')
+        self.get_logger().info(f'Web server нода создана.')
 
     def listener_callback(self, msg, topic_name):
         with frame_lock:
@@ -307,12 +314,12 @@ def main(args=None):
     else:
         ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции web_server. Используются Host: {HOST} | Port:{PORT}")
 
-    if config.has_section('video_topics'):
-        for key, value in config.items('video_topics'):
-            global VIDEO_TOPICS
-            VIDEO_TOPICS[key] = value
-    else:
-        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции видео топиков")
+    # if config.has_section('video_topics'):
+    #     for key, value in config.items('video_topics'):
+    #         global VIDEO_TOPICS
+    #         VIDEO_TOPICS[key] = value
+    # else:
+    #     ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции видео топиков")
 
 
     if config.has_section('applications'):
