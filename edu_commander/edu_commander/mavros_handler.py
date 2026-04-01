@@ -95,7 +95,7 @@ class MavrosHandler(Node):
             config.read(ini_path)
             self.aruco_map_path = config["aruco"].get("map_path", "")
         else:
-            self.get_logger().warn(f"Конфиг не найден по адрессу: {ini_path}")
+            self.get_logger().warn(f"Конфиг не найден по адресу: {ini_path}")
         
         if self.aruco_map_path and os.path.exists(self.aruco_map_path):
             with open(self.aruco_map_path, "r") as f:
@@ -112,7 +112,7 @@ class MavrosHandler(Node):
                     self.map_width_min = min(self.map_width_min, float(row["x"]))
                     self.map_height_min = min(self.map_height_min, float(row["y"]))
         else:
-            self.get_logger().warn(f"Aruco карта не создана.")    
+            self.get_logger().warn(f"Аруко карта не создана.")    
 
         self.Kp = 1.5
         self.max_corr = 1.0
@@ -466,7 +466,7 @@ class MavrosHandler(Node):
         except Exception as e:
             success = False
             error_msg = str(e)
-            self.get_logger().error(f"Ошибка при обработке комманды: {e}")
+            self.get_logger().error(f"Ошибка при обработке команды: {e}")
 
         final_status = COMPLETED_STATUS if success else DENIED_STATUS
         self.publish_status(msg, final_status, error_msg)
@@ -485,14 +485,14 @@ class MavrosHandler(Node):
             self.home_position.pose.orientation = self.local_pose.pose.orientation
         else:
             self.home_position.pose = self.local_pose.pose
-        self.get_logger().info(f"home position установленна в: x: {self.home_position.pose.position.x}, y: {self.home_position.pose.positon.y}, orientation: {self.home_position.pose.orientation}")
+        self.get_logger().info(f"home position установлена в: x: {self.home_position.pose.position.x}, y: {self.home_position.pose.positon.y}, orientation: {self.home_position.pose.orientation}")
 
     def do_set_mode(self, mode="OFFBOARD"):
         req = SetMode.Request()
         req.custom_mode = mode
         res = self._call_service_sync(self.set_mode_client, req)
         if res.mode_sent:
-            self.get_logger().debug(f"Отправленна команда установки режима {mode}")
+            self.get_logger().debug(f"Отправлена команда установки режима {mode}")
             return True, "Mode sent"
         self.get_logger().warn(f"Не удалось отправить команду установки режима {mode}: {res.result}")
         return False, f"Mode sent failed: {res.result}"

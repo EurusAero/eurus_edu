@@ -16,7 +16,6 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from std_msgs.msg import String, Bool
 from edu_msgs.msg import Command
 
-# Перекинуть в Ноду для логирования
 config = configparser.ConfigParser()
 home_dir = os.getenv("HOME")
 config_path = f'{home_dir}/ros2_ws/src/eurus_edu/edu_api_server/eurus.ini'
@@ -89,7 +88,7 @@ class EduApiNode(Node):
     def set_active_session(self, session):
         with self.session_lock:
             self.active_session = session
-        self.get_logger().debug(f"Установленна активная сессия - {session}")
+        self.get_logger().debug(f"Установлена активная сессия - {session}")
 
     def remove_active_session(self, session):
         with self.session_lock:
@@ -222,7 +221,6 @@ class EduApiNode(Node):
                 }
 
         elif cmd_name == "request_telemetry":
-            # self.get_logger().debug("sending telemetry")
             return {
                 "command": "response_telemetry",
                 "telemetry": self.latest_telemetry
@@ -252,7 +250,7 @@ class EduApiNode(Node):
                     "message": "Request accepted"
                 }
             except Exception as e:
-                self.get_logger().error(f"Exeptiong getting aruco map navigation {e}")
+                self.get_logger().error(f"Ошибка при получении навигации по аруко карте: {e}")
         elif cmd_name in DRONE_COMMANDS:
             if self.is_busy:
                 return {
@@ -287,7 +285,7 @@ class EduApiNode(Node):
                 }
             
             except Exception as e:
-                self.get_logger().error(f"Ошибка отправки комманды: {e}")
+                self.get_logger().error(f"Ошибка отправки команды: {e}")
                 return {
                     "command": "action_status",
                     "action": cmd_name,
@@ -310,7 +308,7 @@ class EduApiNode(Node):
         msg.data = ""
         
         self.cmd_pub.publish(msg)
-        self.get_logger().info(f"Отправленна принудительная команда посадки.")
+        self.get_logger().info(f"Отправлена принудительная команда посадки.")
         self.is_busy = False
     
     def force_aruco_map_disable(self):

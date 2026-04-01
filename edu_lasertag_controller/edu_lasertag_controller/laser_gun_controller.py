@@ -61,7 +61,7 @@ class LasertagNode(Node):
             10
         )
 
-        self.get_logger().info(f"Lasertag нода созданна. Слушает /edu/lasertag...")
+        self.get_logger().info(f"Lasertag нода создана. Слушает /edu/lasertag...")
         
         self._shooting_lock = threading.Lock()
 
@@ -92,7 +92,7 @@ class LasertagNode(Node):
         Выполнение выстрела и отправка ответа в edu/lasertag
         """
         if not self._shooting_lock.acquire(blocking=False):
-            self.get_logger().warn("Команда выстерла проигнорированна: уже стреляет.")
+            self.get_logger().warn("Команда выстрела проигнорирована: уже стреляет.")
             return
 
         try:

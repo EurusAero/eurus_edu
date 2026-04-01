@@ -123,7 +123,7 @@ class HitControllerNode(Node):
                     "speed": self.hitted_blinking_speed
                     }
                 
-                self.get_logger().info("Зарегистрированно попадание.")
+                self.get_logger().info("Зарегистрировано попадание.")
             
             self.led_msg.data = json.dumps(msg)
             self.led_pub.publish(self.led_msg)

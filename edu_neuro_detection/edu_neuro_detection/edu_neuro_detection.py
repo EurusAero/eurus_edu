@@ -37,7 +37,7 @@ class YoloDetectorNode(Node):
                 self.conf_threshold = config["neuro"].getfloat("conf_threshold", 0.5)
                 camera_topic = config["neuro"].get("camera_topic", "/edu/forward_camera")
             else:
-                self.get_logger().warn(f"Конфигурация для ноды не обнаруженна в {config_path}.")
+                self.get_logger().warn(f"Конфигурация для ноды не обнаружена в {config_path}.")
         else:
             self.get_logger().warn(f"Файл конфигурации не обнаружен по адресу {config_path}.")
 

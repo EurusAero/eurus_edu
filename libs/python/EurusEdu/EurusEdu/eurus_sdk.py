@@ -234,7 +234,7 @@ class EurusControl:
                      return
 
                 if not self._smart_wait(self._action_finished_event, timeout=None):
-                    self.logger.warning("Ожидание завершения прервано (дисконнект).")
+                    self.logger.warning("Ожидание завершения прервано (отключение).")
                     return
                 
                 if self._last_action_code == COMPLETED_STATUS:
@@ -346,13 +346,13 @@ class EurusControl:
         # Таймаут 2 секунды (выстрел длится 0.5)
         if self._smart_wait(self._laser_event, timeout=2.0):
             if self._last_laser_status == COMPLETED_STATUS:
-                self.logger.info("Laser shot successful.")
+                self.logger.info("Выстрел лазером успешен.")
                 return True
             else:
-                self.logger.warning(f"Laser shot failed/denied: {self._last_laser_status}")
+                self.logger.warning(f"Выстрел лазером не удался/отменён: {self._last_laser_status}")
                 return False
         else:
-            self.logger.error("Laser shot timeout (no confirmation from server).")
+            self.logger.error("Превышено время ожидания для выстрела лазером (нет подтверждения от сервера).")
             return False
     
     def aruco_map_navigation(self, state=False, fly_in_borders=True):

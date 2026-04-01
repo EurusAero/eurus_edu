@@ -113,7 +113,7 @@ class ArucoDetector(Node):
         if self.camera_config_path:
             self.load_camera_config()
         else:
-            self.get_logger().warn("Конфигурация камеры не установленна в eurus.ini!")
+            self.get_logger().warn("Конфигурация камеры не установлена в eurus.ini!")
 
         if self.aruco_debug:
             self.debug_queue = queue.Queue(maxsize=2)
@@ -176,7 +176,7 @@ class ArucoDetector(Node):
                 ids_np
             )
 
-            self.get_logger().info(f"Кастомное поле загруженно. Количество маркеров: {len(ids_list)}. Origin установлен в: {self.map_origin}")
+            self.get_logger().info(f"Пользовательское поле загружено. Количество маркеров: {len(ids_list)}. Origin установлен в: {self.map_origin}")
 
         except Exception as e:
             self.get_logger().error(f"Ошибка при чтении csv карты: {e}")
@@ -193,7 +193,7 @@ class ArucoDetector(Node):
 
             self.camera_matrix = np.array(data["camera_matrix"], dtype=np.float64)
             self.dist_coeffs = np.array(data["dist_coeffs"], dtype=np.float64)
-            self.get_logger().info(f"Параметры камеры загруженны. Смещение места установки: {self.camera_yaw_offset_deg} deg")
+            self.get_logger().info(f"Параметры камеры загружены. Смещение места установки: {self.camera_yaw_offset_deg} deg")
 
         except Exception as e:
             self.get_logger().error(f"Ошибка при загрузке конфигурации камеры: {e}")
@@ -208,7 +208,7 @@ class ArucoDetector(Node):
 
     def aruco_board_snapshot_callback(self, request, response):
         if self.board is None or self.map_width_m <= 0:
-            self.get_logger().error("Аруко поле не инициализированно или размер карты = 0.")
+            self.get_logger().error("Аруко поле не инициализировано или размер карты = 0.")
             response.success = False
             response.message = "Board not initialized"
             return response
@@ -368,11 +368,11 @@ class ArucoDetector(Node):
                 msg.data = json.dumps(self.payload)
                 self.aruco_nav_pub.publish(msg)
             else:
-                self.get_logger().debug("Aruco карта не видна")
+                self.get_logger().debug("Аруко карта не видна")
             
             return None, None
         else:
-            self.get_logger().debug("Не обнаруженно aruco маркеров")
+            self.get_logger().debug("Не обнаружено аруко маркеров")
         
         
         retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)

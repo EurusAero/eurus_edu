@@ -312,14 +312,14 @@ def main(args=None):
         global PORT
         PORT = config['web_server'].getint('port', PORT)
     else:
-        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции web_server. Используются Host: {HOST} | Port:{PORT}")
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаружено секции web_server. Используются Host: {HOST} | Port:{PORT}")
 
     if config.has_section('applications'):
         for key, value in config.items('applications'):
             global APPLICATIONS
             APPLICATIONS[key] = value
     else: 
-        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции applications.")
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаружено секции applications.")
 
 
     if config.has_section('systemd'):
@@ -333,7 +333,7 @@ def main(args=None):
         else:
             ros_node.get_logger().warn(f"Путь к systemd сервисам не найден: {services_path}")
     else: 
-        ros_node.get_logger().warn(f"В файле конфигурации не обнаруженно секции systemd.")
+        ros_node.get_logger().warn(f"В файле конфигурации не обнаружено секции systemd.")
 
     flask_thread = threading.Thread(target=start_flask_app)
     flask_thread.daemon = True

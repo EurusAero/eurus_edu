@@ -190,7 +190,7 @@ class LedNode(Node):
             self.listener_callback,
             10
         )
-        self.get_logger().info("LED нода создана. Ожидает комманд на 'edu/led_control'...")
+        self.get_logger().info("LED нода создана. Ожидает команд на 'edu/led_control'...")
 
     def listener_callback(self, msg):
         try:
@@ -207,7 +207,7 @@ class LedNode(Node):
             # Установка яркости
             self.led.set_brightness(brightness)
             
-            self.get_logger().info(f"Получена LED комманда: {effect} | цвет: {color} | яркость: {brightness}")
+            self.get_logger().info(f"Получена LED команда: {effect} | цвет: {color} | яркость: {brightness}")
 
             if effect == "base":
                 self.led.set_base()
@@ -235,12 +235,12 @@ class LedNode(Node):
                 self.led.clear()
             
             else:
-                self.get_logger().warning(f"Unknown effect: {effect}")
+                self.get_logger().warning(f"Неизвестный эффект: {effect}")
 
         except json.JSONDecodeError:
             self.get_logger().error(f"Некорректный JSON: {msg.data}")
         except Exception as e:
-            self.get_logger().error(f"Ошибка при обработке комманды: {e}")
+            self.get_logger().error(f"Ошибка при обработке команды: {e}")
 
 
 def main(args=None):
