@@ -90,57 +90,61 @@ class HitControllerNode(Node):
             
             self.game_started = data.get("start_game", False)
 
-            # self.get_logger().info(".")
-
+            self.get_logger().info("Отправлен запрос на начало игры.")
+        except json.JSONDecodeError:
+            self.ros_node.get_logger().error(f"Ошибка при декодировании JSON сообщения во время коллбека начала игры: {e}")
         except Exception as e:
             self.get_logger().error(f"Ошибка при обработке запроса на начало игры: {e}")
     
     def hit_controller(self):
-        if self.game_started:
-            hitted = self.hit_gpio.read()
-            self.game_started_prev = True
-            
-            if hitted:
-                self.hitted_pub.publish(Bool(data=True))
+        try:
+            if self.game_started:
+                hitted = self.hit_gpio.read()
+                self.game_started_prev = True
                 
-                msg = {
-                    "command": "led_control",
-                    "nLED": self.nled,
-                    "effect": "static",
-                    "brightness": self.led_brightness,
-                    "color": self.command_color,
-                    "speed": None
-                    }
-            else:
-                self.hitted_pub.publish(Bool(data=False))
+                if hitted:
+                    self.hitted_pub.publish(Bool(data=True))
+                    
+                    msg = {
+                        "command": "led_control",
+                        "nLED": self.nled,
+                        "effect": "static",
+                        "brightness": self.led_brightness,
+                        "color": self.command_color,
+                        "speed": None
+                        }
+                    
+                else:
+                    self.hitted_pub.publish(Bool(data=False))
 
-                msg = {
-                    "command": "led_control",
-                    "nLED": self.nled,
-                    "effect": "blink",
-                    "brightness": self.led_brightness,
-                    "color": self.hitted_color,
-                    "speed": self.hitted_blinking_speed
-                    }
+                    msg = {
+                        "command": "led_control",
+                        "nLED": self.nled,
+                        "effect": "blink",
+                        "brightness": self.led_brightness,
+                        "color": self.hitted_color,
+                        "speed": self.hitted_blinking_speed
+                        }
+                    
+                    self.get_logger().info("Зарегистрировано попадание.")
                 
-                self.get_logger().info("Зарегистрировано попадание.")
-            
-            self.led_msg.data = json.dumps(msg)
-            self.led_pub.publish(self.led_msg)
-        else:
-            if self.game_started_prev:
-                msg = {
-                    "command": "led_control",
-                    "nLED": self.nled,
-                    "effect": "base",
-                    "brightness": 1.0,
-                    "color": [255, 255, 255],
-                    "speed": None
-                }
-                self.game_started_prev = False
                 self.led_msg.data = json.dumps(msg)
                 self.led_pub.publish(self.led_msg)
-
+            else:
+                if self.game_started_prev:
+                    msg = {
+                        "command": "led_control",
+                        "nLED": self.nled,
+                        "effect": "base",
+                        "brightness": 1.0,
+                        "color": [255, 255, 255],
+                        "speed": None
+                    }
+                    self.game_started_prev = False
+                    self.led_msg.data = json.dumps(msg)
+                    self.led_pub.publish(self.led_msg)
+        except Exception as e:
+            self.get_logger().error(f"Ошибка в контроллере попадания: {e}.")
 
 def main(args=None):
     rclpy.init(args=args)

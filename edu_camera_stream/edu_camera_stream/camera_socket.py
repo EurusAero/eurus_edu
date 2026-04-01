@@ -161,7 +161,9 @@ class CameraSession:
                 self._send_targets()
 
         except json.JSONDecodeError:
-            pass
+            self.ros_node.get_logger().error(f"Ошибка при декодировании JSON сообщения во время обработки команды: {e}")
+        except Exception as e:
+            self.ros_node.get_logger().error(f"Ошибка при обработке команды: {e}")
 
     def _send_single_frame(self):
         frame = self.ros_node.get_frame(self.camera_name)

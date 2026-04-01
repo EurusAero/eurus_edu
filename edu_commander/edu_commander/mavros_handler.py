@@ -250,13 +250,16 @@ class MavrosHandler(Node):
         self.get_logger().info("Сервисы MAVROS найдены (или таймаут).")
 
     def publish_status(self, original_msg, status, message=""):
-        reply = Command()
-        reply.timestamp = original_msg.timestamp
-        reply.command = original_msg.command
-        reply.status = status
-        reply.data = message
-        self.status_pub.publish(reply)
-        self.get_logger().info(f"Статус '{original_msg.command}': {status} | {message}")
+        try:
+            reply = Command()
+            reply.timestamp = original_msg.timestamp
+            reply.command = original_msg.command
+            reply.status = status
+            reply.data = message
+            self.status_pub.publish(reply)
+            self.get_logger().info(f"Статус '{original_msg.command}': {status} | {message}")
+        except Exception as e:
+            self.ros_node.get_logger().error(f"Ошибка при публикации статуса: {e}")
 
     def local_pos_updater(self, msg: PoseStamped):
         self.local_pose = msg
@@ -267,8 +270,8 @@ class MavrosHandler(Node):
     def aruco_nav_updater(self, msg: String):
         try:
             self.aruco_nav_status = json.loads(msg.data)
-        except json.JSONDecodeError:
-            pass
+        except Exception as e:
+            self.ros_node.get_logger().error(f"Ошибка при публикации статуса: {e}")
 
     def get_distance(self, start, end):
         start_p = [float(start.pose.position.x), float(start.pose.position.y), float(start.pose.position.z)]
