@@ -29,7 +29,7 @@ class HitControllerNode(Node):
         )
         
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
-        self.hitted_pub = self.create_publisher(Bool, 'edu/is_alive', qos_profile)
+        self.alive_pub = self.create_publisher(Bool, 'edu/is_alive', qos_profile)
         
         self.command_color = [255, 0, 0]
         self.hitted_color = [255, 255, 255]
@@ -99,11 +99,12 @@ class HitControllerNode(Node):
     def hit_controller(self):
         try:
             if self.game_started:
-                hitted = self.hit_gpio.read()
+                # По умолчанию возвращает True
+                alive = self.hit_gpio.read()
                 self.game_started_prev = True
                 
-                if hitted:
-                    self.hitted_pub.publish(Bool(data=True))
+                if alive:
+                    self.alive_pub.publish(Bool(data=True))
                     
                     msg = {
                         "command": "led_control",
@@ -115,7 +116,7 @@ class HitControllerNode(Node):
                         }
                     
                 else:
-                    self.hitted_pub.publish(Bool(data=False))
+                    self.alive_pub.publish(Bool(data=False))
 
                     msg = {
                         "command": "led_control",
