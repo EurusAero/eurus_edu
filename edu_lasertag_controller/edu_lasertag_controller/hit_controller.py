@@ -31,12 +31,12 @@ class HitControllerNode(Node):
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
         self.alive_pub = self.create_publisher(Bool, 'edu/is_alive', qos_profile)
         
-        self.command_color = [255, 0, 0]
-        self.hitted_color = [255, 255, 255]
+        self.team_color = [255, 0, 0]
+        self.hit_color = [255, 255, 255]
         self.game_started = False
         self.game_started_prev = False
         self.led_msg = String()
-        self.hitted_blinking_speed = 0.3
+        self.hit_blinking_speed = 0.3
         self.nled = 45
         
         hit_pin = 139
@@ -46,9 +46,9 @@ class HitControllerNode(Node):
             
             try:
                 hit_pin = int(config.get("hit_controller", "hit_pin"))
-                self.hitted_color = list(map(int, config.get("hit_controller", "hitted_color").split()))
+                self.hit_color = list(map(int, config.get("hit_controller", "hit_color").split()))
                 self.led_brightness = float(config.get("hit_controller", "led_brightness"))
-                self.hitted_blinking_speed = float(config.get("hit_controller", "hitted_blinking_speed"))
+                self.hit_blinking_speed = float(config.get("hit_controller", "hit_blinking_speed"))
                 self.nled = int(config.get("hit_controller", "nled"))
             except Exception as e:
                 self.get_logger().warn(f"Ошибка при чтении файла конфигурации {ini_path}: {e}. Используются значения по умолчанию.")
@@ -62,6 +62,7 @@ class HitControllerNode(Node):
             self.hit_gpio.set_mode("in")
         except Exception as e:
             if "Permission denied" in str(e):
+                self.get_logger().error(f"Отказано в доступе к GPIO: {e}")
                 raise Exception("Permission denied for GPIO access..")
             self.get_logger().error(f"Ошибка при инициализации GPIO: {e}")
             
@@ -78,15 +79,15 @@ class HitControllerNode(Node):
         try:
             data = json.loads(msg.data)
             
-            color = data.get("command_color")
+            color = data.get("team_color")
             if type(color) is str:
                 if color == "blue":
-                    self.command_color = [0, 0, 255]
+                    self.team_color = [0, 0, 255]
                 elif color == "red":
-                    self.command_color = [255, 0, 0]
+                    self.team_color = [255, 0, 0]
             
             elif type(color) is list:
-                self.command_color = color
+                self.team_color = color
             
             self.game_started = data.get("start_game", False)
 
@@ -111,7 +112,7 @@ class HitControllerNode(Node):
                         "nLED": self.nled,
                         "effect": "static",
                         "brightness": self.led_brightness,
-                        "color": self.command_color,
+                        "color": self.team_color,
                         "speed": None
                         }
                     
@@ -123,8 +124,8 @@ class HitControllerNode(Node):
                         "nLED": self.nled,
                         "effect": "blink",
                         "brightness": self.led_brightness,
-                        "color": self.hitted_color,
-                        "speed": self.hitted_blinking_speed
+                        "color": self.hit_color,
+                        "speed": self.hit_blinking_speed
                         }
                     
                     self.get_logger().info("Зарегистрировано попадание.")

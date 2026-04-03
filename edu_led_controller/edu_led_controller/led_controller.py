@@ -4,6 +4,8 @@ import time
 import threading
 import json
 import sys
+import os
+import configparser
 
 import rclpy
 from rclpy.node import Node
@@ -136,7 +138,7 @@ class WS2812Controller:
             self._running = True
             self._thread = threading.Thread(target=self._loop, daemon=True)
             self._thread.start()
-            print("LED Controller started.")
+            print("LED Controller запущен.")
 
     def stop(self):
         self._running = False
@@ -145,7 +147,7 @@ class WS2812Controller:
         for _ in range(3):
             self._show([[0,0,0]] * self.nLED)
             time.sleep(0.01)
-        print("LED Controller stopped.")
+        print("LED Controller остановлен.")
 
     def set_brightness(self, val):
         self.brightness = max(0.0, min(1.0, val))
@@ -179,11 +181,38 @@ class WS2812Controller:
 
 
 class LedNode(Node):
-    def __init__(self, led_controller: WS2812Controller):
+    def __init__(self):
         super().__init__('led_controller')
-        self.led = led_controller
+
+        home_dir = os.getenv("HOME")
+        ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_led_controller/eurus.ini"
+
+        N_LEDS = 30
+        CHANNEL = 4
+        PORT = 1
+        SPEED = 3200000
+
+        if os.path.exists(ini_path):
+            config = configparser.ConfigParser()
+            config.read(ini_path)
+            
+            try:
+                N_LEDS = int(config.get("led", "amount"))
+                CHANNEL = int(config.get("led", "channel"))
+                PORT = int(config.get("led", "port"))
+                SPEED = int(config.get("led", "speed"))
+            except Exception as e:
+                self.get_logger().error(f"Ошибка при чтении файла конфигурации - {ini_path}: {e}. Используются дефолтные значения.")
+        else:
+            self.get_logger().warn(f"Не обнаружен файл конфигурации по пути - {ini_path}. Используются дефолтные значения")
         
-        # Подписка на топик, куда API сервер кидает JSON
+        leds = WS2812Controller(nLED=N_LEDS, channel=CHANNEL, port=PORT, speed=SPEED, order="GRB")
+        
+        leds.start()
+        leds.set_base()
+
+        self.led = leds
+        
         self.subscription = self.create_subscription(
             String,
             'edu/led_control',
@@ -244,23 +273,9 @@ class LedNode(Node):
 
 
 def main(args=None):
-    N_LEDS = 30
-    CHANNEL = 4
-    PORT = 1
-    SPEED = 3200000 
-    
-    # Инициализация LED контроллера
-    leds = WS2812Controller(nLED=N_LEDS, channel=CHANNEL, port=PORT, speed=SPEED, order="GRB")
-    
-    # Запускаем поток анимации светодиодов
     try:
-        leds.start()
-        # Включаем "base" режим по умолчанию при старте
-        leds.set_base()
-        # Инициализация ROS 2
         rclpy.init(args=args)
-        node = LedNode(leds)
-        # Spin блокирует этот поток, пока ROS узел работает
+        node = LedNode()
         rclpy.spin(node)
         
     except KeyboardInterrupt:
@@ -268,8 +283,7 @@ def main(args=None):
     except Exception as e:
         node.get_logger().info(f"Критическая ошибка: {e}")
     finally:
-        # Корректное завершение
-        leds.stop()
+        node.led.stop()
         if rclpy.ok():
             node.destroy_node()
             rclpy.shutdown()

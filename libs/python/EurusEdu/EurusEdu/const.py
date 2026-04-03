@@ -79,7 +79,7 @@ LED_CONTROL_MSG = {
 START_GAME_MSG = {
     "command": str,
     "start_game": bool,
-    "command_color": (str, list)
+    "team_color": (str, list)
 }
 
 GET_FRAME_MSG = COMMAND_MSG_SAMPLE

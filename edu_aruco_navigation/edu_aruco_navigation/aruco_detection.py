@@ -49,7 +49,6 @@ class ArucoDetector(Node):
         self.camera_config_path = ""
         self.aruco_debug = False
 
-        self.map_origin = "BR"
         self.camera_yaw_offset_deg = 0
 
         if os.path.exists(ini_path):
@@ -59,7 +58,6 @@ class ArucoDetector(Node):
 
                 self.dictionary_name = config["aruco"].get("dictionary", self.dictionary_name)
                 self.aruco_map_path = config["aruco"].get("map_path", "")
-                self.map_origin = config["aruco"].get("map_origin", "BR")
 
                 camera_topic = config["settings"].get("camera_topic", camera_topic)
                 self.camera_config_path = config["settings"].get("camera_config_path", "")
@@ -176,7 +174,7 @@ class ArucoDetector(Node):
                 ids_np
             )
 
-            self.get_logger().info(f"Пользовательское поле загружено. Количество маркеров: {len(ids_list)}. Origin установлен в: {self.map_origin}")
+            self.get_logger().info(f"Пользовательское поле загружено. Количество маркеров: {len(ids_list)}.")
 
         except Exception as e:
             self.get_logger().error(f"Ошибка при чтении csv карты: {e}")
@@ -200,11 +198,15 @@ class ArucoDetector(Node):
 
     def camera_sub(self, msg):
         if self.navigation_state or self.aruco_debug:
-            np_arr = np.frombuffer(msg.data, np.uint8)
-            timestamp = msg.header.stamp
-            image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            try:
+                np_arr = np.frombuffer(msg.data, np.uint8)
+                timestamp = msg.header.stamp
+                image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-            self.process_frame(image, timestamp)
+                self.process_frame(image, timestamp)
+            except Exception as e:
+                self.get_logger().error(f"Ошибка при декодировании изображения: {e}")
+
 
     def aruco_board_snapshot_callback(self, request, response):
         if self.board is None or self.map_width_m <= 0:
@@ -293,21 +295,25 @@ class ArucoDetector(Node):
 
 
     def map_navigation_sub(self, msg):
-        json_msg = json.loads(msg.data)
-        timestamp = json_msg.get("timestamp")
-        self.navigation_state = json_msg.get("aruco_nav_status")
-        self.map_in_vision = json_msg.get("map_in_vision")
-        self.fly_in_borders = json_msg.get("fly_in_borders")
-        self.payload["timestamp"] = timestamp
-        self.payload["aruco_nav_status"] = self.navigation_state
-        self.payload["map_in_vision"] = self.map_in_vision
-        self.payload["fly_in_borders"] = self.fly_in_borders
+        try:
+            json_msg = json.loads(msg.data)
+            timestamp = json_msg.get("timestamp")
+            self.navigation_state = json_msg.get("aruco_nav_status")
+            self.map_in_vision = json_msg.get("map_in_vision")
+            self.fly_in_borders = json_msg.get("fly_in_borders")
+            self.payload["timestamp"] = timestamp
+            self.payload["aruco_nav_status"] = self.navigation_state
+            self.payload["map_in_vision"] = self.map_in_vision
+            self.payload["fly_in_borders"] = self.fly_in_borders
+        except Exception as e:
+            self.get_logger().error(f"Ошибка при получении данных из /edu/aruco_map_nav : {e}")
+
 
     def process_frame(self, image, timestamp):
         try:
             corners, ids = self.detect_aruco(image)
             rvec, tvec = None, None
-
+            
             if (self.board is not None and
                 self.camera_matrix is not None and
                 ids is not None):

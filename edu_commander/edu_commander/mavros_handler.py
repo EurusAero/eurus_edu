@@ -293,6 +293,7 @@ class MavrosHandler(Node):
             self.start_position.pose.position.y = self.setpoint_pose.pose.position.y
             self.start_position.pose.position.z = self.setpoint_pose.pose.position.z
             hold_pos = True
+            self.ros_node.get_logger().debug(f"Карта потеряна удержание позиции.")
             
         stamp = self.start_position.header.stamp
         total_dist = self.get_distance(self.start_position, self.target_pose)
@@ -373,8 +374,8 @@ class MavrosHandler(Node):
                     local_vy += min(self.max_corr, corr_vy)
                     self.set_zero_velocity(pos_y=self.map_height_min)
 
-                if map_visible and self.hold_zero_velocity:
-                    self.hold_zero_velocity = False
+            if map_visible and self.hold_zero_velocity:
+                self.hold_zero_velocity = False
         
         self.setpoint_raw.header.stamp = self.get_clock().now().to_msg()
         self.setpoint_raw.type_mask = self.target_raw.type_mask
@@ -433,6 +434,7 @@ class MavrosHandler(Node):
                 data = json.loads(msg.data)
         except json.JSONDecodeError:
             self.publish_status(msg, DENIED_STATUS, "Invalid JSON data")
+            self.get_logger().warn(f"Ошибка при обработке JSON сообщения")
             return
 
         success = False
@@ -508,6 +510,7 @@ class MavrosHandler(Node):
         req = CommandBool.Request()
         req.value = True
         res = self._call_service_sync(self.arming_client, req)
+        self.get_logger().info(f"Отправлена команда Arm результат: {"Успех" if res else "Провал"}")
         if res.success:
             return True, "Armed"
         return False, f"Arming failed: {res.result}"
@@ -516,6 +519,7 @@ class MavrosHandler(Node):
         req = CommandBool.Request()
         req.value = False
         res = self._call_service_sync(self.arming_client, req)
+        self.get_logger().info(f"Отправлена команда Disarm результат: {"Успех" if res else "Провал"}")
         if res.success:
             return True, "Disarmed"
         return False, f"Disarming failed"
@@ -550,6 +554,7 @@ class MavrosHandler(Node):
     def do_land(self):
         req = CommandTOL.Request()
         res = self._call_service_sync(self.land_client, req)
+        self.get_logger().info(f"Отправлена команда на посадку результат: {"Успех" if res else "Провал"}")
         if res.success:
             return True, "Landing (Service)"
         return False, "Landing failed"

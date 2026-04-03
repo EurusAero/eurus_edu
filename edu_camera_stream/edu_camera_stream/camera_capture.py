@@ -61,6 +61,7 @@ class CameraStreamThread(threading.Thread):
         while rclpy.ok() and self.is_running:
             # Если камера отвалилась, пытаемся переподключиться
             if self.cap is None or not self.cap.isOpened():
+                self.node.get_logger().debug(f"[{self.camera_name}]. Попытка переподключения...")
                 self.setup_camera()
                 time.sleep(0.5)
                 continue

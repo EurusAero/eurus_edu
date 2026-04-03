@@ -156,6 +156,7 @@ class EduApiNode(Node):
         with self.session_lock:
             if self.active_session:
                 self.active_session.send_json(response_data)
+                self.get_logger().debug("Статус команды отправлен клиенту.")
 
         if status in [COMPLETED_STATUS, DENIED_STATUS]:
             self.is_busy = False
@@ -346,18 +347,18 @@ class ClientSession:
                 chunk = self.conn.recv(BUFFER_SIZE)
                 if not chunk:
                     break
-                
                 buffer += chunk
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
                 
                 for msg_str in messages:
                     if msg_str:
                         self._handle_request(msg_str)
-                        
+                    # if not heartbeat
+                # send heartbeat
         except ConnectionResetError:
             self.ros_node.get_logger().info(f"Клиент {self.addr} разорвал соединение.")
         except Exception as e:
-            self.ros_node.get_logger().warn(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
+            self.ros_node.get_logger().error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
         finally:
             self.ros_node.force_land()
             self.ros_node.force_aruco_map_disable()
@@ -370,7 +371,6 @@ class ClientSession:
         with self.socket_lock:
             try:
                 self.sock_utils.send_json(self.conn, data)
-                # logger.debug(f"Отправлено клиенту {self.addr}: {data.get('command')}")
             except Exception as e:
                 self.ros_node.get_logger().warn(f"Не удалось отправить данные {self.addr}: {e}")
 
@@ -393,7 +393,7 @@ class ClientSession:
                 self.send_json(result)
 
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-            self.ros_node.get_logger().warn(f"Ошибка обработки от {self.addr}: {e}")
+            self.ros_node.get_logger().error(f"Ошибка обработки от {self.addr}: {e}")
             self.send_json({
                 "command": "response",
                 "status": "error",

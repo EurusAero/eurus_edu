@@ -379,7 +379,7 @@ class EurusControl:
         
         self._send_movement_command(payload)
     
-    def start_game(self, start_game: bool = False, command_color: str | list = "red"):
+    def start_game(self, start_game: bool = False, team_color: str | list = "red"):
         if not self.is_connected:
             self.logger.error("Нет соединения для отправки команды LED.")
             return
@@ -387,7 +387,7 @@ class EurusControl:
         payload = {
             "command": "start_game",
             "start_game": start_game,
-            "command_color": command_color
+            "team_color": team_color
             }
         
         self._send_raw(payload)
