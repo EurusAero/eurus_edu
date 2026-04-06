@@ -12,6 +12,11 @@ TELEMETRY_REQUEST_MSG = COMMAND_MSG_SAMPLE
 
 POINT_REACHED_MSG = COMMAND_MSG_SAMPLE
 
+HEARTBEAT_MSG = {
+    "command": str,
+    "timestamp": float
+}
+
 MOVE_TO_LOCAL_POINT = {
     "command": str,
     "x": (float, int),
@@ -105,6 +110,7 @@ MOVE_TO_MARKER = {
 }
 
 MESSAGES = {
+    "heartbeat": HEARTBEAT_MSG,
     "move_to_local_point": MOVE_TO_LOCAL_POINT,
     "move_in_body_frame": MOVE_IN_BODY_FRAME,
     "takeoff": TAKEOFF_MSG,

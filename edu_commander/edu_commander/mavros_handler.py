@@ -415,7 +415,7 @@ class MavrosHandler(Node):
             return
 
         if self.current_task_thread and self.current_task_thread.is_alive():
-            self.publish_status(msg, DENIED_STATUS, "Mavros handler is busy")
+            self.publish_status(msg, DENIED_STATUS, "Mavros handler занят")
             return
 
         self.current_task_thread = threading.Thread(
@@ -433,7 +433,7 @@ class MavrosHandler(Node):
             if msg.data:
                 data = json.loads(msg.data)
         except json.JSONDecodeError:
-            self.publish_status(msg, DENIED_STATUS, "Invalid JSON data")
+            self.publish_status(msg, DENIED_STATUS, "Некорректный JSON")
             self.get_logger().warn(f"Ошибка при обработке JSON сообщения")
             return
 
@@ -467,7 +467,7 @@ class MavrosHandler(Node):
                 success, error_msg = self.do_move_to_marker(data)
             else:
                 success = False
-                error_msg = f"Unknown command: {cmd_name}"
+                error_msg = f"Неизвестная команда: {cmd_name}"
         except Exception as e:
             success = False
             error_msg = str(e)
@@ -498,9 +498,9 @@ class MavrosHandler(Node):
         res = self._call_service_sync(self.set_mode_client, req)
         if res.mode_sent:
             self.get_logger().debug(f"Отправлена команда установки режима {mode}")
-            return True, "Mode sent"
+            return True, "Отправлена команда установки режима"
         self.get_logger().warn(f"Не удалось отправить команду установки режима {mode}: {res.result}")
-        return False, f"Mode sent failed: {res.result}"
+        return False, f"Не удалось отправить команду установки режима: {res.result}"
 
     def do_arm(self):
         self.current_control_method = "LOCAL_POSITION"
@@ -513,7 +513,7 @@ class MavrosHandler(Node):
         self.get_logger().info(f"Отправлена команда Arm результат: {"Успех" if res else "Провал"}")
         if res.success:
             return True, "Armed"
-        return False, f"Arming failed: {res.result}"
+        return False, f"Arm неудался: {res.result}"
 
     def do_disarm(self):
         req = CommandBool.Request()
@@ -522,7 +522,7 @@ class MavrosHandler(Node):
         self.get_logger().info(f"Отправлена команда Disarm результат: {"Успех" if res else "Провал"}")
         if res.success:
             return True, "Disarmed"
-        return False, f"Disarming failed"
+        return False, f"Disarm неудался"
 
     def do_takeoff(self, data):
         self.do_set_mode("OFFBOARD")
@@ -549,15 +549,15 @@ class MavrosHandler(Node):
         self.frame_alignment_counter = 0
         self.current_control_method = "LOCAL_POSITION"
         
-        return True, "Takeoff initiated"
+        return True, "Взлёт инициирован"
 
     def do_land(self):
         req = CommandTOL.Request()
         res = self._call_service_sync(self.land_client, req)
         self.get_logger().info(f"Отправлена команда на посадку результат: {"Успех" if res else "Провал"}")
         if res.success:
-            return True, "Landing (Service)"
-        return False, "Landing failed"
+            return True, "Посадка..."
+        return False, "Неудалось начать посадку."
 
     def do_set_velocity(self, data):
         try:
@@ -600,9 +600,11 @@ class MavrosHandler(Node):
                 
             self.hold_zero_velocity = False
             self.current_control_method = "RAW_VELOCITY"
-            return True, f"setting vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}rad"
+            return True, f"Устанавливается vx={vx}, vy={vy}, vz={vz}, yaw_rate={yaw_rate}rad"
         except ValueError as e:
-            return False, f"Invalid values: {e}"
+            return False, f"Некорректные значения при установке скорости: {e}"
+        except Exception as e:
+            return False, f"Ошибка при установке скорости: {e}"
         
     def do_move_to_local_point(self, data):
         try:
@@ -624,7 +626,7 @@ class MavrosHandler(Node):
                     self.target_pose.pose.position.y = y
                     self.target_pose.pose.position.z = z
                 else:
-                    return False, "No aruco in vision"
+                    return False, "В зоне видимости нет аруко маркеров"
             else:
                 self.target_pose.pose.position.x = self.home_position.pose.position.x + x
                 self.target_pose.pose.position.y = self.home_position.pose.position.y + y
@@ -639,10 +641,10 @@ class MavrosHandler(Node):
             
             self.start_position.header.stamp = self.get_clock().now().to_msg()
             self.current_control_method = "LOCAL_POSITION"
-            return True, f"Moving to x={x}, y={y}, z={z}"
+            return True, f"Перемещение в x={x}, y={y}, z={z}"
 
         except ValueError as e:
-            return False, f"Invalid coordinates: {e}"
+            return False, f"Неверные координаты: {e}"
     
     def do_move_in_body_frame(self, data):
         try:
@@ -678,7 +680,7 @@ class MavrosHandler(Node):
                         x = max(self.map_width_min, min(x, self.map_width_max))
                         y = max(self.map_height_min, min(y, self.map_height_max))
                 else:
-                    return False, "No aruco in vision"
+                    return False, "В зоне видимости нет аруко маркеров"
             
             self.target_pose.pose.position.x = x
             self.target_pose.pose.position.y = y
@@ -687,9 +689,9 @@ class MavrosHandler(Node):
             self.start_position.header.stamp = self.get_clock().now().to_msg()
             self.current_control_method = "LOCAL_POSITION"
             
-            return True, f"Moving to x={self.target_pose.pose.position.x}, y={self.target_pose.pose.position.y}, z={self.target_pose.pose.position.z}"
+            return True, f"Перемещение в x={self.target_pose.pose.position.x}, y={self.target_pose.pose.position.y}, z={self.target_pose.pose.position.z}"
         except ValueError as e:
-            return False, f"Invalid coordinates: {e}"
+            return False, f"Неверные координаты: {e}"
     
     def do_move_to_marker(self, data):
         try:
@@ -705,16 +707,16 @@ class MavrosHandler(Node):
                         setpoint_data["y"] = marker_info["y"]
                         setpoint_data["z"] = data.get("z", 0.5)
                     else:
-                        return False, f"Marker {target_marker} not found in map"
+                        return False, f"Маркер {target_marker} не найден на карте"
                     
                     return self.do_move_to_local_point(setpoint_data)
                 else:
-                    return False, "No aruco map in vision"
+                    return False, "В зоне видимости нет аруко маркеров"
             else:
-                return False, "Aruco navigation not active"
+                return False, "Навигация по аруко не запущенна"
         
         except Exception as e:
-            return False, f"Error: {e}"
+            return False, f"Ошибка: {e}"
 
 def main():
     rclpy.init()

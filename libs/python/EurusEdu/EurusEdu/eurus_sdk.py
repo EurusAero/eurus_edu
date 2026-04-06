@@ -33,6 +33,8 @@ class EurusControl:
 
         self.sock_utils = SocketsUtils()
         self.listener_thread = None
+        self.heartbeat_thread = None
+        
         
         # Локи
         self._socket_lock = threading.Lock()    # Для защиты отправки байтов в сокет
@@ -57,6 +59,9 @@ class EurusControl:
         
         self._last_laser_status = None
 
+        
+        self._last_heartbeat = time.time()
+
     def connect(self):
         if self.is_connected:
             self.logger.warning("Уже подключен.")
@@ -72,8 +77,11 @@ class EurusControl:
             self.listener_thread = threading.Thread(target=self._listen_server, daemon=True)
             self.listener_thread.start()
             
+            self.heartbeat_thread = threading.Thread(target=self._heartbeat_server, daemon=True)
+            self.heartbeat_thread.start()
+
             self.logger.info(f"Успешное подключение к {self.ip}:{self.port}")
-            
+
         except Exception as e:
             self.logger.error(f"Ошибка подключения: {e}")
             self.is_connected = False
@@ -99,6 +107,26 @@ class EurusControl:
                 pass
         self.logger.info("Соединение закрыто.")
 
+    def _heartbeat_server(self):
+        """Фоновый поток heartbeat"""
+        while self.running:
+            try:
+                timestamp = time.time()
+
+                payload = {
+                    "command": "heartbeat",
+                    "timestamp": time.time()
+                }
+                self._send_raw(payload)
+                
+                time.sleep(max(0, 1 - (timestamp - self._last_heartbeat)))
+            
+                self._last_heartbeat = timestamp
+
+            except Exception as e:
+                self.logger.error("Ошибка в потоке heartbeat")
+
+
     def _listen_server(self):
         """Фоновый поток прослушивания."""
         buffer = b""
@@ -119,6 +147,10 @@ class EurusControl:
                 buffer += chunk
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
                 
+                # send hartbeat
+                
+
+
                 for raw_msg in messages:
                     if raw_msg is None: continue
                     try:

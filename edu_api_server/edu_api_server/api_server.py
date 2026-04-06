@@ -81,6 +81,9 @@ class EduApiNode(Node):
         
         self.latest_telemetry = {}
         
+        self._last_heartbeat = 0.0
+        self._last_heartbeat_time = time.time()
+
         self.active_session = None
         self.session_lock = threading.Lock()
         self.get_logger().info("API нода создана")
@@ -122,7 +125,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": "laser_shot", # SDK ждет именно это имя
                     "status": COMPLETED_STATUS,
-                    "message": data.get("message", "Shot fired")
+                    "message": data.get("message", "Выстрел произведён")
                 }
                 
                 with self.session_lock:
@@ -136,7 +139,7 @@ class EduApiNode(Node):
             self.get_logger().warn(f"Ошибка обработки callback лазертага: {e}")
 
     def command_status_callback(self, msg: Command):
-        """
+        """ 
         Коллбек, когда контроллер обновляет статус команд ДВИЖЕНИЯ.
         """
         if not self.is_busy or abs(msg.timestamp - self.current_command_id) > 0.0001:
@@ -168,8 +171,15 @@ class EduApiNode(Node):
         Обработка входящего JSON от клиента.
         """
         cmd_name = request_msg.get("command")
-        
-        if cmd_name == "led_control":
+
+        if cmd_name == "heartbeat":
+            timestamp = request_msg.get("timestamp")
+            if self._last_heartbeat != timestamp:
+                self._last_heartbeat = timestamp
+                self._last_heartbeat_time = time.time()
+            return None
+
+        elif cmd_name == "led_control":
             try:
                 msg = String()
                 msg.data = json.dumps(request_msg)
@@ -210,7 +220,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": "laser_shot",
                     "status": PENDING_STATUS,
-                    "message": "Shot initiated"
+                    "message": "Выстрел инициализирован"
                 }
             except Exception as e:
                 self.get_logger().warn(f"Ошибка отправки выстрела: {e}")
@@ -248,7 +258,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": cmd_name,
                     "status": COMPLETED_STATUS,
-                    "message": "Request accepted"
+                    "message": "Запрос принят"
                 }
             except Exception as e:
                 self.get_logger().error(f"Ошибка при получении навигации по аруко карте: {e}")
@@ -258,7 +268,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": cmd_name,
                     "status": DENIED_STATUS,
-                    "message": f"Server busy executing: {self.current_command_name}"
+                    "message": f"Сервер занят выполнением: {self.current_command_name}"
                 }
             
             try:
@@ -282,7 +292,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": cmd_name,
                     "status": PENDING_STATUS,
-                    "message": "Command sent to controller"
+                    "message": "Команда отправлена контроллеру"
                 }
             
             except Exception as e:
@@ -298,7 +308,7 @@ class EduApiNode(Node):
         return {
             "command": "response",
             "status": "error",
-            "message": f"Unknown command: {cmd_name}"
+            "message": f"Неизвестная команда: {cmd_name}"
         }
     
     def force_land(self):
@@ -343,6 +353,9 @@ class ClientSession:
         buffer = b""
         
         try:
+
+            self.ros_node._last_heartbeat_time = time.time()
+
             while True:
                 chunk = self.conn.recv(BUFFER_SIZE)
                 if not chunk:
@@ -353,8 +366,12 @@ class ClientSession:
                 for msg_str in messages:
                     if msg_str:
                         self._handle_request(msg_str)
-                    # if not heartbeat
-                # send heartbeat
+
+                if time.time() - self.ros_node._last_heartbeat_time > 3.0:
+                    self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
+                    break
+                        
+                
         except ConnectionResetError:
             self.ros_node.get_logger().info(f"Клиент {self.addr} разорвал соединение.")
         except Exception as e:
@@ -399,7 +416,7 @@ class ClientSession:
                 "status": "error",
                 "message": str(e)
             })
-
+    
 
 def start_server():
     rclpy.init()
