@@ -311,9 +311,6 @@ class MavrosHandler(Node):
             self.setpoint_pose.pose.position.y = self.start_position.pose.position.y + (self.target_pose.pose.position.y - self.start_position.pose.position.y) * passed
             self.setpoint_pose.pose.position.z = self.start_position.pose.position.z + (self.target_pose.pose.position.z - self.start_position.pose.position.z) * passed
         
-        # elif not hold_pos:
-        #      self.setpoint_pose.pose = self.target_pose.pose
-
         return self.setpoint_pose
     
     def calculate_next_target_velocity(self):
@@ -394,7 +391,6 @@ class MavrosHandler(Node):
         self.target_raw.type_mask = 2040
         self.target_raw.velocity.x = 0.0
         self.target_raw.velocity.y = 0.0
-        # self.target_raw.yaw_rate = 0.0
         
         if pos_x is None:
             self.target_raw.position.x = self.local_pose.pose.position.x

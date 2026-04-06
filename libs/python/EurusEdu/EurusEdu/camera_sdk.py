@@ -111,13 +111,11 @@ class EurusCamera:
                                 self._decode_and_store_frame(b64_data, ts)
                         
                         elif cmd == "targets_response":
-                            # Добавляем локальное время получения, чтобы знать свежесть данных
                             msg_dict["received_at"] = time.time()
                             
                             with self._targets_lock:
                                 self._latest_targets = msg_dict
                             
-                            # Разблокируем тех, кто ждет в blocking режиме
                             self._targets_event.set()
                                 
                     except json.JSONDecodeError:

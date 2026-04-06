@@ -89,9 +89,6 @@ class LasertagNode(Node):
             self.get_logger().error(f"Ошибка при обработке сообщения в lasertag_callback: {e}")
 
     def perform_shot(self, cmd_timestamp):
-        """
-        Выполнение выстрела и отправка ответа в edu/lasertag
-        """
         if not self._shooting_lock.acquire(blocking=False):
             self.get_logger().warn("Команда выстрела проигнорирована: уже стреляет.")
             return
@@ -111,14 +108,11 @@ class LasertagNode(Node):
             self._shooting_lock.release()
 
     def send_completed_status(self, timestamp):
-        """
-        Формирует JSON с новым статусом и отправляет в edu/lasertag
-        """
         response_data = {
             "timestamp": timestamp,
             "command": "shoot",
             "status": COMPLETED_STATUS,
-            "message": "Shot fired successfully"
+            "message": "Выстрел произведён успешно."
         }
         
         msg = String()
@@ -138,7 +132,6 @@ def main(args=None):
     finally:
         try:
             node.laser_gpio.write(0)
-            # node.laser_gpio.cleanup()
         except:
             pass
             

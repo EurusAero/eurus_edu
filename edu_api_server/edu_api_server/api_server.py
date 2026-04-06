@@ -29,7 +29,7 @@ if os.path.exists(config_path):
 
 class EduApiNode(Node):
     """
-    ROS 2 Node, который связывает TCP сервер с экосистемой ROS.
+    ROS 2 Node, связывающий TCP сервер с ROS.
     """
     def __init__(self):
         super().__init__('edu_api_server')
@@ -119,11 +119,10 @@ class EduApiNode(Node):
             cmd = data.get("command")
             status = data.get("status")
             
-            # Мы реагируем только на успешное завершение выстрела
             if cmd == "shoot" and status == COMPLETED_STATUS:
                 response_data = {
                     "command": "action_status",
-                    "action": "laser_shot", # SDK ждет именно это имя
+                    "action": "laser_shot",
                     "status": COMPLETED_STATUS,
                     "message": data.get("message", "Выстрел произведён")
                 }
@@ -201,7 +200,6 @@ class EduApiNode(Node):
         
         elif cmd_name == "laser_shot":
             try:
-                # Нода лазертага ждет команду "shoot"
                 payload = {
                     "command": "shoot",
                     "status": PENDING_STATUS,
@@ -401,7 +399,7 @@ class ClientSession:
                 self.send_json({
                     "command": "response",
                     "status": "success",
-                    "message": "received"
+                    "message": "Команда получена"
                 })
 
             result = self.ros_node.process_client_command(message, self)

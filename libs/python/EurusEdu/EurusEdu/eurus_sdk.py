@@ -87,7 +87,7 @@ class EurusControl:
             self.is_connected = False
 
     def disconnect(self):
-        if not self.running: return # Уже отключены
+        if not self.running: return
         
         self.running = False
         self.is_connected = False
@@ -108,7 +108,6 @@ class EurusControl:
         self.logger.info("Соединение закрыто.")
 
     def _heartbeat_server(self):
-        """Фоновый поток heartbeat"""
         while self.running:
             try:
                 timestamp = time.time()
@@ -128,7 +127,6 @@ class EurusControl:
 
 
     def _listen_server(self):
-        """Фоновый поток прослушивания."""
         buffer = b""
         while self.running:
             try:
@@ -146,10 +144,6 @@ class EurusControl:
                 
                 buffer += chunk
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
-                
-                # send hartbeat
-                
-
 
                 for raw_msg in messages:
                     if raw_msg is None: continue
@@ -277,7 +271,7 @@ class EurusControl:
 
         except KeyboardInterrupt:
             self.disconnect()
-            raise # Обязательно пробрасываем выше
+            raise
 
     def set_mode(self, mode):
         self._send_movement_command({"command": "set_mode", "mode": mode})
@@ -344,9 +338,6 @@ class EurusControl:
             return None
 
     def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 30, brightness: float = 1.0, speed: float | None = None):
-        """
-        Управление LED лентой без ожидания ответа (Fire-and-forget).
-        """
         if not self.is_connected:
             self.logger.error("Нет соединения для отправки команды LED.")
             return
@@ -366,7 +357,6 @@ class EurusControl:
         if not self.is_connected:
             return False
 
-        # 1. Сбрасываем только флаг лазера
         self._laser_event.clear()
         self._last_laser_status = None
 
@@ -374,8 +364,6 @@ class EurusControl:
         
         self._send_raw(payload)
 
-        # 3. Ждем подтверждения выполнения (Success/Denied) именно для лазера
-        # Таймаут 2 секунды (выстрел длится 0.5)
         if self._smart_wait(self._laser_event, timeout=2.0):
             if self._last_laser_status == COMPLETED_STATUS:
                 self.logger.info("Выстрел лазером успешен.")

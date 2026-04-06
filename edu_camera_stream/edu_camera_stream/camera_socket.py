@@ -19,9 +19,6 @@ from std_msgs.msg import String
 BUFFER_SIZE = 4096
 
 class CameraBridgeNode(Node):
-    """
-    ROS 2 Node: Слушает топики с камерами и топик с результатами нейросети.
-    """
     def __init__(self):
         super().__init__('edu_camera_server')
         
@@ -66,7 +63,6 @@ class CameraBridgeNode(Node):
         self.get_logger().info(f"Подписка на топик создана: {topic_name}")
 
     def image_callback(self, msg: CompressedImage, camera_name: str):
-        """Получаем JPEG байты, конвертируем в Base64 и сохраняем для конкретной камеры."""
         try:
             b64_data = base64.b64encode(msg.data).decode('utf-8')
             with self.lock:
@@ -75,7 +71,6 @@ class CameraBridgeNode(Node):
             self.get_logger().warn(f"Ошибка обработки кадра для {camera_name}: {e}")
 
     def target_callback(self, msg: String):
-        """Получаем JSON строку от YOLO ноды."""
         try:
             data = json.loads(msg.data)
             with self.lock:
@@ -93,9 +88,6 @@ class CameraBridgeNode(Node):
 
 
 class CameraSession:
-    """
-    Сессия для отправки видео и данных конкретной камеры.
-    """
     def __init__(self, conn, addr, ros_node: CameraBridgeNode, camera_name: str, fps: int):
         self.conn = conn
         self.addr = addr
@@ -171,7 +163,7 @@ class CameraSession:
             response = {"command": "frame_response", "image": frame, "timestamp": time.time()}
             self.send_json(response)
         else:
-            self.send_json({"command": "error", "message": "No frame available"})
+            self.send_json({"command": "error", "message": "Нет доступных кадров"})
 
     def _send_targets(self):
         targets = self.ros_node.get_targets()
@@ -209,7 +201,6 @@ class CameraSession:
 
 
 class SocketServerThread(threading.Thread):
-    """Отдельный поток для сокет-сервера конкретной камеры."""
     def __init__(self, ros_node: CameraBridgeNode, camera_name: str, host: str, port: int, fps: int):
         super().__init__(daemon=True)
         self.ros_node = ros_node

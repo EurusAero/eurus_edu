@@ -44,20 +44,15 @@ class MessagesUtils:
 
 class SocketsUtils:
     def __init__(self):
-        # Конвертируем маркеры в байты сразу при инициализации
         self.start_marker = START_MARKER.encode('utf-8')
         self.end_marker = END_MARKER.encode('utf-8')
 
     def send_json(self, conn: socket.socket, data_dict: dict):
-        """
-        Упаковывает словарь в JSON, оборачивает маркерами и отправляет в сокет.
-        """
         try:
             response_json = json.dumps(data_dict)
             packet = self.start_marker + response_json.encode('utf-8') + self.end_marker
             conn.sendall(packet)
         except Exception as e:
-            # Пробрасываем ошибку выше, чтобы логгер в сервере её поймал
             raise e
 
     def parse_buffer(self, buffer: bytes):
@@ -92,7 +87,7 @@ class GpioController:
 
     def __init__(self, pin_number):
         """
-        :param pin_number: Номер GPIO пина в sysfs
+        pin_number: Номер GPIO пина в sysfs
         """
         self.pin = str(pin_number)
         self.pin_path = os.path.join(self.BASE_PATH, f"gpio{self.pin}")
@@ -118,9 +113,6 @@ class GpioController:
             raise Exception(f"Error setting mode for pin {self.pin}: {e}")
 
     def write(self, value):
-        """
-        Запись значения: 1 (High) или 0 (Low)
-        """
         value_path = os.path.join(self.pin_path, "value")
         val_str = "1" if value else "0"
         try:
@@ -138,7 +130,6 @@ class GpioController:
             raise Exception(f"Error writing to pin {self.pin}: {e}")
 
     def cleanup(self):
-        """Освобождает пин (unexport)"""
         if os.path.exists(self.pin_path):
             try:
                 with open(os.path.join(self.BASE_PATH, "unexport"), 'w') as f:

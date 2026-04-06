@@ -100,7 +100,6 @@ class HitControllerNode(Node):
     def hit_controller(self):
         try:
             if self.game_started:
-                # По умолчанию возвращает True
                 alive = self.hit_gpio.read()
                 self.game_started_prev = True
                 

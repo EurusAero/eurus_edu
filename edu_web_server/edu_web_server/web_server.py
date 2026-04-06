@@ -10,7 +10,6 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import CompressedImage
 from std_srvs.srv import Trigger
 
-# ================= LOAD CONFIG =================
 config = configparser.ConfigParser()
 home_dir = os.getenv("HOME")
 config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_web_server/eurus.ini" 
@@ -27,18 +26,12 @@ ros_node = None  # Глобальная переменная для нашей R
 
 if config.has_section('video_topics'):
     for key, value in config.items('video_topics'):
-        # global VIDEO_TOPICS
         VIDEO_TOPICS[key] = value
-
-# ==========================================
 
 app = Flask(__name__)
 
 current_frames = {}
 frame_lock = threading.Lock()
-
-
-# ================= ROS NODE =================
 
 class WebServerNode(Node):
     def __init__(self):
@@ -50,7 +43,6 @@ class WebServerNode(Node):
             depth=10
         )
 
-        # Подписки на видео
         for name, topic in VIDEO_TOPICS.items():
             self.create_subscription(
                 CompressedImage,
@@ -85,9 +77,6 @@ def generate_frames(topic_name):
         delta_time = time.time() - start_time
         time.sleep(max(frame_time - delta_time, 0))
 
-
-# ================= SYSTEMD FUNCTIONS =================
-
 def get_service_status(service):
     result = subprocess.run(
         ["systemctl", "is-active", service],
@@ -96,10 +85,8 @@ def get_service_status(service):
     )
     return result.stdout.strip()
 
-
 def control_service(service, action):
     subprocess.run(["systemctl", action, service])
-
 
 def get_service_log(service):
     result = subprocess.run(
@@ -109,14 +96,8 @@ def get_service_log(service):
     )
     return result.stdout
 
-
-# ================= APPLICATION CONTROL =================
-
 def run_application(path):
     subprocess.Popen(["python3", path])
-
-
-# ================= ROUTES =================
 
 @app.route('/')
 def index():
@@ -130,14 +111,10 @@ def index():
     </ul>
     """)
 
-
-# ---------- ARUCO MAP SNAPSHOT ----------
-
 @app.route('/map_snapshot')
 def map_snapshot():
     global ros_node
     try:
-        # Ждем сервис (максимум 3 секунды)
         if not ros_node.snapshot_client.wait_for_service(timeout_sec=3.0):
             return """
             <h2>Ошибка</h2>
@@ -147,12 +124,9 @@ def map_snapshot():
 
         req = Trigger.Request()
         
-        # Так как этот код выполняется в отдельном потоке (потоке Flask), 
-        # вызов call() (синхронный вызов) абсолютно безопасен и не вызовет блокировку ROS.
         response = ros_node.snapshot_client.call(req)
 
         if response is not None and response.success:
-            # Получаем строку Base64 из ответа
             base64_img = response.message
             
             return render_template_string("""
@@ -168,9 +142,6 @@ def map_snapshot():
 
     except Exception as e:
         return f"<h2>Внутренняя ошибка сервера</h2><p>{str(e)}</p><a href='/'>Назад</a>"
-
-
-# ---------- SERVICES ----------
 
 @app.route('/services')
 def services():
@@ -225,9 +196,6 @@ def service_log(service):
     </pre>
     """, service=service, log=log)
 
-
-# ---------- VIDEO ----------
-
 @app.route('/videos')
 def videos():
     return render_template_string("""
@@ -239,7 +207,6 @@ def videos():
     {% endfor %}
     </ul>
     """, topics=VIDEO_TOPICS.keys())
-
 
 @app.route('/video/<topic_name>')
 def video_page(topic_name):
@@ -259,7 +226,6 @@ def stream(topic_name):
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-# ---------- APPLICATIONS ----------
 
 @app.route('/apps')
 def apps():
@@ -292,7 +258,6 @@ def run_app(name):
     return redirect(url_for('apps'))
 
 
-# ================= MAIN =================
 
 def start_flask_app():
     print(f"Запуск Web-сервера на {HOST}:{PORT}")

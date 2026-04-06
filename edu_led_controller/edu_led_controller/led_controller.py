@@ -27,7 +27,6 @@ class WS2812Controller:
         self._effect_speed = 0.05
         self._step = 0
         
-        # Настройка SPI
         try:
             wiringpi.wiringPiSPISetupMode(self.channel, self.port, self.speed, 0)
         except Exception as e:
@@ -232,8 +231,7 @@ class LedNode(Node):
             effect_speed = data.get("speed", None)
             nled = data.get("nLED", 30)
             self.led.nLED = nled
-            
-            # Установка яркости
+
             self.led.set_brightness(brightness)
             
             self.get_logger().info(f"Получена LED команда: {effect} | цвет: {color} | яркость: {brightness}")

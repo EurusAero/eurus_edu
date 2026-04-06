@@ -34,15 +34,12 @@ class ArucoDetector(Node):
             "5X5_1000": cv2.aruco.DICT_5X5_1000
         }
 
-        # QoS
         camera_qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=1)
         reliable_qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=10)
 
-        # Чтение конфига
         home_dir = os.getenv("HOME")
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
 
-        # Дефолтные настройки
         self.dictionary_name = "4X4_250"
         camera_topic = "/edu/camera_frame"
         self.aruco_map_path = ""
@@ -212,7 +209,7 @@ class ArucoDetector(Node):
         if self.board is None or self.map_width_m <= 0:
             self.get_logger().error("Аруко поле не инициализировано или размер карты = 0.")
             response.success = False
-            response.message = "Board not initialized"
+            response.message = "Аруко поле не инициализировано или размер карты = 0."
             return response
 
         try:
@@ -280,7 +277,7 @@ class ArucoDetector(Node):
             if not success_enc:
                 self.get_logger().error("Не удалось сжать изображение в JPEG.")
                 response.success = False
-                response.message = "Encode failed"
+                response.message = "Не удалось сжать изображение в JPEG."
                 return response
 
             response.success = True
@@ -428,7 +425,6 @@ class ArucoDetector(Node):
             covariance[35] = 1e-9 # Yaw
             self.vpe_cov.pose.covariance = covariance
 
-            # self.vpe_publisher.publish(self.vpe_pose)
             self.vpe_cov_publisher.publish(self.vpe_cov)
 
             if not self.map_in_vision:

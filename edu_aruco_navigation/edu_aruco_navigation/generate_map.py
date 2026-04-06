@@ -31,7 +31,6 @@ def main():
         for y_idx in range(args.cy):
             for x_idx in range(args.cx):
 
-                # координаты
                 x = x_idx * args.sx
                 
                 if args.bottom_left:
@@ -41,10 +40,8 @@ def main():
 
                 z = 0.0
 
-                # индекс в сетке (линейный)
                 index = y_idx * args.cx + x_idx
 
-                # если reverse — инвертируем индекс
                 if args.reverse:
                     index = total - 1 - index
 

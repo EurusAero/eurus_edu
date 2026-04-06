@@ -65,9 +65,6 @@ class YoloDetectorNode(Node):
         self.get_logger().info("YoloDetector нода создана.")
 
     def image_callback(self, msg: CompressedImage):
-        """
-        Получаем картинку -> Декодируем -> YOLO -> JSON -> Publish
-        """
         try:
             np_arr = np.frombuffer(msg.data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -78,7 +75,6 @@ class YoloDetectorNode(Node):
 
             results = self.model(frame, verbose=False, conf=self.conf_threshold)
 
-            # Динамически создаём список под каждый класс модели
             response = {"command": "targets_response", "all_objects": []}
             for key in self.class_keys.values():
                 response[key] = []
