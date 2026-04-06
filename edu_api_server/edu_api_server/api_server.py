@@ -40,17 +40,14 @@ class EduApiNode(Node):
             depth=10
         )
 
-        # Публикация команд для дрона (отправляем pending)
         self.cmd_pub = self.create_publisher(Command, 'edu/command', qos_profile)
         
-        # Публикация команд для LED ленты (JSON String)
         self.led_pub = self.create_publisher(String, 'edu/led_control', qos_profile)
         
         self.aruco_map_pub = self.create_publisher(String, "edu/aruco_map_nav", qos_profile)
         
         self.startgame_pub = self.create_publisher(String, "edu/game_started", qos_profile)
         
-        # Публикация и подписка для Лазертага
         self.lasertag_pub = self.create_publisher(String, 'edu/lasertag', qos_profile)
         self.lasertag_sub = self.create_subscription(
             String,
@@ -59,7 +56,6 @@ class EduApiNode(Node):
             qos_profile
         )
 
-        # Подписка на изменение статуса команд дрона (от контроллера)
         self.status_sub = self.create_subscription(
             Command, 
             'edu/command', 
@@ -67,7 +63,6 @@ class EduApiNode(Node):
             qos_profile
         )
         
-        # Подписка на телеметрию
         self.telemetry_sub = self.create_subscription(
             String,
             'edu/telemetry',
@@ -101,7 +96,6 @@ class EduApiNode(Node):
 
 
     def telemetry_callback(self, msg):
-        """Обновляем кэш телеметрии из топика."""
         try:
             data = json.loads(msg.data)
             self.latest_telemetry = data
@@ -109,11 +103,6 @@ class EduApiNode(Node):
             self.get_logger().warn("Получена некорректная JSON телеметрия из ROS топика")
 
     def lasertag_callback(self, msg):
-        """
-        Обработка ответов от ноды лазертага.
-        Нода присылает JSON с command="shoot" и status="success".
-        Мы транслируем это клиенту как action="laser_shot".
-        """
         try:
             data = json.loads(msg.data)
             cmd = data.get("command")
@@ -138,9 +127,6 @@ class EduApiNode(Node):
             self.get_logger().warn(f"Ошибка обработки callback лазертага: {e}")
 
     def command_status_callback(self, msg: Command):
-        """ 
-        Коллбек, когда контроллер обновляет статус команд ДВИЖЕНИЯ.
-        """
         if not self.is_busy or abs(msg.timestamp - self.current_command_id) > 0.0001:
             return
 
@@ -166,9 +152,6 @@ class EduApiNode(Node):
             self.get_logger().info(f"Поток команд разблокирован. Команда '{msg.command}' завершена со статусом {status}.")
 
     def process_client_command(self, request_msg: dict, session):
-        """
-        Обработка входящего JSON от клиента.
-        """
         cmd_name = request_msg.get("command")
 
         if cmd_name == "heartbeat":
@@ -226,7 +209,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": "laser_shot",
                     "status": DENIED_STATUS,
-                    "message": str(e)
+                    "message": f"Ошибка отправки выстрела: {str(e)}"
                 }
 
         elif cmd_name == "request_telemetry":
@@ -299,7 +282,7 @@ class EduApiNode(Node):
                     "command": "action_status",
                     "action": cmd_name,
                     "status": DENIED_STATUS,
-                    "message": str(e)
+                    "message": f"Ошибка отправки команды: {str(e)}"
                 }
 
 
@@ -334,9 +317,6 @@ class EduApiNode(Node):
 
 
 class ClientSession:
-    """
-    Класс сессии TCP.
-    """
     def __init__(self, conn, addr, ros_node: EduApiNode):
         self.conn = conn
         self.addr = addr
@@ -382,7 +362,6 @@ class ClientSession:
             self.ros_node.get_logger().info(f"Сессия завершена для {self.addr}")
 
     def send_json(self, data):
-        """Отправка JSON клиенту (потокобезопасно)."""
         with self.socket_lock:
             try:
                 self.sock_utils.send_json(self.conn, data)
@@ -407,12 +386,12 @@ class ClientSession:
             if result:
                 self.send_json(result)
 
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        except Exception as e:
             self.ros_node.get_logger().error(f"Ошибка обработки от {self.addr}: {e}")
             self.send_json({
                 "command": "response",
                 "status": "error",
-                "message": str(e)
+                "message": f"Ошибка обработки от {self.addr}: {str(e)}"
             })
     
 

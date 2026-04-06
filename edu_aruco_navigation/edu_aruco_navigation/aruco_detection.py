@@ -360,25 +360,30 @@ class ArucoDetector(Node):
         return corners, ids
 
     def calculate_drone_pose(self, corners, ids, timestamp):
-        obj_points, img_points = self.board.matchImagePoints(corners, ids)
-        msg = String()
+        try:
+            obj_points, img_points = self.board.matchImagePoints(corners, ids)
+            msg = String()
 
-        if obj_points is None or len(obj_points) == 0:
-            if self.map_in_vision:
-                self.map_in_vision = False
-                self.payload["timestamp"] = time.time()
-                self.payload["map_in_vision"] = self.map_in_vision
-                msg.data = json.dumps(self.payload)
-                self.aruco_nav_pub.publish(msg)
+            if obj_points is None or len(obj_points) == 0:
+                if self.map_in_vision:
+                    self.map_in_vision = False
+                    self.payload["timestamp"] = time.time()
+                    self.payload["map_in_vision"] = self.map_in_vision
+                    msg.data = json.dumps(self.payload)
+                    self.aruco_nav_pub.publish(msg)
+                else:
+                    self.get_logger().debug("Аруко карта не видна")
+                
+                return None, None
             else:
-                self.get_logger().debug("Аруко карта не видна")
+                self.get_logger().debug("Не обнаружено аруко маркеров")
             
+            
+            retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
+        except Exception as e:
+            self.get_logger().error(f"Ошибка при расчете позиции по аруко маркерам: {e}")
             return None, None
-        else:
-            self.get_logger().debug("Не обнаружено аруко маркеров")
-        
-        
-        retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
+
 
         if retval and self.navigation_state:
             R, _ = cv2.Rodrigues(rvec)

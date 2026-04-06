@@ -9,14 +9,12 @@ import time
 import threading
 
 class CameraStreamThread(threading.Thread):
-    """Класс для обработки отдельной камеры в отдельном потоке."""
     def __init__(self, node, camera_name, config_section):
         super().__init__()
         self.node = node
         self.camera_name = camera_name
         self.is_running = True
         
-        # Чтение параметров камеры из конфига
         self.width = config_section.getint("width", 640)
         self.height = config_section.getint("height", 480)
         self.fps = config_section.getint("fps", 30)
@@ -25,14 +23,12 @@ class CameraStreamThread(threading.Thread):
         dev_str = config_section.get("device", "0")
         self.device = int(dev_str) if dev_str.isdigit() else dev_str
         
-        # Настройка QoS и паблишера
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
         
-        # Топик будет иметь вид: /edu/forward_camera
         topic_name = f'/edu/{self.camera_name}'
         self.pub = self.node.create_publisher(CompressedImage, topic_name, qos_profile)
         
@@ -55,11 +51,9 @@ class CameraStreamThread(threading.Thread):
             self.node.get_logger().warn(f"[{self.camera_name}] Не удалось открыть камеру")
 
     def run(self):
-        """Основной цикл потока."""
         self.setup_camera()
         
         while rclpy.ok() and self.is_running:
-            # Если камера отвалилась, пытаемся переподключиться
             if self.cap is None or not self.cap.isOpened():
                 self.node.get_logger().debug(f"[{self.camera_name}]. Попытка переподключения...")
                 self.setup_camera()
@@ -83,7 +77,6 @@ class CameraStreamThread(threading.Thread):
                 time.sleep(0.5)
 
     def stop(self):
-        """Остановка потока и освобождение ресурсов."""
         self.is_running = False
         if self.cap is not None and self.cap.isOpened():
             self.cap.release()

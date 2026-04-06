@@ -15,13 +15,12 @@ home_dir = os.getenv("HOME")
 config_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_web_server/eurus.ini" 
 config.read(config_path)
 
-# Глобальные переменные
 HOST = '0.0.0.0'
 PORT = 5000
 SERVICES = []
 VIDEO_TOPICS = {}
 APPLICATIONS = {}
-ros_node = None  # Глобальная переменная для нашей ROS-ноды
+ros_node = None  
 
 
 if config.has_section('video_topics'):

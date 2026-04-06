@@ -35,7 +35,6 @@ class EurusControl:
         self.listener_thread = None
         self.heartbeat_thread = None
         
-        
         # Локи
         self._socket_lock = threading.Lock()    # Для защиты отправки байтов в сокет
         self._movement_lock = threading.Lock()  # Для блокировки команд движения

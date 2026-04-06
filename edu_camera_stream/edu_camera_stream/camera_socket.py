@@ -31,7 +31,6 @@ class CameraBridgeNode(Node):
         self.latest_frames_b64 = {}
         self.subs = {}
         
-        # Подписка на результаты YOLO (одна общая, либо можете переделать под каждую камеру)
         self.target_sub = self.create_subscription(
             String,
             '/edu/targets',
@@ -45,22 +44,23 @@ class CameraBridgeNode(Node):
         self.get_logger().info("MultiCameraBridgeNode запущен, ожидание конфигурации...")
 
     def add_camera(self, camera_name):
-        """Динамическое добавление подписки на камеру."""
-        topic_name = f'/edu/{camera_name}'
-        
-        with self.lock:
-            self.latest_frames_b64[camera_name] = None
+        try:
+            topic_name = f'/edu/{camera_name}'
             
-        # Используем замыкание (lambda), чтобы передать имя камеры в коллбек
-        cb = lambda msg, c_name=camera_name: self.image_callback(msg, c_name)
-        
-        self.subs[camera_name] = self.create_subscription(
-            CompressedImage,
-            topic_name,
-            cb,
-            self.qos_profile
-        )
-        self.get_logger().info(f"Подписка на топик создана: {topic_name}")
+            with self.lock:
+                self.latest_frames_b64[camera_name] = None
+                
+            cb = lambda msg, c_name=camera_name: self.image_callback(msg, c_name)
+            
+            self.subs[camera_name] = self.create_subscription(
+                CompressedImage,
+                topic_name,
+                cb,
+                self.qos_profile
+            )
+            self.get_logger().info(f"Подписка на топик создана: {topic_name}")
+        except Exception as e:
+            self.get_logger().error(f"Не удалось создать подписку на топик: {topic_name} - {e}")
 
     def image_callback(self, msg: CompressedImage, camera_name: str):
         try:
@@ -223,7 +223,6 @@ class SocketServerThread(threading.Thread):
             while True:
                 conn, addr = self.server_socket.accept()
                 
-                # Single Client Check per camera
                 if self.active_session_thread is not None and self.active_session_thread.is_alive():
                     self.ros_node.get_logger().warn(f"[{self.camera_name}] Соединение {addr} отклонено (сервер занят).")
                     conn.close()

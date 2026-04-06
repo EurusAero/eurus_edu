@@ -4,9 +4,6 @@ import numpy as np
 from EurusEdu import EurusCamera
 
 def draw_targets(frame, targets_data):
-    """
-    Функция для отрисовки всех найденных целей на кадре.
-    """
     if not targets_data or "all_objects" not in targets_data:
         return
 
