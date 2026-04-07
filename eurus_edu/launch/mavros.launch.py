@@ -23,30 +23,24 @@ def generate_launch_description():
     ])
 
 def evaluate_urls_and_include(context, *args, **kwargs):
-    # Получаем реальные строковые значения аргументов из контекста запуска
     sitl_conn = LaunchConfiguration('sitl_conn').perform(context)
     fcu_device = LaunchConfiguration('fcu_device').perform(context)
     fcu_ip = LaunchConfiguration('fcu_ip').perform(context)
     gcs_ip = LaunchConfiguration('gcs_ip').perform(context)
     gcs_bridge = LaunchConfiguration('gcs_bridge').perform(context)
 
-    # 1. Логика для fcu_url (USB или SITL)
     if sitl_conn.lower() == 'true':
         fcu_url_val = f"udp://:14540@{fcu_ip}:14557"
     else:
         fcu_url_val = fcu_device
 
-    # 2. Логика для gcs_url (TCP или UDP)
     if gcs_bridge == 'tcp':
         gcs_url_val = f"tcp-l://{gcs_ip}:5760"
     else:
-        # Автоматически подставит udp, udp-b или udp-pb
         gcs_url_val = f"{gcs_bridge}://{gcs_ip}:14550@14550"
 
-    # Получаем путь к пакету mavros
     mavros_share = get_package_share_directory('mavros')
 
-    # Подключаем node.launch с вычисленными параметрами
     node_launch = IncludeLaunchDescription(
         AnyLaunchDescriptionSource(
             os.path.join(mavros_share, 'launch', 'node.launch')

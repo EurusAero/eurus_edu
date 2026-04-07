@@ -244,7 +244,7 @@ class LedNode(Node):
 
 
 def main(args=None):
-    N_LEDS = 30
+    N_LEDS = 50
     CHANNEL = 4
     PORT = 1
     SPEED = 3200000 
