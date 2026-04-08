@@ -232,6 +232,14 @@ class EduApiNode(Node):
                     "fly_in_borders": request_msg.get("fly_in_borders")
                 }
                 
+                if request_msg.get("state") is True and self.latest_telemetry["state"]["mode"].lower() != "offboard":
+                    return {
+                        "command": "action_status",
+                        "action": cmd_name,
+                        "status": DENIED_STATUS,
+                        "message": 'Дрон должен быть в режиме "OFFBOARD"'
+                        }
+                
                 msg = String()
                 msg.data = json.dumps(payload)
                 self.aruco_map_pub.publish(msg)

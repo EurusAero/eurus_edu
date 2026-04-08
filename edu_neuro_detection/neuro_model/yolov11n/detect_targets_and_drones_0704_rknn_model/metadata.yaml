@@ -1,0 +1,27 @@
+description: Ultralytics YOLO11n model trained on dataset/data.yaml
+author: Ultralytics
+date: '2026-04-08T00:20:58.886071'
+version: 8.4.2
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: blue drone
+  1: blue target
+  2: drone
+  3: green target
+  4: red drone
+  5: red target
+  6: target
+  7: white drone
+  8: white target
+  9: yellow target
+args:
+  batch: 1
+  name: rk3588
+channels: 3

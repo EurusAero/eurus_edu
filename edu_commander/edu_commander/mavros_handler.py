@@ -636,6 +636,11 @@ class MavrosHandler(Node):
                 self.setpoint_pose.pose.orientation.y = qy
                 self.setpoint_pose.pose.orientation.z = qz
                 self.setpoint_pose.pose.orientation.w = qw
+            else:
+                self.setpoint_pose.pose.orientation.x = self.local_pose.pose.orientation.x
+                self.setpoint_pose.pose.orientation.y = self.local_pose.pose.orientation.y
+                self.setpoint_pose.pose.orientation.z = self.local_pose.pose.orientation.z
+                self.setpoint_pose.pose.orientation.w = self.local_pose.pose.orientation.w
             
             self.start_position.header.stamp = self.get_clock().now().to_msg()
             self.current_control_method = "LOCAL_POSITION"
@@ -695,6 +700,7 @@ class MavrosHandler(Node):
         try:
             setpoint_data = {}
             setpoint_data["speed"] = data.get("speed", 1.0)
+            setpoint_data["yaw"] = data.get("yaw", None)
             target_marker = data.get("marker_id", "")
             marker_info = self.aruco_map.get(target_marker)
 

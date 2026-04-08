@@ -5,7 +5,7 @@ import json
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from sensor_msgs.msg import BatteryState
-from mavros_msgs.msg import State
+from mavros_msgs.msg import State, PositionTarget
 from std_msgs.msg import String, Bool
 
 from EurusEdu.const import *
@@ -43,12 +43,14 @@ class TelemetryHandler(Node):
         self.create_subscription(PoseStamped, "/mavros/setpoint_position/local", self.setpoint_position_updater, sensor_qos)
         self.create_subscription(Bool, "/edu/is_alive", self.is_alive_updater, publisher_qos)
         self.create_subscription(Bool, "/edu/point_reached", self.point_reached_updater, sensor_qos)
+        self.create_subscription(PositionTarget, "/mavros/setpoint_raw/local", self.setpoint_raw_updater, sensor_qos)
         
         self.battery_msg = BatteryState()
         self.local_position_msg = PoseStamped()
         self.setpoint_position_msg = PoseStamped()
         self.velocity_msg = TwistStamped()
         self.state_msg = State()
+        self.setpoint_raw = PositionTarget()
         self.is_alive = False
         self.point_reached = False
         
@@ -58,6 +60,9 @@ class TelemetryHandler(Node):
     
     def battery_updater(self, msg):
         self.battery_msg = msg
+    
+    def setpoint_raw_updater(self, msg):
+        self.setpoint_raw = msg
     
     def local_position_updater(self, msg):
         self.local_position_msg = msg
@@ -78,55 +83,67 @@ class TelemetryHandler(Node):
         self.point_reached = msg.data
     
     def telemetry_publisher(self):
-        try:
-            self.telemetry_msg["state"]["connected"] = self.state_msg.connected
-            self.telemetry_msg["state"]["armed"] = self.state_msg.armed
-            self.telemetry_msg["state"]["mode"] = self.state_msg.mode
-            self.telemetry_msg["state"]["system_status"] = self.state_msg.system_status
-            
-            self.telemetry_msg["battery"]["voltage"] = self.battery_msg.voltage
-            self.telemetry_msg["battery"]["cell_voltage"] = list(self.battery_msg.cell_voltage)
-            self.telemetry_msg["battery"]["current"] = self.battery_msg.current
-            self.telemetry_msg["battery"]["percentage"] = int(self.battery_msg.percentage * 100)
-            
-            pose = self.local_position_msg.pose.position
-            orient = self.local_position_msg.pose.orientation
-            
-            self.telemetry_msg["local_position"]["x"] = pose.x
-            self.telemetry_msg["local_position"]["y"] = pose.y
-            self.telemetry_msg["local_position"]["z"] = pose.z
-            
-            orientation_angles = quat2euler((orient.w, orient.x, orient.y, orient.z))
-            
-            self.telemetry_msg["local_position"]["roll"] = degrees(orientation_angles[0])
-            self.telemetry_msg["local_position"]["pitch"] = degrees(orientation_angles[1])
-            self.telemetry_msg["local_position"]["yaw"] = degrees(orientation_angles[2])
-            
-            setpoint_pose = self.setpoint_position_msg.pose.position
-            setpoint_orient = self.setpoint_position_msg.pose.orientation
-            
-            setpoint_orientation_angles = quat2euler((setpoint_orient.w, setpoint_orient.x, setpoint_orient.y, setpoint_orient.z))        
-            
-            self.telemetry_msg["setpoint_local"]["x"] = setpoint_pose.x
-            self.telemetry_msg["setpoint_local"]["y"] = setpoint_pose.y
-            self.telemetry_msg["setpoint_local"]["z"] = setpoint_pose.z
-            self.telemetry_msg["setpoint_local"]["yaw"] = degrees(setpoint_orientation_angles[2])
-            
-            velocity = self.velocity_msg.twist.linear
-            
-            self.telemetry_msg["velocity"]["vx"] = velocity.x
-            self.telemetry_msg["velocity"]["vy"] = velocity.y
-            self.telemetry_msg["velocity"]["vz"] = velocity.z
-            
-            self.telemetry_msg["point_reached"] = self.point_reached
-            self.telemetry_msg["is_alive"] = self.is_alive
-            
-            self.ros_msg.data = json.dumps(self.telemetry_msg)
-
-            self.telemetry_pub.publish(self.ros_msg)
-        except Exception as e:
-            self.get_logger().error(f"Ошибка при публикации телеметрии: {e}")
-
+        self.telemetry_msg["state"]["connected"] = self.state_msg.connected
+        self.telemetry_msg["state"]["armed"] = self.state_msg.armed
+        self.telemetry_msg["state"]["mode"] = self.state_msg.mode
+        self.telemetry_msg["state"]["system_status"] = self.state_msg.system_status
+        
+        self.telemetry_msg["battery"]["voltage"] = self.battery_msg.voltage
+        self.telemetry_msg["battery"]["cell_voltage"] = list(self.battery_msg.cell_voltage)
+        self.telemetry_msg["battery"]["current"] = self.battery_msg.current
+        self.telemetry_msg["battery"]["percentage"] = int(self.battery_msg.percentage * 100)
+        
+        pose = self.local_position_msg.pose.position
+        orient = self.local_position_msg.pose.orientation
+        
+        self.telemetry_msg["local_position"]["x"] = pose.x
+        self.telemetry_msg["local_position"]["y"] = pose.y
+        self.telemetry_msg["local_position"]["z"] = pose.z
+        
+        orientation_angles = quat2euler((orient.w, orient.x, orient.y, orient.z))
+        
+        self.telemetry_msg["local_position"]["roll"] = degrees(orientation_angles[0])
+        self.telemetry_msg["local_position"]["pitch"] = degrees(orientation_angles[1])
+        self.telemetry_msg["local_position"]["yaw"] = degrees(orientation_angles[2])
+        
+        setpoint_pose = self.setpoint_position_msg.pose.position
+        setpoint_orient = self.setpoint_position_msg.pose.orientation
+        
+        setpoint_orientation_angles = quat2euler((setpoint_orient.w, setpoint_orient.x, setpoint_orient.y, setpoint_orient.z))        
+        
+        self.telemetry_msg["setpoint_local"]["x"] = setpoint_pose.x
+        self.telemetry_msg["setpoint_local"]["y"] = setpoint_pose.y
+        self.telemetry_msg["setpoint_local"]["z"] = setpoint_pose.z
+        self.telemetry_msg["setpoint_local"]["yaw"] = degrees(setpoint_orientation_angles[2])
+        
+        velocity = self.velocity_msg.twist.linear
+        
+        self.telemetry_msg["velocity"]["vx"] = velocity.x
+        self.telemetry_msg["velocity"]["vy"] = velocity.y
+        self.telemetry_msg["velocity"]["vz"] = velocity.z
+        
+        self.telemetry_msg["point_reached"] = self.point_reached
+        self.telemetry_msg["is_alive"] = self.is_alive
+        
+        setpoint_raw_type_mask = self.setpoint_raw.type_mask
+        setpoint_raw_pose = self.setpoint_raw.position
+        setpoint_raw_velocity = self.setpoint_raw.velocity
+        setpoint_raw_yaw = self.setpoint_raw.yaw
+        setpoint_raw_yaw_rate = self.setpoint_raw.yaw_rate
+        
+        self.telemetry_msg["setpoint_raw"]["type_mask"] = setpoint_raw_type_mask
+        self.telemetry_msg["setpoint_raw"]["vx"] = setpoint_raw_velocity.x
+        self.telemetry_msg["setpoint_raw"]["vy"] = setpoint_raw_velocity.y
+        self.telemetry_msg["setpoint_raw"]["vz"] = setpoint_raw_velocity.z
+        self.telemetry_msg["setpoint_raw"]["x"] = setpoint_raw_pose.x
+        self.telemetry_msg["setpoint_raw"]["y"] = setpoint_raw_pose.y
+        self.telemetry_msg["setpoint_raw"]["z"] = setpoint_raw_pose.z
+        self.telemetry_msg["setpoint_raw"]["yaw"] = setpoint_raw_yaw
+        self.telemetry_msg["setpoint_raw"]["yaw_rate"] = setpoint_raw_yaw_rate
+        
+        self.ros_msg.data = json.dumps(self.telemetry_msg)
+        
+        self.telemetry_pub.publish(self.ros_msg)
         
 
 def main():
