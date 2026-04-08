@@ -205,13 +205,11 @@ class LedNode(Node):
         else:
             self.get_logger().warn(f"Не обнаружен файл конфигурации по пути - {ini_path}. Используются дефолтные значения")
         
-        leds = WS2812Controller(nLED=N_LEDS, channel=CHANNEL, port=PORT, speed=SPEED, order="GRB")
+        self.led = WS2812Controller(nLED=N_LEDS, channel=CHANNEL, port=PORT, speed=SPEED, order="GRB")
         
-        leds.start()
-        leds.set_base()
+        self.led.start()
+        self.led.set_base()
 
-        self.led = leds
-        
         self.subscription = self.create_subscription(
             String,
             'edu/led_control',

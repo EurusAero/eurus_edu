@@ -49,6 +49,7 @@ class EduApiNode(Node):
         self.startgame_pub = self.create_publisher(String, "edu/game_started", qos_profile)
         
         self.lasertag_pub = self.create_publisher(String, 'edu/lasertag', qos_profile)
+        
         self.lasertag_sub = self.create_subscription(
             String,
             'edu/lasertag',

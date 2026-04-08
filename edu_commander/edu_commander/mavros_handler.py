@@ -57,12 +57,14 @@ class MavrosHandler(Node):
             self.command_callback,
             10
         )
+
         self.create_subscription(
             PoseStamped,
             "/mavros/local_position/pose",
             self.local_pos_updater,
             mavros_qos_profile
         )
+
         self.create_subscription(
             State,
             "/mavros/state",
@@ -89,6 +91,7 @@ class MavrosHandler(Node):
         
         self.map_height_min = float("inf")
         self.map_width_min = float("inf")
+        
         self.aruco_map = {}
         if os.path.exists(ini_path):
             config = configparser.ConfigParser()
@@ -326,7 +329,7 @@ class MavrosHandler(Node):
         _, _, yaw = quat2euler([q.w, q.x, q.y, q.z])
         
         local_vx = body_vx * cos(yaw) - body_vy * sin(yaw)
-        local_vy = body_vx * sin(yaw) + body_vy * cos(yaw)
+        local_vy = body_vx * sin(yaw) + body_vy * cos(yaw) 
     
         if aruco_active:
             if not map_visible and (time.time() - last_seen_ts) > 0.5 and not self.hold_zero_velocity:
@@ -561,8 +564,7 @@ class MavrosHandler(Node):
             vy = data.get("vy", self.target_raw.velocity.y)
             vz = data.get("vz", self.target_raw.velocity.z)
             yaw_rate = data.get("yaw_rate", None)
-            self.target_raw.type_mask = 1984
-            
+            self.target_raw.type_mask = 1984 
             
             if vx or vy:
                 self.target_raw.type_mask += 1
@@ -704,7 +706,6 @@ class MavrosHandler(Node):
                         setpoint_data["z"] = data.get("z", 0.5)
                     else:
                         return False, f"Маркер {target_marker} не найден на карте"
-                    
                     return self.do_move_to_local_point(setpoint_data)
                 else:
                     return False, "В зоне видимости нет аруко маркеров"

@@ -60,10 +60,8 @@ class HitControllerNode(Node):
         try:
             self.hit_gpio.export()
             self.hit_gpio.set_mode("in")
+
         except Exception as e:
-            if "Permission denied" in str(e):
-                self.get_logger().error(f"Отказано в доступе к GPIO: {e}")
-                raise Exception("Permission denied for GPIO access..")
             self.get_logger().error(f"Ошибка при инициализации GPIO: {e}")
             
         self.gamestart_sub = self.create_subscription(

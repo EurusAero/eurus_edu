@@ -131,9 +131,11 @@ class EurusControl:
             try:
                 try:
                     chunk = self.sock.recv(1024)
-                except socket.timeout:
+                except socket.timeout as e:
+                    self.logger.warning(f"Таймаут сокета: {e}")
                     continue 
-                except OSError:
+                except Exception as e:
+                    self.logger.error(f"Ошибка в listener_server: {e}")
                     break 
 
                 if not chunk:
