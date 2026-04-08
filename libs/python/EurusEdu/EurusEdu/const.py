@@ -178,6 +178,18 @@ TELEMETRY_DATA = {
         "vz": 0.0,
     },
     
+    "setpoint_raw": {
+        "type_mask": 0,
+        "vx": 0.0,
+        "vy": 0.0,
+        "vz": 0.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "yaw": 0.0,
+        "yaw_rate": 0.0
+    },
+    
     "point_reached": False,
     "is_alive": False
 }

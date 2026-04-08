@@ -10,6 +10,7 @@ import threading
 import cv2
 
 from EurusEdu import EurusControl, EurusCamera
+from math import radians
 
 # =========================
 # Глобальные настройки
@@ -18,7 +19,7 @@ DRONE_IP = "10.42.0.1"
 DRONE_PORT = 65432
 CAMERA_PORT = 8001
 
-TEAM_COLOR = "red"  # "red" или "blue"
+TEAM_COLOR = "blue"  # "red" или "blue"
 TARGET_COLOR = "blue" if TEAM_COLOR == "red" else "red"
 
 TAKEOFF_ALTITUDE_M = 1
@@ -26,7 +27,7 @@ MIN_TRACK_ALT_M = 0.7   # Минимальная высота при треки�
 MAX_TRACK_ALT_M = 1.5
 ALT_FLOOR_K = 0.8       # Коэффициент подъема, если высота ниже минимальной
 
-BASE_MARKER_ID = 250
+BASE_MARKER_ID = 251
 BASE_MARKER_ALT_M = 1
 BASE_MOVE_SPEED = 0.5
 
@@ -217,7 +218,7 @@ def main():
     print("Tracking started. Press 'q' in video window to stop.")
     
     was_alive = None
-
+    
     try:
         while not stop_event.is_set():
             start_t = time.time()
@@ -235,6 +236,11 @@ def main():
                 shared_state["is_alive"] = telemetry.get("is_alive", True)
                 local_pos = telemetry.get("local_position", {})
                 shared_state["alt"] = float(local_pos.get("z", 0.0)) if "z" in local_pos else None
+                setpoint_vx = telemetry["setpoint_raw"]["vx"]
+                setpoint_vy = telemetry["setpoint_raw"]["vy"]
+                setpoint_vz = telemetry["setpoint_raw"]["vz"]
+                setpoint_yaw_rate = telemetry["setpoint_raw"]["yaw_rate"]
+                setpoint_speed = (setpoint_vx ** 2 + setpoint_vy ** 2) ** 0.5
 
             is_alive = shared_state["is_alive"]
             current_alt = shared_state["alt"]
@@ -285,11 +291,10 @@ def main():
                 vz_down_cmd = clamp(ALT_FLOOR_K * alt_err, -MAX_VERTICAL_VZ, 0.0)
                 vz = min(vz, vz_down_cmd)
             
-
-            # Сохраняем для UI и отправляем на дрон
             shared_state.update({"vx": vx, "vz": vz, "yaw": yaw})
-            drone.set_velocity(vx=vx, vy=0.0, vz=vz, yaw_rate=yaw)
-
+            if abs(setpoint_speed - vx) > 0.0001 or vz != setpoint_vz or abs(radians(yaw) - setpoint_yaw_rate) > 0.0001:
+                drone.set_velocity(vx=vx, vy=0.0, vz=vz, yaw_rate=yaw)
+       
             elapsed = time.time() - start_t
             time.sleep(max(0, frame_period - elapsed))
         

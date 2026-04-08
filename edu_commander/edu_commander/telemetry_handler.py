@@ -5,7 +5,7 @@ import json
 
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from sensor_msgs.msg import BatteryState
-from mavros_msgs.msg import State
+from mavros_msgs.msg import State, PositionTarget
 from std_msgs.msg import String, Bool
 
 from EurusEdu.const import *
@@ -43,12 +43,14 @@ class TelemetryHandler(Node):
         self.create_subscription(PoseStamped, "/mavros/setpoint_position/local", self.setpoint_position_updater, sensor_qos)
         self.create_subscription(Bool, "/edu/is_alive", self.is_alive_updater, publisher_qos)
         self.create_subscription(Bool, "/edu/point_reached", self.point_reached_updater, sensor_qos)
+        self.create_subscription(PositionTarget, "/mavros/setpoint_raw/local", self.setpoint_raw_updater, sensor_qos)
         
         self.battery_msg = BatteryState()
         self.local_position_msg = PoseStamped()
         self.setpoint_position_msg = PoseStamped()
         self.velocity_msg = TwistStamped()
         self.state_msg = State()
+        self.setpoint_raw = PositionTarget()
         self.is_alive = False
         self.point_reached = False
         
@@ -56,6 +58,9 @@ class TelemetryHandler(Node):
     
     def battery_updater(self, msg):
         self.battery_msg = msg
+    
+    def setpoint_raw_updater(self, msg):
+        self.setpoint_raw = msg
     
     def local_position_updater(self, msg):
         self.local_position_msg = msg
@@ -117,6 +122,22 @@ class TelemetryHandler(Node):
         
         self.telemetry_msg["point_reached"] = self.point_reached
         self.telemetry_msg["is_alive"] = self.is_alive
+        
+        setpoint_raw_type_mask = self.setpoint_raw.type_mask
+        setpoint_raw_pose = self.setpoint_raw.position
+        setpoint_raw_velocity = self.setpoint_raw.velocity
+        setpoint_raw_yaw = self.setpoint_raw.yaw
+        setpoint_raw_yaw_rate = self.setpoint_raw.yaw_rate
+        
+        self.telemetry_msg["setpoint_raw"]["type_mask"] = setpoint_raw_type_mask
+        self.telemetry_msg["setpoint_raw"]["vx"] = setpoint_raw_velocity.x
+        self.telemetry_msg["setpoint_raw"]["vy"] = setpoint_raw_velocity.y
+        self.telemetry_msg["setpoint_raw"]["vz"] = setpoint_raw_velocity.z
+        self.telemetry_msg["setpoint_raw"]["x"] = setpoint_raw_pose.x
+        self.telemetry_msg["setpoint_raw"]["y"] = setpoint_raw_pose.y
+        self.telemetry_msg["setpoint_raw"]["z"] = setpoint_raw_pose.z
+        self.telemetry_msg["setpoint_raw"]["yaw"] = setpoint_raw_yaw
+        self.telemetry_msg["setpoint_raw"]["yaw_rate"] = setpoint_raw_yaw_rate
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)
         
