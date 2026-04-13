@@ -250,6 +250,7 @@ class MavrosHandler(Node):
             self.get_logger().warn("Сервис set_mode не найден!")
         if not self.takeoff_client.wait_for_service(timeout_sec=5.0):
             self.get_logger().warn("Сервис takeoff не найден!")
+        #логирование поправь
         self.get_logger().info("Сервисы MAVROS найдены (или таймаут).")
 
     def publish_status(self, original_msg, status, message=""):
@@ -296,7 +297,7 @@ class MavrosHandler(Node):
             self.start_position.pose.position.y = self.setpoint_pose.pose.position.y
             self.start_position.pose.position.z = self.setpoint_pose.pose.position.z
             hold_pos = True
-            self.ros_node.get_logger().debug(f"Карта потеряна удержание позиции.")
+            self.ros_node.get_logger().warn(f"Карта потеряна удержание позиции.")
             
         stamp = self.start_position.header.stamp
         total_dist = self.get_distance(self.start_position, self.target_pose)
@@ -345,6 +346,7 @@ class MavrosHandler(Node):
                 if local_vx > 0 and local_x > self.map_width_max - self.aruco_border_indent: 
                     local_vx = 0.0
                 
+                # Если вылетел застрял сетка
                 if local_x > self.map_width_max:
                     corr_vx = -self.Kp * (local_x - self.map_width_max)
                     local_vx += max(-self.max_corr, corr_vx) 
@@ -394,15 +396,14 @@ class MavrosHandler(Node):
         self.target_raw.type_mask = 2040
         self.target_raw.velocity.x = 0.0
         self.target_raw.velocity.y = 0.0
-        
-        if pos_x is None:
-            self.target_raw.position.x = self.local_pose.pose.position.x
-        else:
+    
+        self.target_raw.position.x = self.local_pose.pose.position.x
+        self.target_raw.position.y = self.local_pose.pose.position.y
+
+        if pos_x is not None:
             self.target_raw.position.x = pos_x
         
-        if pos_y is None:
-            self.target_raw.position.y = self.local_pose.pose.position.y
-        else:
+        if pos_y is not None:
             self.target_raw.position.y = pos_y
             
         if self.target_raw.velocity.z != 0:
@@ -509,7 +510,7 @@ class MavrosHandler(Node):
         req = CommandBool.Request()
         req.value = True
         res = self._call_service_sync(self.arming_client, req)
-        self.get_logger().info(f"Отправлена команда Arm результат: {"Успех" if res else "Провал"}")
+        self.get_logger().info(f"Отправлена команда Arm результат: {'Успех' if res else 'Провал'}")
         if res.success:
             return True, "Armed"
         return False, f"Arm неудался: {res.result}"
@@ -518,7 +519,7 @@ class MavrosHandler(Node):
         req = CommandBool.Request()
         req.value = False
         res = self._call_service_sync(self.arming_client, req)
-        self.get_logger().info(f"Отправлена команда Disarm результат: {"Успех" if res else "Провал"}")
+        self.get_logger().info(f"Отправлена команда Disarm результат: {'Успех' if res else 'Провал'}")
         if res.success:
             return True, "Disarmed"
         return False, f"Disarm неудался"
@@ -553,7 +554,7 @@ class MavrosHandler(Node):
     def do_land(self):
         req = CommandTOL.Request()
         res = self._call_service_sync(self.land_client, req)
-        self.get_logger().info(f"Отправлена команда на посадку результат: {"Успех" if res else "Провал"}")
+        self.get_logger().info(f"Отправлена команда на посадку результат: {'Успех' if res else 'Провал'}")
         if res.success:
             return True, "Посадка..."
         return False, "Неудалось начать посадку."
@@ -678,10 +679,9 @@ class MavrosHandler(Node):
             z = data.get("z", self.target_pose.pose.position.z)
             
             if self.aruco_nav_status.get("aruco_nav_status"):
-                if self.aruco_nav_status.get("map_in_vision"):
-                    if self.aruco_nav_status.get("fly_in_borders"):
-                        x = max(self.map_width_min, min(x, self.map_width_max))
-                        y = max(self.map_height_min, min(y, self.map_height_max))
+                if self.aruco_nav_status.get("map_in_vision") and self.aruco_nav_status.get("fly_in_borders"):
+                    x = max(self.map_width_min, min(x, self.map_width_max))
+                    y = max(self.map_height_min, min(y, self.map_height_max))
                 else:
                     return False, "В зоне видимости нет аруко маркеров"
             
@@ -692,19 +692,22 @@ class MavrosHandler(Node):
             self.start_position.header.stamp = self.get_clock().now().to_msg()
             self.current_control_method = "LOCAL_POSITION"
             
-            return True, f"Перемещение в x={self.target_pose.pose.position.x}, y={self.target_pose.pose.position.y}, z={self.target_pose.pose.position.z}"
+            return True, f"Перемещение в x={self.target_pose.pose.position.x}, \
+                            y={self.target_pose.pose.position.y}, \
+                            z={self.target_pose.pose.position.z}"
         except ValueError as e:
             return False, f"Неверные координаты: {e}"
     
     def do_move_to_marker(self, data):
         try:
-            setpoint_data = {}
-            setpoint_data["speed"] = data.get("speed", 1.0)
-            setpoint_data["yaw"] = data.get("yaw", None)
-            target_marker = data.get("marker_id", "")
-            marker_info = self.aruco_map.get(target_marker)
-
             if self.aruco_nav_status.get("aruco_nav_status"):
+                setpoint_data = {}
+                setpoint_data["speed"] = data.get("speed", 1.0)
+                setpoint_data["yaw"] = data.get("yaw", None)
+                target_marker = data.get("marker_id", "")
+                marker_info = self.aruco_map.get(target_marker)
+
+            
                 if self.aruco_nav_status.get("map_in_vision"):
                     if marker_info:
                         setpoint_data["x"] = marker_info["x"]

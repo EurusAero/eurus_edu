@@ -26,6 +26,9 @@ if os.path.exists(config_path):
     PORT = int(config['server'].get('port'))
     BUFFER_SIZE = int(config['server'].get('buffer_size'))
 
+class HartbeatException(BaseException):
+    def __init__(self, message):
+        super().__init__(message)
 
 class EduApiNode(Node):
     """
@@ -310,6 +313,8 @@ class EduApiNode(Node):
         
         self.cmd_pub.publish(msg)
         self.get_logger().info(f"Отправлена принудительная команда посадки.")
+
+        #why u there not in different place
         self.is_busy = False
     
     def force_aruco_map_disable(self):
@@ -355,14 +360,32 @@ class ClientSession:
                         self._handle_request(msg_str)
 
                 if time.time() - self.ros_node._last_heartbeat_time > 3.0:
-                    self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
-                    break
+                    raise HartbeatException("Потерян heartbeat.")
                         
                 
         except ConnectionResetError:
             self.ros_node.get_logger().info(f"Клиент {self.addr} разорвал соединение.")
+
+        except HartbeatException:
+            self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
+            # just for test remove me please after u done me :3
+
+            payload = {
+                "command" : "led_control",
+                "effect": "static",
+                "nLED": 50,
+                "brightness": 0.5,
+                "color": [int(255), int(0), int(0)],
+                "speed": None
+            }
+
+            self.ros_node.process_client_command(payload, self.ros_node)
+
+            # end of me remove :p
+
         except Exception as e:
             self.ros_node.get_logger().error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
+
         finally:
             self.ros_node.force_land()
             self.ros_node.force_aruco_map_disable()
@@ -428,7 +451,7 @@ def start_server():
                 edu_node.get_logger().warn(f"Входящее соединение от {addr} отклонено: сервер занят другим клиентом.")
                 conn.close()
                 continue
-            
+
             session = ClientSession(conn, addr, edu_node)
             
             active_client_thread = threading.Thread(target=session.start)

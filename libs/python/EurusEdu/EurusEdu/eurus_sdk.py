@@ -338,7 +338,7 @@ class EurusControl:
         else:
             return None
 
-    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 30, brightness: float = 1.0, speed: float | None = None):
+    def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 50, brightness: float = 1.0, speed: float | None = None):
         if not self.is_connected:
             self.logger.error("Нет соединения для отправки команды LED.")
             return

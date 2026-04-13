@@ -48,6 +48,7 @@ class ArucoDetector(Node):
 
         self.camera_yaw_offset_deg = 0
 
+
         if os.path.exists(ini_path):
             try:
                 config = configparser.ConfigParser()
