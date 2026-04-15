@@ -314,7 +314,6 @@ class EduApiNode(Node):
         self.cmd_pub.publish(msg)
         self.get_logger().info(f"Отправлена принудительная команда посадки.")
 
-        #why u there not in different place
         self.is_busy = False
     
     def force_aruco_map_disable(self):

@@ -87,6 +87,9 @@ class HitControllerNode(Node):
             elif type(color) is list:
                 self.team_color = color
             
+            else:
+                 self.team_color = (255,255,255)
+            
             self.game_started = data.get("start_game", False)
 
             self.get_logger().info("Отправлен запрос на начало игры.")

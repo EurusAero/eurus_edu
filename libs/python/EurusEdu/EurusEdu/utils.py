@@ -13,6 +13,7 @@ class MessagesUtils:
         for key in msg.keys():
             if key not in MESSAGES[command].keys():
                 raise KeyError(f"Ключа '{key}' не cуществует в сообщении '{command}'")
+        return True
     
     def __compare_types(self, msg, command):
         for key in msg.keys():
@@ -39,7 +40,7 @@ class MessagesUtils:
                 return True
         else:
             raise KeyError("В сообщении отсутствует ключ 'command'")
-        return None
+        return False
 
 
 class SocketsUtils:

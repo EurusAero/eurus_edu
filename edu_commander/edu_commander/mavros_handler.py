@@ -244,14 +244,30 @@ class MavrosHandler(Node):
 
     def _wait_for_services(self):
         self.get_logger().info("Ожидание сервисов MAVROS...")
+        time_out = False
+
         if not self.arming_client.wait_for_service(timeout_sec=5.0):
             self.get_logger().warn("Сервис arming не найден!")
+            time_out = True
+        else:
+            self.get_logger().info("Найден arming сервис.")
+
         if not self.set_mode_client.wait_for_service(timeout_sec=5.0):
             self.get_logger().warn("Сервис set_mode не найден!")
+            time_out = True
+        else:
+            self.get_logger().info("Найден set_mode сервис.")
+
         if not self.takeoff_client.wait_for_service(timeout_sec=5.0):
             self.get_logger().warn("Сервис takeoff не найден!")
-        #логирование поправь
-        self.get_logger().info("Сервисы MAVROS найдены (или таймаут).")
+            time_out = True
+        else:
+            self.get_logger().info("Найден takeoff сервис.")
+
+        if time_out:
+            self.get_logger().info("Все mavros сервисы найдены.")
+        else:
+            self.get_logger().warn("Timeout у mavros сервисов!")
 
     def publish_status(self, original_msg, status, message=""):
         try:
@@ -345,8 +361,7 @@ class MavrosHandler(Node):
                 
                 if local_vx > 0 and local_x > self.map_width_max - self.aruco_border_indent: 
                     local_vx = 0.0
-                
-                # Если вылетел застрял сетка
+                    
                 if local_x > self.map_width_max:
                     corr_vx = -self.Kp * (local_x - self.map_width_max)
                     local_vx += max(-self.max_corr, corr_vx) 
