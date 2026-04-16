@@ -190,6 +190,13 @@ TELEMETRY_DATA = {
         "yaw_rate": 0.0
     },
     
+    "aruco_map": {
+        "timestamp": 0,
+        "aruco_navigation_status": False,
+        "map_in_vision": False,
+        "fly_in_borders": False
+    },
+    
     "point_reached": False,
     "is_alive": False
 }

@@ -44,6 +44,8 @@ class TelemetryHandler(Node):
         self.create_subscription(Bool, "/edu/is_alive", self.is_alive_updater, publisher_qos)
         self.create_subscription(Bool, "/edu/point_reached", self.point_reached_updater, sensor_qos)
         self.create_subscription(PositionTarget, "/mavros/setpoint_raw/local", self.setpoint_raw_updater, sensor_qos)
+        self.create_subscription(String, "/edu/aruco_map_nav", self.map_navigation_sub, publisher_qos)
+
         
         self.battery_msg = BatteryState()
         self.local_position_msg = PoseStamped()
@@ -53,6 +55,12 @@ class TelemetryHandler(Node):
         self.setpoint_raw = PositionTarget()
         self.is_alive = False
         self.point_reached = False
+        self.aruco_nav_status = {
+            "timestamp": 0,
+            "aruco_nav_status": False,
+            "map_in_vision": False,
+            "fly_in_borders": False
+        }
         
         self.timer = self.create_timer(0.05, self.telemetry_publisher)
     
@@ -79,6 +87,9 @@ class TelemetryHandler(Node):
     
     def point_reached_updater(self, msg):
         self.point_reached = msg.data
+    
+    def map_navigation_sub(self, msg):
+        self.aruco_nav_status = json.loads(msg.data)
     
     def telemetry_publisher(self):
         self.telemetry_msg["state"]["connected"] = self.state_msg.connected
@@ -138,6 +149,16 @@ class TelemetryHandler(Node):
         self.telemetry_msg["setpoint_raw"]["z"] = setpoint_raw_pose.z
         self.telemetry_msg["setpoint_raw"]["yaw"] = setpoint_raw_yaw
         self.telemetry_msg["setpoint_raw"]["yaw_rate"] = setpoint_raw_yaw_rate
+        
+        aruco_timestamp = self.aruco_nav_status.get("timestamp")
+        nav_status = self.aruco_nav_status.get("aruco_nav_status")
+        map_in_vision = self.aruco_nav_status.get("map_in_vision")
+        fly_in_borders = self.aruco_nav_status.get("fly_in_borders")
+        
+        self.telemetry_msg["aruco_map"]["timestamp"] = aruco_timestamp
+        self.telemetry_msg["aruco_map"]["aruco_navigation_status"] = nav_status
+        self.telemetry_msg["aruco_map"]["map_in_vision"] = map_in_vision
+        self.telemetry_msg["aruco_map"]["fly_in_borders"] = fly_in_borders
         
         self.ros_msg.data = json.dumps(self.telemetry_msg)
         
