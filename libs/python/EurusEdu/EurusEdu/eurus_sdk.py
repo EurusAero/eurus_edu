@@ -8,7 +8,7 @@ from .const import *
 
 
 class EurusControl:
-    def __init__(self, ip: str, port: int, console_log: bool = True, log_file: str = None):
+    def __init__(self, ip: str, port: int, console_log: bool = True, log_file: str = None, socket_timeout_time: float  = 3):
         self.ip = ip
         self.port = port
         self.sock = None
@@ -33,6 +33,7 @@ class EurusControl:
 
         self.sock_utils = SocketsUtils()
         self.listener_thread = None
+
         self.heartbeat_thread = None
         
         # Локи
@@ -58,7 +59,8 @@ class EurusControl:
         
         self._last_laser_status = None
 
-        
+        self.socket_timeout_time = socket_timeout_time
+
         self._last_heartbeat = time.time()
 
     def connect(self):
@@ -68,7 +70,7 @@ class EurusControl:
 
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(1.0)
+            self.sock.settimeout(self.socket_timeout_time)
             self.sock.connect((self.ip, self.port))
             self.is_connected = True
             self.running = True
@@ -132,7 +134,7 @@ class EurusControl:
                 try:
                     chunk = self.sock.recv(1024)
                 except socket.timeout as e:
-                    self.logger.warning(f"Таймаут сокета: {e}")
+                    self.logger.warning(f"Таймаут сокета в listener server: {e}")
                     continue 
                 except Exception as e:
                     self.logger.error(f"Ошибка в listener_server: {e}")

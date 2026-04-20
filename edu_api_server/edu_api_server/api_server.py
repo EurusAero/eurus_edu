@@ -36,7 +36,9 @@ class EduApiNode(Node):
     """
     def __init__(self):
         super().__init__('edu_api_server')
-        
+                
+        self.max_heartbeat_delay = 3
+
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
@@ -97,7 +99,6 @@ class EduApiNode(Node):
             if self.active_session == session:
                 self.active_session = None
         self.get_logger().debug(f"Очищенна активная сессия - {session}")
-
 
     def telemetry_callback(self, msg):
         try:
@@ -342,12 +343,12 @@ class ClientSession:
     def start(self):
         self.ros_node.get_logger().info(f"Сессия начата для {self.addr}")
         buffer = b""
-        
+
+        self.conn.settimeout(self.ros_node.max_heartbeat_delay)
+
         try:
-
             self.ros_node._last_heartbeat_time = time.time()
-
-            while True:
+            while True:        
                 chunk = self.conn.recv(BUFFER_SIZE)
                 if not chunk:
                     break
@@ -358,15 +359,15 @@ class ClientSession:
                     if msg_str:
                         self._handle_request(msg_str)
 
-                if time.time() - self.ros_node._last_heartbeat_time > 3.0:
+                if time.time() - self.ros_node._last_heartbeat_time > self.ros_node.max_heartbeat_delay:
                     raise HartbeatException("Потерян heartbeat.")
                         
                 
         except ConnectionResetError:
             self.ros_node.get_logger().info(f"Клиент {self.addr} разорвал соединение.")
 
-        except HartbeatException:
-            self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
+        except (HartbeatException, TimeoutError) as e:
+            self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии: {e}")
             # just for test remove me please after u done me :3
 
             payload = {
@@ -436,7 +437,9 @@ def start_server():
     edu_node.get_logger().info(f"Запуск TCP сервера EurusEdu на {HOST}:{PORT}...")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    
+
+    session = None
+
     active_client_thread = None
 
     try:
@@ -461,6 +464,32 @@ def start_server():
 
     except KeyboardInterrupt:
         edu_node.get_logger().info("\nОстановка сервера...")
+    except TimeoutError as e:
+        edu_node.get_logger().error(f"Превышено время ожидания сообщения для сокета: {e}")
+        if session:
+
+            edu_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
+
+            # just for test remove me please after u done me :3
+
+            payload = {
+                "command" : "led_control",
+                "effect": "static",
+                "nLED": 50,
+                "brightness": 0.5,
+                "color": [int(255), int(0), int(0)],
+                "speed": None
+            }
+
+            edu_node.process_client_command(payload, edu_node)
+
+            # end of me remove :p
+
+            edu_node.force_land()
+            edu_node.force_aruco_map_disable()
+            edu_node.remove_active_session(session)
+            session.conn.close()
+            edu_node.get_logger().info(f"Сессия завершена для {session.addr}")
     except Exception as e:
         edu_node.get_logger().error(f"Критическая ошибка сервера: {e}", exc_info=True)
     finally:
