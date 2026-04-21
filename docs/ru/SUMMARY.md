@@ -15,7 +15,6 @@
     - [Обучение модели YOLOv11](neural_network_train.md)
     - [Программирование с использованием нейронной сети YOLOv11](neural_network_programming.md)
     - [Преобразование весов в поддерживаемый тип для RK3588](neural_network_export.md)
-- [Навигация по ArUco-маркерам](aruco.md)
 - Программирование
     - [Работа с API](api.md)
     - [Светодиодная лента](LED.md)

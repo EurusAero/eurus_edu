@@ -18,3 +18,7 @@ print("Комета")
 drone.led_control("komet", 255, 0, 0)
 time.sleep(5)
 drone.led_control(effect="blink", r=255, g=255, b=255, nLED=16, brightness=0.1)
+time.sleep(5)
+
+print('Выключение подсветки...')
+drone.led_control("static", 0, 0, 0)
