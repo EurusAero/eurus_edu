@@ -14,11 +14,7 @@
 
 Библиотеку можно установить напрямую из GitHub
 
-<<<<<<< Updated upstream
 `pip3 install git+https://github.com/EurusAero/eurus_edu.git#subdirectory=libs/python/EurusEdu`
-=======
-` pip3 install git+<https://github.com/EurusAero/eurus_edu.git#subdirectory=libs/python/EurusEdu>`
->>>>>>> Stashed changes
 
 3\. Установка библиотек через клонирование репозитория
 
@@ -297,6 +293,7 @@ _Текущий поток блокируется на ~0.5 секунды до 
 - `r, g, b` - цвет (значения от 0 до 255)
 - `nLED` - количество светодиодов
 - `brightness` - яркость (значения от 0 до 1)
+- `speed` - скорость свечения (значения от 0 до 1)
 
 **Пример:**
 
@@ -307,6 +304,7 @@ drone.led_control(
     g=0,
     b=0,
     brightness=0.8
+    speed=0.3
 )
 ```
 
