@@ -6,20 +6,21 @@ drone = EurusControl("10.42.0.1", 65432, socket_timeout_time=7)
 drone.connect()
 time.sleep(1)
 print("Статическое свечение")
-drone.led_control("static", 255, 255, 0, brightness=0.1,nLED=50)
+drone.led_control("static", 155, 155, 0, brightness=0.1,nLED=50)
 time.sleep(5)
-
-drone.get_telemetry()
+drone.sock.close()
+print(drone.get_telemetry())
+print(drone.point_reached())
 
 print("Статическое свечение")
-drone.led_control("static", 0, 255, 255, brightness=0.1,nLED=50)
+drone.led_control("static", 0, 155, 155, brightness=0.1,nLED=50)
 time.sleep(5)
 
+print(drone.laser_shot())
+print(drone.get_telemetry())
 
 print("Статическое свечение")
-drone.led_control("static", 255, 0, 255, brightness=0.1,nLED=50)
+drone.led_control("static", 255, 105, 105, brightness=0.1,nLED=50)
 time.sleep(5)
-
-# drone.led_control(effect="blink", r=255, g=255, b=255, nLED=16, brightness=0.1)
 
 drone.disconnect()

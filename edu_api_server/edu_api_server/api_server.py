@@ -24,7 +24,19 @@ if os.path.exists(config_path):
     config.read(config_path)
     HOST = config['server'].get('host')
     PORT = int(config['server'].get('port'))
-    BUFFER_SIZE = int(config['server'].get('buffer_size'))
+    BUFFER_SIZE = int()
+
+    general_error_effect = config['general_error'].get('effect')
+    general_error_color = [int(config['general_error'].get('r')), int(config['general_error'].get('g')), int(config['general_error'].get('b'))]
+    general_error_nLED = int(config['general_error'].get('nLED'))
+    general_error_brightness = float(config['general_error'].get('brightness'))
+    general_error_speed = float(config['general_error'].get('speed'))
+
+    connection_error_effect = config['connection_error'].get('effect')
+    connection_error_color = [int(config['connection_error'].get('r')), int(config['connection_error'].get('g')), int(config['connection_error'].get('b'))]
+    connection_error_nLED = int(config['connection_error'].get('nLED'))
+    connection_error_brightness = float(config['connection_error'].get('brightness'))
+    connection_error_speed = float(config['connection_error'].get('speed'))
 
 class HartbeatException(BaseException):
     def __init__(self, message):
@@ -329,6 +341,19 @@ class EduApiNode(Node):
         self.aruco_map_pub.publish(msg)
         self.get_logger().info(f"Принудительное завершение навигации по аруко карте")
 
+    def set_LED(self, effect = "static", nLED = 50, brightness = 0.5, color = [int(255), int(0), int(0)], speed = None):
+        
+        payload = {
+            "command" : "led_control",
+            "effect": effect,
+            "nLED": nLED,
+            "brightness": brightness,
+            "color": color,
+            "speed": speed
+        }
+
+        self.ros_node.process_client_command(payload, self.ros_node)
+
 
 class ClientSession:
     def __init__(self, conn, addr, ros_node: EduApiNode):
@@ -351,6 +376,7 @@ class ClientSession:
             while True:        
                 chunk = self.conn.recv(BUFFER_SIZE)
                 if not chunk:
+                    self.ros_node.get_logger().info(f"Ошибка сокета.")
                     break
                 buffer += chunk
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
@@ -368,20 +394,9 @@ class ClientSession:
 
         except (HartbeatException, TimeoutError) as e:
             self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии: {e}")
-            # just for test remove me please after u done me :3
-
-            payload = {
-                "command" : "led_control",
-                "effect": "static",
-                "nLED": 50,
-                "brightness": 0.5,
-                "color": [int(255), int(0), int(0)],
-                "speed": None
-            }
-
-            self.ros_node.process_client_command(payload, self.ros_node)
-
-            # end of me remove :p
+            
+            #ney need to finish it
+            self.ros_node.set_LED()
 
         except Exception as e:
             self.ros_node.get_logger().error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
@@ -470,20 +485,8 @@ def start_server():
 
             edu_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
 
-            # just for test remove me please after u done me :3
-
-            payload = {
-                "command" : "led_control",
-                "effect": "static",
-                "nLED": 50,
-                "brightness": 0.5,
-                "color": [int(255), int(0), int(0)],
-                "speed": None
-            }
-
-            edu_node.process_client_command(payload, edu_node)
-
-            # end of me remove :p
+            edu_node.set_LED(connection_error_effect,connection_error_nLED,connection_error_brightness,
+                             connection_error_color, connection_error_speed)
 
             edu_node.force_land()
             edu_node.force_aruco_map_disable()
@@ -492,6 +495,9 @@ def start_server():
             edu_node.get_logger().info(f"Сессия завершена для {session.addr}")
     except Exception as e:
         edu_node.get_logger().error(f"Критическая ошибка сервера: {e}", exc_info=True)
+        
+        edu_node.set_LED(connection_error_effect,connection_error_nLED,connection_error_brightness,
+                             connection_error_color, connection_error_speed)
     finally:
         server.close()
         try:

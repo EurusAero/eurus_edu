@@ -9,6 +9,7 @@ import configparser
 import os
 from math import dist, radians, cos, sin
 import csv
+import math
 
 from transforms3d.euler import euler2quat, quat2euler
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
@@ -84,7 +85,23 @@ class MavrosHandler(Node):
         home_dir = os.getenv("HOME")
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
         handler_ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_commander/eurus.ini"
+        configuration_path =  f"{home_dir}/ros2_ws/src/edu_commander/eurus.ini"
+
+        self.max_yaw_per_setpoint_command = 90
         
+        
+        self.max_travel_distance_per_command = 5
+
+
+        if os.path.exists(configuration_path):
+            restrictions_config = configparser.ConfigParser()
+            restrictions_config.read(configuration_path)
+
+
+            self.max_yaw_per_setpoint_command = restrictions_config["restrictions"].get("max_yaw_per_setpoint_command", self.max_yaw_per_setpoint_command)
+
+            self.max_travel_distance_per_command = restrictions_config["restrictions"].get("max_travel_distance_per_command",self.max_travel_distance_per_command)
+
         self.aruco_map_path = ""
         self.map_height_max = float("-inf")
         self.map_width_max = float("-inf")
@@ -265,9 +282,9 @@ class MavrosHandler(Node):
             self.get_logger().info("Найден takeoff сервис.")
 
         if time_out:
-            self.get_logger().info("Все mavros сервисы найдены.")
-        else:
             self.get_logger().warn("Timeout у mavros сервисов!")
+        else:
+            self.get_logger().info("Все mavros сервисы найдены.")
 
     def publish_status(self, original_msg, status, message=""):
         try:
@@ -579,7 +596,9 @@ class MavrosHandler(Node):
             vx = data.get("vx", self.target_raw.velocity.x)
             vy = data.get("vy", self.target_raw.velocity.y)
             vz = data.get("vz", self.target_raw.velocity.z)
+
             yaw_rate = data.get("yaw_rate", None)
+
             self.target_raw.type_mask = 1984 
             
             if vx or vy:
@@ -620,7 +639,7 @@ class MavrosHandler(Node):
         except Exception as e:
             return False, f"Ошибка при установке скорости: {e}"
         
-    def do_move_to_local_point(self, data):
+    def do_move_to_local_point(self, data, ignore_restrictions = False):
         try:
             self.start_position.header = self.local_pose.header
             self.start_position.pose = self.local_pose.pose
@@ -631,6 +650,25 @@ class MavrosHandler(Node):
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
             
+            x_diff = x - self.local_pose.pose.position.x
+            y_diff = y - self.local_pose.pose.position.y
+            z_diff = z - self.local_pose.pose.position.z
+
+            dist_diff = math.sqrt(x_diff**2 + y_diff**2 +z_diff**2)
+
+            if not ignore_restrictions and dist_diff>self.max_travel_distance_per_command:
+                return False, f"Превышенна максимальная дистанция перемещения за комманду {dist_diff} из {self.max_travel_distance_per_command}"
+
+            try:                
+                q = self.local_pose.pose.orientation
+                _, _, current_yaw = quat2euler([q.w, q.x, q.y, q.z])
+                current_yaw = math.degrees(current_yaw)
+            except Exception as e:
+                return False, f""
+
+            if not ignore_restrictions and abs(current_yaw - yaw) > self.max_yaw_per_setpoint_command:
+                return False, f"Превышен максимальный угол поворота текущий: {current_yaw} заданный: {yaw} максимальное изменение: {self.max_yaw_per_setpoint_command}"
+
             if self.aruco_nav_status.get("aruco_nav_status"):
                 if self.aruco_nav_status.get("map_in_vision"):
                     if self.aruco_nav_status.get("fly_in_borders"):
@@ -666,12 +704,18 @@ class MavrosHandler(Node):
             return False, f"Неверные координаты: {e}"
     
     def do_move_in_body_frame(self, data):
-        try:
+        try: 
             self.start_position.header = self.local_pose.header
             self.start_position.pose = self.local_pose.pose
             
             fwd_dist = data.get("x", 0)
             right_dist = data.get("y", 0)
+
+            dist_diff = math.sqrt(fwd_dist**2 + right_dist**2)
+
+            if dist_diff > self.max_travel_distance_per_command:
+                return False, f"Превышенна максимальная дистанция перемещения за комманду {dist_diff} из {self.max_travel_distance_per_command}"
+
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
             
@@ -730,7 +774,7 @@ class MavrosHandler(Node):
                         setpoint_data["z"] = data.get("z", 0.5)
                     else:
                         return False, f"Маркер {target_marker} не найден на карте"
-                    return self.do_move_to_local_point(setpoint_data)
+                    return self.do_move_to_local_point(setpoint_data, ignore_restrictions=True)
                 else:
                     return False, "В зоне видимости нет аруко маркеров"
             else:
