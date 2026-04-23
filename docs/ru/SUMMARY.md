@@ -20,5 +20,6 @@
     - [Светодиодная лента](LED.md)
     - [Лазертаг](laser.md)
     - [Получение телеметрии](get_telemetry.md)
-    - [Навигация по ArUco-маркерам](aruco.md)
+    - [Визуальные маркеры ArUco](aruco.md)
+    - [Навигация по карте ArUco маркеров](navigation.md)
     - [Примеры программ](sample_programs.md)
