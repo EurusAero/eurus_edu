@@ -24,7 +24,7 @@ if os.path.exists(config_path):
     config.read(config_path)
     HOST = config['server'].get('host')
     PORT = int(config['server'].get('port'))
-    BUFFER_SIZE = int()
+    BUFFER_SIZE = int(config['server'].get('buffer_size'))
 
     general_error_effect = config['general_error'].get('effect')
     general_error_color = [int(config['general_error'].get('r')), int(config['general_error'].get('g')), int(config['general_error'].get('b'))]
