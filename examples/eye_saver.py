@@ -10,6 +10,6 @@ drone.led_control("static", 255, 50, 0, 50, brightness=0.1)
 
 time.sleep(1)
 
-drone.laser_shot()
+# drone.laser_shot()
 
 drone.disconnect()

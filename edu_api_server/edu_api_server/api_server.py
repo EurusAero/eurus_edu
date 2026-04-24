@@ -351,8 +351,7 @@ class EduApiNode(Node):
             "color": color,
             "speed": speed
         }
-
-        self.ros_node.process_client_command(payload, self.ros_node)
+        self.process_client_command(payload, self)
 
 
 class ClientSession:
@@ -376,7 +375,7 @@ class ClientSession:
             while True:        
                 chunk = self.conn.recv(BUFFER_SIZE)
                 if not chunk:
-                    self.ros_node.get_logger().info(f"Ошибка сокета.")
+                    # self.ros_node.get_logger().info(f"Ошибка сокета.")
                     break
                 buffer += chunk
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
@@ -394,9 +393,8 @@ class ClientSession:
 
         except (HartbeatException, TimeoutError) as e:
             self.ros_node.get_logger().error(f"Потерян heartbeat остановка сессии: {e}")
-            
-            #ney need to finish it
-            self.ros_node.set_LED()
+            self.ros_node.set_LED(connection_error_effect,connection_error_nLED,connection_error_brightness,
+                    connection_error_color, connection_error_speed)
 
         except Exception as e:
             self.ros_node.get_logger().error(f"Ошибка сессии {self.addr}: {e}", exc_info=True)
@@ -479,7 +477,7 @@ def start_server():
 
     except KeyboardInterrupt:
         edu_node.get_logger().info("\nОстановка сервера...")
-    except TimeoutError as e:
+    except (HartbeatException, TimeoutError) as e:
         edu_node.get_logger().error(f"Превышено время ожидания сообщения для сокета: {e}")
         if session:
 
