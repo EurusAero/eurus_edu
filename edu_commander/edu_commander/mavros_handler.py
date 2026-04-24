@@ -703,7 +703,7 @@ class MavrosHandler(Node):
         except ValueError as e:
             return False, f"Неверные координаты: {e}"
     
-    def do_move_in_body_frame(self, data):
+    def do_move_in_body_frame(self, data, ignore_restrictions = False):
         try: 
             self.start_position.header = self.local_pose.header
             self.start_position.pose = self.local_pose.pose
@@ -713,7 +713,7 @@ class MavrosHandler(Node):
 
             dist_diff = math.sqrt(fwd_dist**2 + right_dist**2)
 
-            if dist_diff > self.max_travel_distance_per_command:
+            if not ignore_restrictions and dist_diff > self.max_travel_distance_per_command:
                 return False, f"Превышена максимальная дистанция перемещения за команду {dist_diff} из {self.max_travel_distance_per_command}"
 
             yaw = data.get("yaw", None)
@@ -729,7 +729,16 @@ class MavrosHandler(Node):
             else:
                 q = self.local_pose.pose.orientation
                 _, _, calc_yaw_rad = quat2euler([q.w, q.x, q.y, q.z])
-                
+
+
+            q = self.local_pose.pose.orientation
+            _, _, current_yaw = quat2euler([q.w, q.x, q.y, q.z])
+            current_yaw = math.degrees(current_yaw)
+
+            if not ignore_restrictions and abs(current_yaw - yaw) > self.max_yaw_per_setpoint_command:
+                return False, f"Превышен максимальный угол поворота текущий: {current_yaw} заданный: {yaw} максимальное изменение: {self.max_yaw_per_setpoint_command}"
+
+
             delta_north = fwd_dist * cos(calc_yaw_rad) - right_dist * sin(calc_yaw_rad)
             delta_east = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
 

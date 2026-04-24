@@ -26,11 +26,11 @@ if os.path.exists(config_path):
     PORT = int(config['server'].get('port'))
     BUFFER_SIZE = int(config['server'].get('buffer_size'))
 
-    general_error_effect = config['general_error'].get('effect')
-    general_error_color = [int(config['general_error'].get('r')), int(config['general_error'].get('g')), int(config['general_error'].get('b'))]
-    general_error_nLED = int(config['general_error'].get('nLED'))
-    general_error_brightness = float(config['general_error'].get('brightness'))
-    general_error_speed = float(config['general_error'].get('speed'))
+    # general_error_effect = config['general_error'].get('effect')
+    # general_error_color = [int(config['general_error'].get('r')), int(config['general_error'].get('g')), int(config['general_error'].get('b'))]
+    # general_error_nLED = int(config['general_error'].get('nLED'))
+    # general_error_brightness = float(config['general_error'].get('brightness'))
+    # general_error_speed = float(config['general_error'].get('speed'))
 
     connection_error_effect = config['connection_error'].get('effect')
     connection_error_color = [int(config['connection_error'].get('r')), int(config['connection_error'].get('g')), int(config['connection_error'].get('b'))]
@@ -375,7 +375,6 @@ class ClientSession:
             while True:        
                 chunk = self.conn.recv(BUFFER_SIZE)
                 if not chunk:
-                    # self.ros_node.get_logger().info(f"Ошибка сокета.")
                     break
                 buffer += chunk
                 messages, buffer = self.sock_utils.parse_buffer(buffer)
