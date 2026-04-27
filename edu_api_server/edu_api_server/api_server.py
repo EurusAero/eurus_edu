@@ -480,7 +480,7 @@ def start_server():
         edu_node.get_logger().error(f"Превышено время ожидания сообщения для сокета: {e}")
         if session:
 
-            edu_node.get_logger().error(f"Потерян heartbeat остановка сессии.")
+            edu_node.get_logger().error(f"Потерян heartbeat, остановка сессии.")
 
             edu_node.set_LED(connection_error_effect,connection_error_nLED,connection_error_brightness,
                              connection_error_color, connection_error_speed)

@@ -85,11 +85,9 @@ class MavrosHandler(Node):
         home_dir = os.getenv("HOME")
         ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_aruco_navigation/eurus.ini"
         handler_ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_commander/eurus.ini"
-        configuration_path =  f"{home_dir}/ros2_ws/src/edu_commander/eurus.ini"
+        configuration_path =  f"{home_dir}/ros2_ws/src/eurus_edu/edu_commander/eurus.ini"
 
         self.max_yaw_per_setpoint_command = 90
-        
-        
         self.max_travel_distance_per_command = 5
 
 
@@ -97,10 +95,11 @@ class MavrosHandler(Node):
             restrictions_config = configparser.ConfigParser()
             restrictions_config.read(configuration_path)
 
+            self.max_yaw_per_setpoint_command = float(restrictions_config["restrictions"].get("max_yaw_per_setpoint_command", self.max_yaw_per_setpoint_command))
+            self.max_travel_distance_per_command = float(restrictions_config["restrictions"].get("max_travel_distance_per_command",self.max_travel_distance_per_command))
+        else:
+            self.get_logger().warn(f"Не обнаружен конфигурационный файл {configuration_path} используются значения по умолчанию.")
 
-            self.max_yaw_per_setpoint_command = restrictions_config["restrictions"].get("max_yaw_per_setpoint_command", self.max_yaw_per_setpoint_command)
-
-            self.max_travel_distance_per_command = restrictions_config["restrictions"].get("max_travel_distance_per_command",self.max_travel_distance_per_command)
 
         self.aruco_map_path = ""
         self.map_height_max = float("-inf")
@@ -181,7 +180,7 @@ class MavrosHandler(Node):
         aruco_active = self.aruco_nav_status.get("aruco_nav_status", False)
 
         if aruco_active and is_map_visible and not self.prev_map_in_vision:
-            self.get_logger().info("Аруко карта обнаружена, синхронизирую координаты")
+            self.get_logger().info("Аруко карта обнаружена, синхронизация координат")
             self.frame_alignment_counter = self.ALIGNMENT_DURATION
         
         if not aruco_active and self.aruco_active_prev:
@@ -223,21 +222,17 @@ class MavrosHandler(Node):
 
     def sync_target_to_local(self):
         """
-        Приравнивает целевую точку (Target и Setpoint) к текущей позиции дрона.
-        Используется для сброса "хвостов" управления при смене координат.
+        Приравнивает Target и Setpoint к текущей позиции дрона.
         """
-        # Копируем позицию
         self.setpoint_pose.pose.position.x = self.local_pose.pose.position.x
         self.setpoint_pose.pose.position.y = self.local_pose.pose.position.y
         self.setpoint_pose.pose.position.z = self.local_pose.pose.position.z
         
-        # Копируем ориентацию
         self.setpoint_pose.pose.orientation.x = self.local_pose.pose.orientation.x
         self.setpoint_pose.pose.orientation.y = self.local_pose.pose.orientation.y
         self.setpoint_pose.pose.orientation.z = self.local_pose.pose.orientation.z
         self.setpoint_pose.pose.orientation.w = self.local_pose.pose.orientation.w
 
-        # То же самое для target_pose
         self.target_pose.pose.position.x = self.local_pose.pose.position.x
         self.target_pose.pose.position.y = self.local_pose.pose.position.y
         self.target_pose.pose.position.z = self.local_pose.pose.position.z
@@ -247,7 +242,6 @@ class MavrosHandler(Node):
         self.target_pose.pose.orientation.z = self.local_pose.pose.orientation.z
         self.target_pose.pose.orientation.w = self.local_pose.pose.orientation.w
 
-        # И для start_position
         self.start_position.pose.position.x = self.local_pose.pose.position.x
         self.start_position.pose.position.y = self.local_pose.pose.position.y
         self.start_position.pose.position.z = self.local_pose.pose.position.z
@@ -330,7 +324,7 @@ class MavrosHandler(Node):
             self.start_position.pose.position.y = self.setpoint_pose.pose.position.y
             self.start_position.pose.position.z = self.setpoint_pose.pose.position.z
             hold_pos = True
-            self.ros_node.get_logger().warn(f"Карта потеряна удержание позиции.")
+            self.ros_node.get_logger().warn(f"Карта потеряна, удержание позиции.")
             
         stamp = self.start_position.header.stamp
         total_dist = self.get_distance(self.start_position, self.target_pose)
@@ -425,6 +419,8 @@ class MavrosHandler(Node):
         return self.setpoint_raw
     
     def set_zero_velocity(self, pos_x=None, pos_y=None):
+        self.get_logger().debug(f"Установка нулевой скорости.")
+
         self.target_raw.type_mask = 2040
         self.target_raw.velocity.x = 0.0
         self.target_raw.velocity.y = 0.0
