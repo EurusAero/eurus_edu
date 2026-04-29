@@ -87,7 +87,7 @@ class MavrosHandler(Node):
         handler_ini_path = f"{home_dir}/ros2_ws/src/eurus_edu/edu_commander/eurus.ini"
         configuration_path =  f"{home_dir}/ros2_ws/src/eurus_edu/edu_commander/eurus.ini"
 
-        self.max_yaw_per_setpoint_command = 90
+        self.max_yaw_rate= 15
         self.max_travel_distance_per_command = 5
 
 
@@ -95,7 +95,7 @@ class MavrosHandler(Node):
             restrictions_config = configparser.ConfigParser()
             restrictions_config.read(configuration_path)
 
-            self.max_yaw_per_setpoint_command = float(restrictions_config["restrictions"].get("max_yaw_per_setpoint_command", self.max_yaw_per_setpoint_command))
+            self.max_yaw_rate = float(restrictions_config["restrictions"].get("max_yaw_rate", self.max_yaw_rate))
             self.max_travel_distance_per_command = float(restrictions_config["restrictions"].get("max_travel_distance_per_command",self.max_travel_distance_per_command))
         else:
             self.get_logger().warn(f"Не обнаружен конфигурационный файл {configuration_path} используются значения по умолчанию.")
@@ -518,7 +518,7 @@ class MavrosHandler(Node):
             self.home_position.pose.orientation = self.local_pose.pose.orientation
         else:
             self.home_position.pose = self.local_pose.pose
-        self.get_logger().info(f"home position установлена в: x: {self.home_position.pose.position.x}, y: {self.home_position.pose.positon.y}, orientation: {self.home_position.pose.orientation}")
+        self.get_logger().info(f"home position установлена в: x: {self.home_position.pose.position.x}, y: {self.home_position.pose.position.y}, orientation: {self.home_position.pose.orientation}")
 
     def do_set_mode(self, mode="OFFBOARD"):
         req = SetMode.Request()
@@ -587,7 +587,7 @@ class MavrosHandler(Node):
             return True, "Посадка..."
         return False, "Неудалось начать посадку."
 
-    def do_set_velocity(self, data):
+    def do_set_velocity(self, data, ignore_restrictions = False):
         try:
             vx = data.get("vx", self.target_raw.velocity.x)
             vy = data.get("vy", self.target_raw.velocity.y)
@@ -624,8 +624,11 @@ class MavrosHandler(Node):
                 self.target_raw.velocity.z = 0.0
             
             if yaw_rate is not None:
-                self.target_raw.yaw_rate = radians(yaw_rate)
-                self.target_raw.yaw = 0.0
+                if not ignore_restrictions and abs(yaw_rate) < self.max_yaw_rate:
+                    self.target_raw.yaw_rate = radians(yaw_rate)
+                    self.target_raw.yaw = 0.0
+                else:
+                    return False, f"Превышена максимальная скорость поворота {yaw_rate} из {self.max_yaw_rate}"
                 
             self.hold_zero_velocity = False
             self.current_control_method = "RAW_VELOCITY"
@@ -661,9 +664,6 @@ class MavrosHandler(Node):
                 current_yaw = math.degrees(current_yaw)
             except Exception as e:
                 return False, f""
-
-            if not ignore_restrictions and abs(current_yaw - yaw) > self.max_yaw_per_setpoint_command:
-                return False, f"Превышен максимальный угол поворота текущий: {current_yaw} заданный: {yaw} максимальное изменение: {self.max_yaw_per_setpoint_command}"
 
             if self.aruco_nav_status.get("aruco_nav_status"):
                 if self.aruco_nav_status.get("map_in_vision"):
@@ -730,10 +730,6 @@ class MavrosHandler(Node):
             q = self.local_pose.pose.orientation
             _, _, current_yaw = quat2euler([q.w, q.x, q.y, q.z])
             current_yaw = math.degrees(current_yaw)
-
-            if not ignore_restrictions and abs(current_yaw - yaw) > self.max_yaw_per_setpoint_command:
-                return False, f"Превышен максимальный угол поворота текущий: {current_yaw} заданный: {yaw} максимальное изменение: {self.max_yaw_per_setpoint_command}"
-
 
             delta_north = fwd_dist * cos(calc_yaw_rad) - right_dist * sin(calc_yaw_rad)
             delta_east = fwd_dist * sin(calc_yaw_rad) + right_dist * cos(calc_yaw_rad)
