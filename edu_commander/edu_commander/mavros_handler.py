@@ -624,7 +624,7 @@ class MavrosHandler(Node):
                 self.target_raw.velocity.z = 0.0
             
             if yaw_rate is not None:
-                if not ignore_restrictions and abs(yaw_rate) < self.max_yaw_rate:
+                if not ignore_restrictions and abs(yaw_rate) <= self.max_yaw_rate:
                     self.target_raw.yaw_rate = radians(yaw_rate)
                     self.target_raw.yaw = 0.0
                 else:
