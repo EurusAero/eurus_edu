@@ -3,7 +3,7 @@
 **Подключение:**
 
 ```python
-drone.request_telemetry()
+drone.get_telemetry()
 ```
 
 **Возвращаемые значения:**
@@ -14,38 +14,52 @@ drone.request_telemetry()
 ​
 **Структура telemetry_data:**
 
-_state_
+- state
+    - `connected` — есть ли соединение
+    - `armed` — состояние моторов
+    - `mode` — текущий режим
+    - `system_status` — состояние системы
 
-- `connected` — есть ли соединение
-- `armed` — состояние моторов
-- `mode` — текущий режим
-- `system_status` — состояние системы
+- battery
+    - `voltage` - напряжение (В)
+    - `cell_voltage` - напряжение на одну ячейку (В)
+    - `current` - ток (А)
+    - `percentage` — заряд (%)
 
-_battery_
+- local_position
+    - `x, y, z` - позиция (м)
+    - `roll, pitch, yaw` - углы (градусы)
 
-- `voltage` - напряжение (В)
-- `cell_voltage` - напряжение на одну ячейку (В)
-- `current` - ток (А)
-- `percentage` — заряд (%)
+- velocity
+    - `vx, vy, vz`- скорости (м/с)
 
-_local_position_
+- aruco_map - сообщения о статусе навигации по аруко
+    - `timestamp` - время последнего сообщения
+    - `aruco_navigation_status` - включена ли навигация по аруко маркерам
+    - `map_in_vision` - статус видимости аруко карты
+    - `fly_in_borders` - включена ли виртуальная стена
 
-- `x, y, z` - позиция (м)
-- `roll, pitch, yaw` - углы (градусы)
+- setpoint_raw
+    - `type_mask`- маска управления
+    - `vx` - заданная скорость по оси Х
+    - `vy` - заданная скорость по оси Y
+    - `vz` - заданная скорость по оси Z
+    - `x` - заданная позиция по оси Х
+    - `y` - заданная позиция по оси Y
+    - `z` - заданная позиция по оси Z
+    - `yaw` - заданное рысканье
+    - `yaw_rate` - заданная угловая скорость рысканья
 
-_velocity_
+- point_reached
+    - `True` - целевая точка достигнута
+    - `False` - целевая точка не достигнута
 
-- `vx, vy, vz`- скорости (м/с)
-
-_point_reached_
-
-- `True` - целевая точка достигнута
-- `False` - целевая точка не достигнута
+- is_alive - статус дрона в игре
 
 **Пример получения телеметрии на Python:**
 
 ```python​
-telemetry = drone.request_telemetry() # Запрашиваем телеметрию
+telemetry = drone.get_telemetry() # Запрашиваем телеметрию
 ​
 ​
 if telemetry is not None:

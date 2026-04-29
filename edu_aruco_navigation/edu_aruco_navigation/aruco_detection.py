@@ -311,18 +311,27 @@ class ArucoDetector(Node):
         try:
             corners, ids = self.detect_aruco(image)
             rvec, tvec = None, None
+            msg = String()
             
             if (self.board is not None and
                 self.camera_matrix is not None and
                 ids is not None):
-
                 rvec, tvec = self.calculate_drone_pose(corners, ids, timestamp)
 
+
+            elif self.map_in_vision:
+                self.map_in_vision = False
+                self.payload["timestamp"] = time.time()
+                self.payload["map_in_vision"] = self.map_in_vision
+                msg.data = json.dumps(self.payload)
+                self.aruco_nav_pub.publish(msg)
+                
             if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
                 try:
                     self.debug_queue.put_nowait((image, corners, ids, rvec, tvec, timestamp))
                 except queue.Full:
                     pass
+
         except Exception as e:
             self.get_logger().error(f"Ошибка при обработке кадра: {e}")
 

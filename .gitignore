@@ -3,3 +3,5 @@ libs/python/EurusEdu/build
 libs/python/EurusEdu/EurusEdu.egg-info
 _book/
 *.mp4
+.vscode/
+.codex/
