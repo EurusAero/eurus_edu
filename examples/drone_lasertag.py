@@ -131,16 +131,60 @@ def is_ready_shot(target, frame_shape):
     
     return (cx - bw/2 <= aim_x <= cx + bw/2) and (cy - bh/2 <= aim_y <= cy + bh/2)
 
+def get_detection_color(cls_name):
+    cls_name = str(cls_name).lower()
+    if "red" in cls_name:
+        return (0, 0, 255)
+    if "blue" in cls_name:
+        return (255, 0, 0)
+    return (0, 255, 0)
+
 def draw_overlay(frame):
     """Отрисовка телеметрии и рамок на кадре"""
+    detections = shared_state["detections"] or {}
     target = shared_state["target"]
-    if target:
-        cx, cy = int(target["x"]), int(target["y"])
-        cv2.drawMarker(frame, (cx, cy), (0, 255, 255), cv2.MARKER_CROSS, 24, 2)
-        
-    h, w = frame.shape[:2]
-    aim_x, aim_y = int(w / 2), int((h / 2) + AIM_OFFSET_Y_PX)
-    cv2.drawMarker(frame, (aim_x, aim_y), (255, 255, 0), cv2.MARKER_TILTED_CROSS, 20, 2)
+    objects = detections.get("all_objects", []) + detections.get("all_targets", [])
+
+    for obj in objects:
+        cx, cy = float(obj.get("x", 0.0)), float(obj.get("y", 0.0))
+        bw, bh = float(obj.get("w", 0.0)), float(obj.get("h", 0.0))
+        cls_name = str(obj.get("class", "object"))
+        conf = float(obj.get("conf", 0.0))
+
+        x1 = int(cx - bw / 2.0)
+        y1 = int(cy - bh / 2.0)
+        x2 = int(cx + bw / 2.0)
+        y2 = int(cy + bh / 2.0)
+
+        color = get_detection_color(cls_name)
+        is_target = target is obj
+        thickness = 3 if is_target else 2
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+
+        label = f"{cls_name} {conf:.2f}"
+        if is_target:
+            label += " | TARGET"
+
+        (text_w, text_h), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
+        text_x = max(0, x1)
+        text_y = max(text_h + 6, y1 - 8)
+        cv2.rectangle(
+            frame,
+            (text_x, text_y - text_h - baseline - 6),
+            (text_x + text_w + 8, text_y + 2),
+            color,
+            -1
+        )
+        cv2.putText(
+            frame,
+            label,
+            (text_x + 4, text_y - 4),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 255),
+            2
+        )
 
     info = (
         f"Alive: {shared_state['is_alive']} | Alt: {shared_state['alt']}",
