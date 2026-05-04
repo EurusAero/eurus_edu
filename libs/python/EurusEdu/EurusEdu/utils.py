@@ -24,9 +24,9 @@ class MessagesUtils:
     def __compare_data(self, msg, command):
         if command not in MESSAGES.keys():
             raise ValueError(f"Команда '{command}' не существует")
-        for key in msg.keys():
-            if msg[key] == float("inf") or msg[key] == float("-inf"):
-                raise ValueError(f"Значение ключа '{key}' не может быть бесконечностью")
+        # for key in msg.keys():
+        #     if msg[key] == float("inf") or msg[key] == float("-inf"):
+        #         raise ValueError(f"Значение ключа '{key}' не может быть бесконечностью")
         return True
             
     def validate_message(self, message):

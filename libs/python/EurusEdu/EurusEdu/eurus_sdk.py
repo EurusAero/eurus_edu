@@ -69,7 +69,7 @@ class EurusControl:
 
     def connect(self):
         if self.is_connected:
-            self.logger.warning("Уже подключен.")
+            if self.do_log: self.logger.warning("Уже подключен.")
             return False
 
         try:
@@ -91,7 +91,7 @@ class EurusControl:
             return True
 
         except Exception as e:
-            self.logger.error(f"Ошибка подключения: {e}")
+            if self.do_log: self.logger.error(f"Ошибка подключения: {e}")
             self.is_connected = False
 
             return False
@@ -135,7 +135,7 @@ class EurusControl:
                 self._last_heartbeat = timestamp
 
             except Exception as e:
-                self.logger.error("Ошибка в потоке heartbeat")
+                if self.do_log: self.logger.error("Ошибка в потоке heartbeat")
 
 
     def _listen_server(self):
@@ -145,14 +145,14 @@ class EurusControl:
                 try:
                     chunk = self.sock.recv(1024)
                 except socket.timeout as e:
-                    self.logger.warning(f"Таймаут сокета в listener server: {e}")
+                    if self.do_log: self.logger.warning(f"Таймаут сокета в listener server: {e}")
                     continue 
                 except Exception as e:
-                    self.logger.error(f"Ошибка в listener_server: {e}")
+                    if self.do_log: self.logger.error(f"Ошибка в listener_server: {e}")
                     break 
 
                 if not chunk:
-                    self.logger.warning("Сервер закрыл соединение.")
+                    if self.do_log: self.logger.warning("Сервер закрыл соединение.")
                     self.disconnect()
                     break
                 
@@ -166,8 +166,7 @@ class EurusControl:
                         command = msg_dict.get("command")
                         
                         if command == "response":
-                            if self.do_log:
-                                self.logger.info(f" - Получен ответ: {msg_dict.get('status')}")
+                            if self.do_log: self.logger.info(f" - Получен ответ: {msg_dict.get('status')}")
                             self._last_response_status = msg_dict.get("status")
                             self._response_event.set()
                             
@@ -177,16 +176,14 @@ class EurusControl:
                             message = msg_dict.get("message", "")
 
                             if action_name == "laser_shot":
-                                if self.do_log:
-                                    self.logger.info(f" - Получен статус от лазера: {code}")
+                                if self.do_log: self.logger.info(f" - Получен статус от лазера: {code}")
                                 
                                 if code in [COMPLETED_STATUS, DENIED_STATUS]:
                                     self._last_laser_status = code
                                     self._laser_event.set()
                             else:
                                 self._last_action_message = message
-                                if self.do_log:
-                                    self.logger.info(f" - Получен статус: {command} ({action_name}): {code} ({self._last_action_message})")
+                                if self.do_log: self.logger.info(f" - Получен статус: {command} ({action_name}): {code} ({self._last_action_message})")
 
                                 if code == PENDING_STATUS:
                                     self._action_started_event.set()
@@ -204,10 +201,10 @@ class EurusControl:
                             self._point_reached_event.set()
                             
                     except json.JSONDecodeError:
-                        self.logger.error(f"Битый JSON: {raw_msg}")
+                        if self.do_log: self.logger.error(f"Битый JSON: {raw_msg}")
                         
             except Exception as e:
-                self.logger.error(f"Ошибка в listener: {e}")
+                if self.do_log: self.logger.error(f"Ошибка в listener: {e}")
                 if self.running:
                     self.disconnect()
                 break
@@ -220,7 +217,7 @@ class EurusControl:
                     if payload["command"] in DRONE_COMMANDS and self.do_log:
                         self.logger.info(f" - Отправлена комманда: {payload['command']}")
             except Exception as e:
-                self.logger.error(f"Ошибка отправки: {e}")
+                if self.do_log: self.logger.error(f"Ошибка отправки: {e}")
                 self.disconnect()
 
     def _smart_wait(self, event: threading.Event, timeout: float = None, error_msg: str = None) -> bool:
@@ -233,7 +230,7 @@ class EurusControl:
             
             if timeout and (time.time() - start_time > timeout):
                 if error_msg:
-                    self.logger.critical(error_msg)
+                    if self.do_log: self.logger.error(error_msg)
                 return False
 
             try:
@@ -246,7 +243,7 @@ class EurusControl:
 
     def _send_movement_command(self, payload):
         if not self.is_connected:
-            self.logger.error("Нет соединения.")
+            if self.do_log: self.logger.error("Нет соединения.")
             return False
 
         try:
@@ -262,24 +259,24 @@ class EurusControl:
                     return False
 
                 if self._last_response_status != "success":
-                    self.logger.error("Сервер вернул ошибку в response.")
+                    if self.do_log: self.logger.error("Сервер вернул ошибку в response.")
                     return False
                 
                 if not self._smart_wait(self._action_started_event, 10.0, f"Команда {cmd_name} не перешла в PENDING"):
                     return False
 
                 if self._action_finished_event.is_set() and self._last_action_code == DENIED_STATUS:
-                     self.logger.error(f"Команда {cmd_name} отклонена: {self._last_action_message}")
-                     return False
+                    if self.do_log: self.logger.error(f"Команда {cmd_name} отклонена: {self._last_action_message}")
+                    return False
 
                 if not self._smart_wait(self._action_finished_event, timeout=None):
-                    self.logger.warning("Ожидание завершения прервано (отключение).")
+                    if self.do_log: self.logger.warning("Ожидание завершения прервано (отключение).")
                     return  False
                 
                 if self._last_action_code == COMPLETED_STATUS:
-                    self.logger.info(f"Команда {cmd_name} успешно завершена.")
+                    if self.do_log: self.logger.info(f"Команда {cmd_name} успешно завершена.")
                 else:
-                    self.logger.error(f"Команда {cmd_name} провалена (Status: {self._last_action_code}). Msg: {self._last_action_message}")
+                    if self.do_log: self.logger.error(f"Команда {cmd_name} провалена (Status: {self._last_action_code}). Msg: {self._last_action_message}")
                     self.disconnect()
                 return False
 
@@ -359,7 +356,7 @@ class EurusControl:
 
     def led_control(self, effect: str, r: int = 0, g: int = 0, b: int = 0, nLED: int = 50, brightness: float = 1.0, speed: float | None = None):
         if not self.is_connected:
-            self.logger.error("Нет соединения для отправки команды LED.")
+            if self.do_log: self.logger.error("Нет соединения для отправки команды LED.")
             return False
 
         payload = {
@@ -386,19 +383,18 @@ class EurusControl:
 
         if self._smart_wait(self._laser_event, timeout=2.0):
             if self._last_laser_status == COMPLETED_STATUS:
-                if self.do_log:
-                    self.logger.info("Выстрел лазером успешен.")
+                if self.do_log: self.logger.info("Выстрел лазером успешен.")
                 return True
             else:
-                self.logger.warning(f"Выстрел лазером не удался/отменён: {self._last_laser_status}")
+                if self.do_log: self.logger.warning(f"Выстрел лазером не удался/отменён: {self._last_laser_status}")
                 return False
         else:
-            self.logger.error("Превышено время ожидания для выстрела лазером (нет подтверждения от сервера).")
+            if self.do_log: self.logger.error("Превышено время ожидания для выстрела лазером (нет подтверждения от сервера).")
             return False
     
     def aruco_map_navigation(self, state=False, fly_in_borders=True):
         if not self.is_connected:
-            self.logger.warning("Нет соединения для отправки команды.")
+            if self.do_log: self.logger.warning("Нет соединения для отправки команды.")
             return False
         
         payload = {"command": "aruco_map_navigation", "state": state, "fly_in_borders": fly_in_borders}
@@ -407,7 +403,7 @@ class EurusControl:
     
     def move_to_marker(self, marker_id: str | int, z: float, speed: float = 1.0, yaw: float = None):
         if not self.is_connected:
-            self.logger.warning("Нет соединения для отправки команды.")
+            if self.do_log: self.logger.warning("Нет соединения для отправки команды.")
             return False
         
         payload = {
@@ -422,7 +418,7 @@ class EurusControl:
     
     def start_game(self, start_game: bool = False, team_color: str | list = "red"):
         if not self.is_connected:
-            self.logger.error("Нет соединения для отправки команды LED.")
+            if self.do_log: self.logger.error("Нет соединения для отправки команды LED.")
             return False
 
         payload = {
