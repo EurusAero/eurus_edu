@@ -643,9 +643,17 @@ class MavrosHandler(Node):
             self.start_position.header = self.local_pose.header
             self.start_position.pose = self.local_pose.pose
             
+
+            # there None in input current in output
             x = data.get("x", self.setpoint_pose.pose.position.x)
+            if x is None:
+                x = self.setpoint_pose.pose.position.x
             y = data.get("y", self.setpoint_pose.pose.position.y)
+            if y is None:
+                y = self.setpoint_pose.pose.position.y
             z = data.get("z", self.setpoint_pose.pose.position.z)
+            if z is None:
+                z = self.setpoint_pose.pose.position.z
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
             
