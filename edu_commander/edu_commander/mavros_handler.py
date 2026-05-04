@@ -646,13 +646,13 @@ class MavrosHandler(Node):
 
             # there None in input current in output
             x = data.get("x", self.setpoint_pose.pose.position.x)
-            if x is None:
+            if x is None or x == float("-inf"):
                 x = self.setpoint_pose.pose.position.x
             y = data.get("y", self.setpoint_pose.pose.position.y)
-            if y is None:
+            if y is None or y == float("-inf"):
                 y = self.setpoint_pose.pose.position.y
             z = data.get("z", self.setpoint_pose.pose.position.z)
-            if z is None:
+            if z is None or z == float("-inf"):
                 z = self.setpoint_pose.pose.position.z
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)

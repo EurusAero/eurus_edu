@@ -21,14 +21,14 @@ class EurusControl:
         self.logger.setLevel(logging.DEBUG)
         self.logger.handlers = []
         
-        formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s')
+        formatter = logging.Formatter(u'[%(asctime)s] [%(levelname)s] %(message)s')
         
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
         
         if log_file:
-            file_handler = logging.FileHandler(log_file)
+            file_handler = logging.FileHandler(log_file,encoding='utf-8')
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
 
@@ -305,9 +305,9 @@ class EurusControl:
     def move_to_local_point(self, x = None, y = None, z = None, speed=1, yaw=None):
         return self._send_movement_command({
             "command": "move_to_local_point",
-            "x": float(x) if x is not None else None, 
-            "y": float(y) if y is not None else None, 
-            "z": float(z) if z is not None else None,
+            "x": float(x) if x is not None else float("-inf"), 
+            "y": float(y) if y is not None else float("-inf"), 
+            "z": float(z) if z is not None else float("-inf"),
             "yaw": float(yaw) if yaw is not None else None,
             "speed": float(speed)
         })
