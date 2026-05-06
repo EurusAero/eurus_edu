@@ -145,7 +145,6 @@ class EurusControl:
                 try:
                     chunk = self.sock.recv(1024)
                 except socket.timeout as e:
-                    if self.do_log: self.logger.warning(f"Таймаут сокета в listener server: {e}")
                     continue 
                 except Exception as e:
                     if self.do_log: self.logger.error(f"Ошибка в listener_server: {e}")
