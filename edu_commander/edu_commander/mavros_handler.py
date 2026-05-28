@@ -661,10 +661,11 @@ class MavrosHandler(Node):
             y_diff = y - self.local_pose.pose.position.y
             z_diff = z - self.local_pose.pose.position.z
 
+
             dist_diff = math.sqrt(x_diff**2 + y_diff**2 +z_diff**2)
 
             if not ignore_restrictions and dist_diff>self.max_travel_distance_per_command:
-                return False, f"Превышена максимальная дистанция перемещения за команду {dist_diff} из {self.max_travel_distance_per_command}"
+                return False, f"Превышена максимальная дистанция перемещения за команду {dist_diff} из {self.max_travel_distance_per_command}, из позиции х:{self.local_pose.pose.position.x}, y:{self.local_pose.pose.position.y}, z:{self.local_pose.pose.position.z}"
 
             try:                
                 q = self.local_pose.pose.orientation
@@ -718,7 +719,7 @@ class MavrosHandler(Node):
             dist_diff = math.sqrt(fwd_dist**2 + right_dist**2)
 
             if not ignore_restrictions and dist_diff > self.max_travel_distance_per_command:
-                return False, f"Превышена максимальная дистанция перемещения за команду {dist_diff} из {self.max_travel_distance_per_command}"
+                return False, f"Превышена максимальная дистанция перемещения за команду {dist_diff} из {self.max_travel_distance_per_command}, из позиции х:{self.local_pose.pose.position.x}, y:{self.local_pose.pose.position.y}, z:{self.local_pose.pose.position.z}"
 
             yaw = data.get("yaw", None)
             self.setpoint_speed = data.get("speed", 1.0)
