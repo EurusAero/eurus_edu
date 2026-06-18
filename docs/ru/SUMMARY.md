@@ -22,4 +22,5 @@
     - [Получение телеметрии](get_telemetry.md)
     - [Визуальные маркеры ArUco](aruco.md)
     - [Навигация по карте ArUco маркеров](navigation.md)
+    - [Симулятор](simulator.md)
     - [Примеры программ](sample_programs.md)
