@@ -37,8 +37,10 @@ camera = EurusCamera(ip, camera_port)
 
 - `ip`: ip дрона
 - `port`: int порт
-- `console_log`: bool true для вывода лога в консоль
+- `do_log`: bool true для переключения логирования
 - `log_file`: str файл для логирования
+- `socket_timeout_time`: Максимальное время ожидания подключения в секундах. Если соединение не установлено за указанное время, генерируется исключение
+- `auto_connect`: Если True, подключение к дрону выполняется автоматически при создании объекта. Если False, необходимо самостоятельно вызвать метод подключения
 
 **Подключение:**
 
@@ -202,7 +204,7 @@ drone.set_velocity(0, 0, 0, 0)
 
 _Команда действует до следующего вызова set_velocity_
 
-### request_telemetry
+### get_telemetry
 
 Получить текущую телеметрию дрона
 
@@ -244,7 +246,7 @@ _point_reached_
 **Пример:**
 
 ```python
-telemetry = drone.request_telemetry()
+telemetry = drone.get_telemetry()
 
 if telemetry:
     print("Высота:", telemetry["local_position"]["z"])
@@ -327,7 +329,7 @@ drone.led_control(
 - `True / False` - результат получения кадра
 - Сам кадр при успешном получении
 
-### get_targets
+### get_detection
 
 Возвращает словарь
 
