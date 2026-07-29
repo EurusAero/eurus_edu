@@ -338,6 +338,8 @@ map_path = /home/orangepi/ros2_ws/src/eurus_edu/edu_aruco_navigation/maps/map.cs
 
 - `camera_direction` - Направление камеры. Значение 0 соответствует камере, направленной вниз
 
+- `min_marker_size_ratio` - Защита от случайных ArUco-маркеров. За эталон берётся самый большой маркер в кадре; маркеры, чей размер меньше указанной доли (от 0.0 до 1.0) от самого большого, не учитываются при навигации. Например, `0.7` отбрасывает всё, что меньше 70% от самого большого маркера. Значение `0` отключает фильтр.
+
 **Пример:**
 
 ```
@@ -346,6 +348,7 @@ aruco_debug = true
 camera_topic = /edu/downward_camera
 camera_config_path = /home/orangepi/ros2_ws/src/eurus_edu/camera_calib/calibration_data.json
 camera_direction = 0
+min_marker_size_ratio = 0.7
 ```
 
 ## edu_api_server

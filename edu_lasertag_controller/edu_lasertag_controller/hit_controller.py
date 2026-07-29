@@ -56,14 +56,9 @@ class HitControllerNode(Node):
             self.get_logger().warn(f"Файл конфигурации не обнаружен по пути: {ini_path}.") 
      
         self.hit_gpio = GpioController(hit_pin)
-        
-        try:
-            self.hit_gpio.export()
-            self.hit_gpio.set_mode("in")
 
-        except Exception as e:
-            self.get_logger().error(f"Ошибка при инициализации GPIO: {e}")
-            
+        self._init_gpio_with_retry(hit_pin)
+
         self.gamestart_sub = self.create_subscription(
             String,
             '/edu/game_started',
@@ -72,6 +67,31 @@ class HitControllerNode(Node):
         )
         self.timer = self.create_timer(0.2, self.hit_controller)
         self.get_logger().info("Hit controller нода создана.")
+
+    def _init_gpio_with_retry(self, hit_pin, retry_delay=1.0):
+        """
+        Инициализирует GPIO через Sysfs с повторными попытками.
+
+        При старте сервиса права на sysfs-файлы GPIO могут ещё не быть выданы
+        (udev-правило применяется асинхронно), из-за чего запись падает с
+        'Permission denied' (OSError). В этом случае повторяем попытку, пока
+        инициализация не пройдёт успешно.
+        """
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                self.hit_gpio.export()
+                self.hit_gpio.set_mode("in")
+
+                self.get_logger().info(f"GPIO инициализирован через Sysfs. GPIO попадания: {hit_pin}")
+                return
+            except Exception as e:
+                self.get_logger().warn(
+                    f"Не удалось инициализировать GPIO (попытка {attempt}): {e}. "
+                    f"Повтор через {retry_delay} с..."
+                )
+                time.sleep(retry_delay)
 
     def gamestart_callback(self, msg):
         try:

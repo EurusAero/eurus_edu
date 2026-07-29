@@ -36,15 +36,8 @@ class LasertagNode(Node):
         self.shooting_sleep = shots_amount * 0.1
         
         self.laser_gpio = GpioController(laser_pin)
-        
-        try:
-            self.laser_gpio.export()     
-            self.laser_gpio.set_mode("out")
-            self.laser_gpio.write(0)
-            
-            self.get_logger().info(f"GPIO инициализирован через Sysfs. GPIO лазера: {laser_pin}")
-        except Exception as e:
-            self.get_logger().error(f"Ошибка при инициализации GPIO: {e}")
+
+        self._init_gpio_with_retry(laser_pin)
 
         self.lasertag_sub = self.create_subscription(
             String,
@@ -62,6 +55,32 @@ class LasertagNode(Node):
         self.get_logger().info(f"Lasertag нода создана. Слушает /edu/lasertag...")
         
         self._shooting_lock = threading.Lock()
+
+    def _init_gpio_with_retry(self, laser_pin, retry_delay=1.0):
+        """
+        Инициализирует GPIO через Sysfs с повторными попытками.
+
+        При старте сервиса права на sysfs-файлы GPIO могут ещё не быть выданы
+        (udev-правило применяется асинхронно), из-за чего запись падает с
+        'Permission denied' (OSError). В этом случае повторяем попытку, пока
+        инициализация не пройдёт успешно.
+        """
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                self.laser_gpio.export()
+                self.laser_gpio.set_mode("out")
+                self.laser_gpio.write(0)
+
+                self.get_logger().info(f"GPIO инициализирован через Sysfs. GPIO лазера: {laser_pin}")
+                return
+            except Exception as e:
+                self.get_logger().warn(
+                    f"Не удалось инициализировать GPIO (попытка {attempt}): {e}. "
+                    f"Повтор через {retry_delay} с..."
+                )
+                time.sleep(retry_delay)
 
     def lasertag_callback(self, msg):
         try:

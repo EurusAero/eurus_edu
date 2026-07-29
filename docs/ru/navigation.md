@@ -15,6 +15,7 @@ aruco_debug = true
 camera_topic = /edu/downward_camera
 camera_config_path = /home/orangepi/ros2_ws/src/eurus_edu/camera_calib/calibration_data.json
 camera_direction = 0
+min_marker_size_ratio = 0.7
 ```
 
 **Где:**
@@ -30,6 +31,8 @@ camera_direction = 0
 - `camera_config_path` - путь к файлу калибровки камеры
 
 - `camera_direction` - поворот камеры в градусах
+
+- `min_marker_size_ratio` - защита от случайных маркеров: маркеры, размер которых меньше указанной доли (0.0–1.0) от самого большого маркера в кадре, не учитываются. `0.7` отбрасывает всё меньше 70% от самого большого, `0` отключает фильтр
 
 ## Настройка карты маркеров
 

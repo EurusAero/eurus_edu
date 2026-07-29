@@ -48,6 +48,8 @@ class ArucoDetector(Node):
 
         self.camera_yaw_offset_deg = 0
 
+        self.min_marker_size_ratio = 0.7
+
 
         if os.path.exists(ini_path):
             try:
@@ -61,6 +63,7 @@ class ArucoDetector(Node):
                 self.camera_config_path = config["settings"].get("camera_config_path", "")
                 self.camera_yaw_offset_deg = config["settings"].getint("camera_direction", 0)
                 self.aruco_debug = config["settings"].getboolean("aruco_debug", False)
+                self.min_marker_size_ratio = config["settings"].getfloat("min_marker_size_ratio", self.min_marker_size_ratio)
             except Exception as e:
                 self.get_logger().error(f"При чтении конфига - {ini_path} произошла ошибка: {e}")
         else:
@@ -111,10 +114,17 @@ class ArucoDetector(Node):
         else:
             self.get_logger().warn("Конфигурация камеры не установлена в eurus.ini!")
 
+        # Обработка кадров вынесена в отдельный поток, чтобы тяжёлые CV-вычисления
+        # не блокировали исполнитель ROS (rclpy.spin). Очередь на 1 кадр: всегда
+        # берём самый свежий, старые отбрасываем. Так узел не "зависает" под
+        # нагрузкой, а все вызовы OpenCV выполняются строго из одного потока
+        # (конкурентный вызов cv2 из разных потоков может привести к deadlock).
+        self.frame_queue = queue.Queue(maxsize=1)
+
+        self.processing_thread = threading.Thread(target=self.processing_worker, daemon=True)
+        self.processing_thread.start()
+
         if self.aruco_debug:
-            self.debug_queue = queue.Queue(maxsize=2)
-            self.debug_thread = threading.Thread(target=self.debug_worker, daemon=True)
-            self.debug_thread.start()
             self.get_logger().debug("Установлен режим отладки")
         self.get_logger().info("Aruco detector нода создана")
         
@@ -195,15 +205,42 @@ class ArucoDetector(Node):
             self.get_logger().error(f"Ошибка при загрузке конфигурации камеры: {e}")
 
     def camera_sub(self, msg):
-        if self.navigation_state or self.aruco_debug:
+        # Callback исполнителя ROS: никакой тяжёлой работы, только передаём
+        # самый свежий кадр в рабочий поток. Если очередь занята - выбрасываем
+        # устаревший кадр и кладём новый, чтобы не накапливать задержку.
+        if not (self.navigation_state or self.aruco_debug):
+            return
+
+        item = (msg.data, msg.header.stamp)
+        try:
+            self.frame_queue.put_nowait(item)
+        except queue.Full:
             try:
-                np_arr = np.frombuffer(msg.data, np.uint8)
-                timestamp = msg.header.stamp
+                self.frame_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.frame_queue.put_nowait(item)
+            except queue.Full:
+                pass
+
+    def processing_worker(self):
+        # Единственный поток, выполняющий декодирование и все CV-вычисления.
+        while rclpy.ok():
+            try:
+                data, timestamp = self.frame_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            try:
+                np_arr = np.frombuffer(data, np.uint8)
                 image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                if image is None:
+                    continue
 
                 self.process_frame(image, timestamp)
             except Exception as e:
-                self.get_logger().error(f"Ошибка при декодировании изображения: {e}")
+                self.get_logger().error(f"Ошибка при обработке кадра: {e}")
 
 
     def aruco_board_snapshot_callback(self, request, response):
@@ -312,7 +349,7 @@ class ArucoDetector(Node):
             corners, ids = self.detect_aruco(image)
             rvec, tvec = None, None
             msg = String()
-            
+
             if (self.board is not None and
                 self.camera_matrix is not None and
                 ids is not None):
@@ -325,49 +362,117 @@ class ArucoDetector(Node):
                 self.payload["map_in_vision"] = self.map_in_vision
                 msg.data = json.dumps(self.payload)
                 self.aruco_nav_pub.publish(msg)
-                
-            if self.aruco_debug_pub.get_subscription_count() > 0 and self.aruco_debug:
-                try:
-                    self.debug_queue.put_nowait((image, corners, ids, rvec, tvec, timestamp))
-                except queue.Full:
-                    pass
+
+            if self.aruco_debug and self.aruco_debug_pub.get_subscription_count() > 0:
+                self.publish_debug_frame(image, corners, ids, rvec, tvec, timestamp)
 
         except Exception as e:
             self.get_logger().error(f"Ошибка при обработке кадра: {e}")
 
-    def debug_worker(self):
-        while rclpy.ok():
-            try:
-                item = self.debug_queue.get(timeout=1.0)
-                image, corners, ids, rvec, tvec, timestamp = item
-
-                if ids is not None:
-                    cv2.aruco.drawDetectedMarkers(image, corners, ids)
-
-                if rvec is not None and tvec is not None and self.camera_matrix is not None:
-                    cv2.drawFrameAxes(image, self.camera_matrix, self.dist_coeffs, rvec, tvec, 0.1)
-
-                debug_msg = CompressedImage()
-                debug_msg.header.stamp = timestamp
-                debug_msg.header.frame_id = "aruco"
-                debug_msg.format = "jpeg"
-
-                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
-                success, encoded_image = cv2.imencode(".jpg", image, encode_param)
-
-                if success:
-                    debug_msg.data = encoded_image.tobytes()
-                    self.aruco_debug_pub.publish(debug_msg)
-
-            except queue.Empty:
-                continue
-            except Exception as e:
-                self.get_logger().error(f"Ошибка в режиме отладки: {e}")
-
     def detect_aruco(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = self.aruco_detector.detectMarkers(gray)
+        corners, ids = self.filter_small_markers(corners, ids)
         return corners, ids
+
+    def draw_axes_safe(self, image, rvec, tvec, length=0.1):
+        # Безопасная замена cv2.drawFrameAxes.
+        # При позе от одиночного/неоднозначного маркера проекция осей может
+        # уходить в NaN/Inf или гигантские координаты, и внутренний cv2.line
+        # намертво зависает при растеризации такой линии. Поэтому сначала
+        # проецируем точки сами, проверяем их, и только потом рисуем.
+        h, w = image.shape[:2]
+        axis_points = np.float32([
+            [0, 0, 0],
+            [length, 0, 0],
+            [0, length, 0],
+            [0, 0, length],
+        ]).reshape(-1, 3)
+
+        try:
+            img_pts, _ = cv2.projectPoints(axis_points, rvec, tvec, self.camera_matrix, self.dist_coeffs)
+        except Exception as e:
+            self.get_logger().debug(f"draw_axes_safe: projectPoints не удался ({e}), оси не рисуем")
+            return
+
+        img_pts = img_pts.reshape(-1, 2)
+
+        if not np.all(np.isfinite(img_pts)):
+            self.get_logger().debug("draw_axes_safe: не-конечные координаты (NaN/Inf), оси не рисуем")
+            return
+
+        # Ограничение на разумный диапазон пикселей: если проекция вылетела
+        # далеко за пределы кадра - поза мусорная, рисовать нельзя (иначе cv2.line зависнет).
+        limit = 5 * max(w, h)
+        if np.any(np.abs(img_pts) > limit):
+            self.get_logger().debug("draw_axes_safe: координаты вне допустимого диапазона, оси не рисуем")
+            return
+
+        origin = tuple(np.int32(img_pts[0]))
+        x_tip = tuple(np.int32(img_pts[1]))
+        y_tip = tuple(np.int32(img_pts[2]))
+        z_tip = tuple(np.int32(img_pts[3]))
+
+        cv2.line(image, origin, x_tip, (0, 0, 255), 2)  # X - красный
+        cv2.line(image, origin, y_tip, (0, 255, 0), 2)  # Y - зелёный
+        cv2.line(image, origin, z_tip, (255, 0, 0), 2)  # Z - синий
+
+    def publish_debug_frame(self, image, corners, ids, rvec, tvec, timestamp):
+        # Вызывается из processing_worker - тот же поток, что и детекция,
+        # поэтому все вызовы OpenCV сериализованы и безопасны.
+        try:
+            if ids is not None:
+                cv2.aruco.drawDetectedMarkers(image, corners, ids)
+
+            if rvec is not None and tvec is not None and self.camera_matrix is not None:
+                self.draw_axes_safe(image, rvec, tvec, 0.1)
+
+            debug_msg = CompressedImage()
+            debug_msg.header.stamp = timestamp
+            debug_msg.header.frame_id = "aruco"
+            debug_msg.format = "jpeg"
+
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+            success, encoded_image = cv2.imencode(".jpg", image, encode_param)
+
+            if success:
+                debug_msg.data = encoded_image.tobytes()
+                self.aruco_debug_pub.publish(debug_msg)
+
+        except Exception as e:
+            self.get_logger().error(f"Ошибка в режиме отладки: {e}")
+
+    def filter_small_markers(self, corners, ids):
+        """
+        Защита от случайных ArUco маркеров.
+
+        За эталон берётся самый большой маркер в кадре. Все маркеры, чей
+        линейный размер меньше self.min_marker_size_ratio от самого большого,
+        отбрасываются. При min_marker_size_ratio <= 0 фильтр отключён.
+        """
+        if (ids is None or len(corners) <= 1 or self.min_marker_size_ratio <= 0):
+            return corners, ids
+
+        # Линейный размер маркера как корень из площади четырёхугольника,
+        # чтобы порог отношения был в тех же единицах, что и стороны маркера.
+        sizes = [math.sqrt(abs(cv2.contourArea(c.reshape(-1, 2).astype(np.float32)))) for c in corners]
+        max_size = max(sizes)
+        if max_size <= 0:
+            return corners, ids
+
+        threshold = max_size * self.min_marker_size_ratio
+
+        filtered_corners = []
+        filtered_ids = []
+        for corner, marker_id, size in zip(corners, ids, sizes):
+            if size >= threshold:
+                filtered_corners.append(corner)
+                filtered_ids.append(marker_id)
+
+        if not filtered_ids:
+            return corners, ids
+
+        return tuple(filtered_corners), np.array(filtered_ids, dtype=ids.dtype)
 
     def calculate_drone_pose(self, corners, ids, timestamp):
         try:
@@ -383,12 +488,12 @@ class ArucoDetector(Node):
                     self.aruco_nav_pub.publish(msg)
                 else:
                     self.get_logger().debug("Аруко карта не видна")
-                
+
                 return None, None
             else:
                 self.get_logger().debug("Не обнаружено аруко маркеров")
-            
-            
+
+
             retval, rvec, tvec = cv2.solvePnP(obj_points, img_points, self.camera_matrix, self.dist_coeffs)
         except Exception as e:
             self.get_logger().error(f"Ошибка при расчете позиции по аруко маркерам: {e}")

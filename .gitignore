@@ -5,3 +5,5 @@ _book/
 *.mp4
 .vscode/
 .codex/
+__pycache__/
+drone_lasertag.py
