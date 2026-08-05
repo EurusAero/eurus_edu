@@ -6,6 +6,12 @@
 sudo apt update && sudo apt upgrade -y
 ```
 
+#### Установка зависимотей
+
+```bash
+sudo apt install -y python3 python3-pip swig git net-tools
+```
+
 ## Клонировать репозиторий
 
 ```bash
@@ -82,11 +88,14 @@ sudo reboot
 
 ## Запуск сервисов
 
+```bash
 sudo cp ~/ros2_ws/src/eurus_edu/services/\*.service /etc/systemd/system
+```
 
 Активируем все сервисы:
+```bash
 sudo systemctl enable edu\_....service
-
+```
 ## WIFI hotspot
 
 ```bash
