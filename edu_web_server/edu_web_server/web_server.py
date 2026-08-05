@@ -1,5 +1,4 @@
 import threading
-import time
 import subprocess
 import os
 import configparser
@@ -29,8 +28,10 @@ if config.has_section('video_topics'):
 
 app = Flask(__name__)
 
+# topic_name -> (seq, jpeg_bytes). Счётчик нужен, чтобы не отдавать
+# в браузер один и тот же кадр повторно.
 current_frames = {}
-frame_lock = threading.Lock()
+frame_cond = threading.Condition()
 
 class WebServerNode(Node):
     def __init__(self):
@@ -39,7 +40,7 @@ class WebServerNode(Node):
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10
+            depth=1
         )
 
         for name, topic in VIDEO_TOPICS.items():
@@ -56,25 +57,29 @@ class WebServerNode(Node):
         self.get_logger().info(f'Web server нода создана.')
 
     def listener_callback(self, msg, topic_name):
-        with frame_lock:
-            current_frames[topic_name] = bytes(msg.data)
+        with frame_cond:
+            seq, _ = current_frames.get(topic_name, (0, None))
+            current_frames[topic_name] = (seq + 1, bytes(msg.data))
+            frame_cond.notify_all()
 
 
 def generate_frames(topic_name):
-    fps = 30
-    frame_time = 1 / fps
+    # Отдаём по приходу кадра, без sleep: кадр уходит в браузер сразу,
+    # и один и тот же кадр не отправляется дважды.
+    last_seq = 0
     while True:
-        start_time = time.time()
+        with frame_cond:
+            seq, frame_data = current_frames.get(topic_name, (0, None))
+            if seq == last_seq:
+                frame_cond.wait(1.0)
+                seq, frame_data = current_frames.get(topic_name, (0, None))
 
-        with frame_lock:
-            frame_data = current_frames.get(topic_name)
+        if frame_data is None or seq == last_seq:
+            continue
 
-        if frame_data is not None:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
-
-        delta_time = time.time() - start_time
-        time.sleep(max(frame_time - delta_time, 0))
+        last_seq = seq
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
 
 def get_service_status(service):
     result = subprocess.run(

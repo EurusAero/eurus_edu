@@ -234,7 +234,10 @@ class ArucoDetector(Node):
 
             try:
                 np_arr = np.frombuffer(data, np.uint8)
-                image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                # Декодируем сразу в оттенки серого: libjpeg берёт только
+                # Y-плоскость, без upsampling цветности и конверсии YCbCr->BGR.
+                # Цвет не нужен ни детектору, ни отладочному кадру.
+                image = cv2.imdecode(np_arr, cv2.IMREAD_GRAYSCALE)
                 if image is None:
                     continue
 
@@ -370,8 +373,7 @@ class ArucoDetector(Node):
             self.get_logger().error(f"Ошибка при обработке кадра: {e}")
 
     def detect_aruco(self, image):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = self.aruco_detector.detectMarkers(gray)
+        corners, ids, _ = self.aruco_detector.detectMarkers(image)
         corners, ids = self.filter_small_markers(corners, ids)
         return corners, ids
 
@@ -413,16 +415,19 @@ class ArucoDetector(Node):
         y_tip = tuple(np.int32(img_pts[2]))
         z_tip = tuple(np.int32(img_pts[3]))
 
-        cv2.line(image, origin, x_tip, (0, 0, 255), 2)  # X - красный
-        cv2.line(image, origin, y_tip, (0, 255, 0), 2)  # Y - зелёный
-        cv2.line(image, origin, z_tip, (255, 0, 0), 2)  # Z - синий
+        # Кадр одноканальный, поэтому оси различаются яркостью, а не цветом
+        cv2.line(image, origin, x_tip, 255, 2)  # X - белый
+        cv2.line(image, origin, y_tip, 170, 2)  # Y - светло-серый
+        cv2.line(image, origin, z_tip, 85, 2)   # Z - тёмно-серый
 
     def publish_debug_frame(self, image, corners, ids, rvec, tvec, timestamp):
         # Вызывается из processing_worker - тот же поток, что и детекция,
         # поэтому все вызовы OpenCV сериализованы и безопасны.
         try:
             if ids is not None:
-                cv2.aruco.drawDetectedMarkers(image, corners, ids)
+                # Явно белый: цвет по умолчанию зелёный, а на одноканальном
+                # кадре берётся только первая компонента - вышел бы чёрный
+                cv2.aruco.drawDetectedMarkers(image, corners, ids, (255, 255, 255))
 
             if rvec is not None and tvec is not None and self.camera_matrix is not None:
                 self.draw_axes_safe(image, rvec, tvec, 0.1)

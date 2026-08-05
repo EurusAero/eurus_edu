@@ -28,18 +28,22 @@ class CameraBridgeNode(Node):
             depth=1
         )
         
-        self.latest_frames_b64 = {}
+        # camera_name -> (seq, jpeg_bytes). Храним сырой JPEG: base64 считается
+        # только в момент отправки, а не на каждый входящий кадр.
+        self.latest_frames = {}
         self.subs = {}
-        
+
         self.target_sub = self.create_subscription(
             String,
             '/edu/targets',
             self.target_callback,
             10
         )
-        
+
         self.latest_targets = None
         self.lock = threading.Lock()
+        # будит потоки отдачи сразу по приходу кадра
+        self.frame_cond = threading.Condition()
         
         self.get_logger().info("MultiCameraBridgeNode запущен, ожидание конфигурации...")
 
@@ -47,9 +51,9 @@ class CameraBridgeNode(Node):
         try:
             topic_name = f'/edu/{camera_name}'
             
-            with self.lock:
-                self.latest_frames_b64[camera_name] = None
-                
+            with self.frame_cond:
+                self.latest_frames[camera_name] = (0, None)
+
             cb = lambda msg, c_name=camera_name: self.image_callback(msg, c_name)
             
             self.subs[camera_name] = self.create_subscription(
@@ -64,9 +68,10 @@ class CameraBridgeNode(Node):
 
     def image_callback(self, msg: CompressedImage, camera_name: str):
         try:
-            b64_data = base64.b64encode(msg.data).decode('utf-8')
-            with self.lock:
-                self.latest_frames_b64[camera_name] = b64_data
+            with self.frame_cond:
+                seq, _ = self.latest_frames.get(camera_name, (0, None))
+                self.latest_frames[camera_name] = (seq + 1, bytes(msg.data))
+                self.frame_cond.notify_all()
         except Exception as e:
             self.get_logger().warn(f"Ошибка обработки кадра для {camera_name}: {e}")
 
@@ -79,9 +84,18 @@ class CameraBridgeNode(Node):
             self.get_logger().warn(f"Получен битый JSON в /edu/targets: {msg.data}")
 
     def get_frame(self, camera_name):
-        with self.lock:
-            return self.latest_frames_b64.get(camera_name)
-            
+        with self.frame_cond:
+            return self.latest_frames.get(camera_name, (0, None))
+
+    def wait_frame(self, camera_name, last_seq, timeout=1.0):
+        """Ждёт кадр свежее last_seq. Возвращает (seq, jpeg_bytes)."""
+        with self.frame_cond:
+            seq, data = self.latest_frames.get(camera_name, (0, None))
+            if seq != last_seq:
+                return seq, data
+            self.frame_cond.wait(timeout)
+            return self.latest_frames.get(camera_name, (0, None))
+
     def get_targets(self):
         with self.lock:
             return self.latest_targets
@@ -104,7 +118,7 @@ class CameraSession:
     def start(self):
         self.ros_node.get_logger().info(f"[{self.camera_name}] Видео-сессия начата для {self.addr}")
         buffer = b""
-        
+
         try:
             while self.running:
                 chunk = self.conn.recv(BUFFER_SIZE)
@@ -158,9 +172,10 @@ class CameraSession:
             self.ros_node.get_logger().error(f"Ошибка при обработке команды: {e}")
 
     def _send_single_frame(self):
-        frame = self.ros_node.get_frame(self.camera_name)
+        _, frame = self.ros_node.get_frame(self.camera_name)
         if frame:
-            response = {"command": "frame_response", "image": frame, "timestamp": time.time()}
+            b64_data = base64.b64encode(frame).decode('utf-8')
+            response = {"command": "frame_response", "image": b64_data, "timestamp": time.time()}
             self.send_json(response)
         else:
             self.send_json({"command": "error", "message": "Нет доступных кадров"})
@@ -186,18 +201,20 @@ class CameraSession:
         self.ros_node.get_logger().info(f"[{self.camera_name}] Поток видео остановлен.")
 
     def _stream_loop(self):
-        interval = 1.0 / self.fps
-        
+        last_seq = 0
+
+        # Отправка по приходу кадра, без sleep: кадр уходит клиенту сразу,
+        # и один и тот же кадр не отправляется дважды.
         while self.is_streaming and self.running:
-            now = time.time()
-            frame = self.ros_node.get_frame(self.camera_name)
-            if frame:
-                response = {"command": "stream_frame", "image": frame, "timestamp": now}
-                if not self.send_json(response):
-                    break
-                
-            loop_interval = time.time() - now
-            time.sleep(max(0, (interval - loop_interval)))
+            seq, frame = self.ros_node.wait_frame(self.camera_name, last_seq)
+            if frame is None or seq == last_seq:
+                continue
+
+            last_seq = seq
+            b64_data = base64.b64encode(frame).decode('utf-8')
+            response = {"command": "stream_frame", "image": b64_data, "timestamp": time.time()}
+            if not self.send_json(response):
+                break
 
 
 class SocketServerThread(threading.Thread):

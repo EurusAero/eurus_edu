@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 import json
 import os
+import threading
+import queue
 from ultralytics import YOLO
 
 
@@ -62,11 +64,38 @@ class YoloDetectorNode(Node):
         except Exception as e:
             self.get_logger().error(f"Ошибка загрузки модели: {e}")
 
+        # Инференс вынесен в отдельный поток, чтобы не блокировать исполнитель
+        # ROS. Очередь на 1 кадр: всегда берём самый свежий, старые отбрасываем.
+        self.frame_queue = queue.Queue(maxsize=1)
+        self.processing_thread = threading.Thread(target=self.processing_worker, daemon=True)
+        self.processing_thread.start()
+
         self.get_logger().info("YoloDetector нода создана.")
 
     def image_callback(self, msg: CompressedImage):
+        # Никакой тяжёлой работы в колбэке: если рабочий поток занят,
+        # выбрасываем устаревший кадр и кладём свежий.
         try:
-            np_arr = np.frombuffer(msg.data, np.uint8)
+            self.frame_queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self.frame_queue.put_nowait(msg.data)
+        except queue.Full:
+            pass
+
+    def processing_worker(self):
+        # Единственный поток, выполняющий декодирование и инференс.
+        while rclpy.ok():
+            try:
+                data = self.frame_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            self.detect(data)
+
+    def detect(self, data):
+        try:
+            np_arr = np.frombuffer(data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
             if frame is None:
