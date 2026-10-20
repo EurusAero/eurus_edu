@@ -8,15 +8,25 @@ import numpy as np
 import cv2
 
 from .utils import SocketsUtils
+from .transport import open_socket
 from .const import *
 
 class EurusCamera:
-    def __init__(self, ip: str, port: int = 8001, log_file: str = None):
+    def __init__(self, ip: str, port: int = 8001, log_file: str = None, *,
+                 wss_cookie: str | None = None, wss_headers: dict | None = None,
+                 wss_origin: str | None = None, wss_ca_file: str | None = None,
+                 wss_auth_timeout: float = 120):
         self.ip = ip
         self.port = port
+        self._wss_options = dict(wss_cookie=wss_cookie, wss_headers=wss_headers,
+                                 wss_origin=wss_origin, wss_ca_file=wss_ca_file,
+                                 wss_auth_timeout=wss_auth_timeout)
         self.sock = None
         self.is_connected = False
         self.running = False
+        self.is_reconnecting = False
+        self._stop_event = threading.Event()
+        self._stream_requested = False
         
         self.logger = logging.getLogger("EurusCamera")
         self.logger.setLevel(logging.INFO)
@@ -34,7 +44,7 @@ class EurusCamera:
 
         self.sock_utils = SocketsUtils()
         self.listener_thread = None
-        self._socket_lock = threading.Lock()
+        self._socket_lock = threading.RLock()
         
         self._frame_lock = threading.Lock()
         self._current_frame = None 
@@ -47,36 +57,79 @@ class EurusCamera:
         self._last_target_request_ts = 0 
         
     def connect(self):
-        if self.is_connected:
+        if self.is_connected or self.running:
             self.logger.warning("Уже подключен.")
             return
 
         try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(2.0)
-            self.sock.connect((self.ip, self.port))
+            self._stop_event.clear()
+            self.sock = open_socket(self.ip, self.port, 2.0, **self._wss_options)
             self.is_connected = True
             self.running = True
             
             self.listener_thread = threading.Thread(target=self._listen_camera, daemon=True)
             self.listener_thread.start()
             
-            self.logger.info(f"Подключено к камере {self.ip}:{self.port}")
+            self.logger.info("Подключено к камере через WSS" if self.ip.startswith('wss://')
+                             else f"Подключено к камере {self.ip}:{self.port}")
             
         except Exception as e:
             self.logger.error(f"Ошибка подключения к камере: {e}")
             self.is_connected = False
 
     def disconnect(self):
-        self.running = False
-        self.is_connected = False
-        self._targets_event.set()
-        if self.sock:
-            try:
-                self.sock.close()
-            except Exception:
-                pass
+        self._stop_event.set()
+        with self._socket_lock:
+            self._stream_requested = False
+            self.running = False
+            self.is_connected = False
+            self._targets_event.set()
+            if self.sock:
+                try:
+                    self.sock.close()
+                except Exception:
+                    pass
         self.logger.info("Соединение с камерой закрыто.")
+
+    def _recover(self):
+        if not self.running or not self.ip.startswith('wss://') or self._stop_event.is_set():
+            return False
+        self.is_connected = False
+        self.is_reconnecting = True
+        self.sock.close()
+        with self._frame_lock:
+            self._current_frame = None
+        with self._targets_lock:
+            self._latest_targets = None
+        options = dict(self._wss_options, wss_auth_timeout=0)
+        deadline = time.monotonic() + 30
+        delay = .5
+        try:
+            while time.monotonic() < deadline and not self._stop_event.wait(delay):
+                fresh = None
+                try:
+                    fresh = open_socket(self.ip, self.port, 2.0, **options)
+                    with self._socket_lock:
+                        if self._stop_event.is_set():
+                            fresh.close()
+                            return False
+                        self.sock = fresh
+                        if self._stream_requested:
+                            self.sock_utils.send_json(fresh, {"command": "get_stream"})
+                        self.is_connected = True
+                    self.logger.info("WSS камеры восстановлен; подписка на поток возобновлена.")
+                    return True
+                except Exception as error:
+                    if fresh:
+                        fresh.close()
+                    # Revocation must never be bypassed by another browser approval.
+                    if isinstance(error, ConnectionError) and 'HTTP 403' in str(error):
+                        self.logger.warning("Доступ к камере отклонён. Подключитесь заново для авторизации.")
+                        break
+                    delay = min(3, delay * 2)
+            return False
+        finally:
+            self.is_reconnecting = False
 
     def _listen_camera(self):
         buffer = b""
@@ -87,10 +140,21 @@ class EurusCamera:
                 except socket.timeout:
                     continue
                 except OSError:
+                    if self._recover():
+                        buffer = b""
+                        continue
+                    self.disconnect()
                     break
 
                 if not chunk:
-                    self.logger.warning("Сервер камеры закрыл соединение.")
+                    if self._stop_event.is_set():
+                        break
+                    code = getattr(self.sock, 'close_code', None)
+                    self.logger.warning("Сервер камеры закрыл соединение" +
+                                        (f" (WSS code {code})." if code is not None else "."))
+                    if self._recover():
+                        buffer = b""
+                        continue
                     self.disconnect()
                     break
                 
@@ -145,17 +209,26 @@ class EurusCamera:
     def _send_cmd(self, cmd_dict):
         if not self.is_connected: return
         with self._socket_lock:
+            if not self.is_connected or self._stop_event.is_set(): return
             try:
                 self.sock_utils.send_json(self.sock, cmd_dict)
             except Exception as e:
                 self.logger.error(f"Ошибка отправки команды: {e}")
-                self.disconnect()
+                if self.ip.startswith('wss://') and self.running:
+                    # Wake the single reader; it owns reconnect and resubscription.
+                    self.sock.close()
+                else:
+                    self.disconnect()
 
     def start_stream(self):
-        self._send_cmd({"command": "get_stream"})
+        with self._socket_lock:
+            self._stream_requested = True
+            self._send_cmd({"command": "get_stream"})
 
     def stop_stream(self):
-        self._send_cmd({"command": "stop_stream"})
+        with self._socket_lock:
+            self._stream_requested = False
+            self._send_cmd({"command": "stop_stream"})
 
     def read(self):
         """Возвращает последний кадр: (True/False, frame)"""

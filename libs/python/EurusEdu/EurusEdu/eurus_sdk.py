@@ -6,20 +6,30 @@ import time
 
 from .const import *
 from .utils import SocketsUtils
+from .transport import open_socket
 
 
 class EurusControl:
     def __init__(
         self,
         ip: str,
-        port: int,
+        port: int = 65432,
         do_log: bool = True,
         log_file: str = None,
         socket_timeout_time: float = 3,
         auto_connect: bool = True,
+        *,
+        wss_cookie: str | None = None,
+        wss_headers: dict | None = None,
+        wss_origin: str | None = None,
+        wss_ca_file: str | None = None,
+        wss_auth_timeout: float = 120,
     ):
         self.ip = ip
         self.port = port
+        self._wss_options = dict(wss_cookie=wss_cookie, wss_headers=wss_headers,
+                                 wss_origin=wss_origin, wss_ca_file=wss_ca_file,
+                                 wss_auth_timeout=wss_auth_timeout)
         self.sock = None
         self.is_connected = False
         self.running = False
@@ -83,9 +93,7 @@ class EurusControl:
             return False
 
         try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(self.socket_timeout_time)
-            self.sock.connect((self.ip, self.port))
+            self.sock = open_socket(self.ip, self.port, self.socket_timeout_time, **self._wss_options)
             self.is_connected = True
             self.running = True
 
@@ -100,7 +108,8 @@ class EurusControl:
             self.heartbeat_thread.start()
 
             if self.do_log:
-                self.logger.info(f"Успешное подключение к {self.ip}:{self.port}")
+                self.logger.info("Успешное подключение через WSS" if self.ip.startswith('wss://')
+                                 else f"Успешное подключение к {self.ip}:{self.port}")
 
             return True
 
@@ -203,6 +212,9 @@ class EurusControl:
                                     self._last_laser_status = code
                                     self._laser_event.set()
                             else:
+                                # Ignore status from asynchronous commands while waiting for another action.
+                                if action_name != getattr(self, "_expected_action", None):
+                                    continue
                                 self._last_action_message = message
                                 if self.do_log:
                                     self.logger.info(
@@ -286,8 +298,12 @@ class EurusControl:
                 self._response_event.clear()
                 self._action_started_event.clear()
                 self._action_finished_event.clear()
+                self._last_response_status = None
+                self._last_action_code = None
+                self._last_action_message = ""
 
                 cmd_name = payload["command"]
+                self._expected_action = cmd_name
                 self._send_raw(payload)
 
                 if not self._smart_wait(
@@ -327,12 +343,13 @@ class EurusControl:
                 if self._last_action_code == COMPLETED_STATUS:
                     if self.do_log:
                         self.logger.info(f"Команда {cmd_name} успешно завершена.")
+                    return self.running and self.is_connected
                 else:
                     if self.do_log:
                         self.logger.error(
                             f"Команда {cmd_name} провалена (Status: {self._last_action_code}). Msg: {self._last_action_message}"
                         )
-                    self.disconnect()
+                    # Command rejection must not close a healthy transport.
                 return False
 
         except KeyboardInterrupt:
@@ -504,7 +521,7 @@ class EurusControl:
             "speed": float(speed),
         }
 
-        self._send_movement_command(payload)
+        return self._send_movement_command(payload)
 
     def start_game(self, start_game: bool = False, team_color: str | list = "red"):
         if not self.is_connected:
